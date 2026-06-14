@@ -450,7 +450,7 @@ const blockSpecs = [
             const variable = ctx.variable(unwrap(m[1]));
             return {
                 fields: {VARIABLE: [variable.name, variable.id]},
-                inputs: {VALUE: valueBlockInput(m[2], ctx, true)}
+                inputs: {VALUE: changeByValueInput(variable.name, m[2], ctx)}
             };
         },
         toText: (block, readInput) => `[${fieldValue(block, 'VARIABLE')} v] を ${roundInput(readInput(block, 'VALUE', '1'))} ずつ変える`
@@ -609,6 +609,17 @@ function findBinaryExpression (value) {
     return null;
 }
 
+function changeByValueInput (variableName, value, ctx) {
+    const expression = findBinaryExpression(value);
+    if (expression && expression.opcode === 'operator_add') {
+        const left = unwrap(expression.left);
+        const right = unwrap(expression.right);
+        if (left === variableName) return valueBlockInput(expression.right, ctx, true, true);
+        if (right === variableName) return valueBlockInput(expression.left, ctx, true, true);
+    }
+    return valueBlockInput(value, ctx, true);
+}
+
 function variableBlockInput (name, ctx) {
     const variable = ctx.variable(unwrap(name));
     return addReporterBlock(ctx, 'data_variable', {}, {
@@ -676,7 +687,8 @@ class ScratchTextCompiler {
                 extensions: []
             };
         }
-        if (Object.keys(target.blocks).length === 0 && text.trim()) {
+        const hasCompiledScripts = Object.values(target.blocks).some(block => block.topLevel);
+        if (!hasCompiledScripts && text.trim()) {
             return typeof baseProject === 'string' ?
                 JSON.parse(baseProject) :
                 JSON.parse(JSON.stringify(baseProject));
@@ -726,11 +738,14 @@ class ScratchTextCompiler {
                 return;
             }
             const compiledTarget = this.compileTarget(section.code);
-            const explicitlyEmpty = section.code.split('\n')
+            const sectionLines = section.code.split('\n')
                 .map(line => line.trim())
-                .filter(Boolean)
+                .filter(Boolean);
+            const explicitlyEmpty = sectionLines.length > 0 && sectionLines
                 .every(line => /^#\s*(?:ブロックなし|ここにブロック)$/u.test(line));
-            if (!explicitlyEmpty && Object.keys(compiledTarget.blocks).length === 0) {
+            const hasCompiledScripts = Object.values(compiledTarget.blocks)
+                .some(block => block.topLevel);
+            if (!explicitlyEmpty && !hasCompiledScripts) {
                 return;
             }
             target.blocks = compiledTarget.blocks;

@@ -71,6 +71,7 @@ const SYSTEM_PROMPT = `
 * \`...\`、\`条件\`、\`ここにブロック\`、空の \`<>\` や \`()\` は、実際のコードとして使用禁止です。
 * 数値・値・丸型レポーターは \`(値)\`、文字列は \`[文字列]\`、メニューは \`(選択肢 v)\` または \`[選択肢 v]\`、真偽値は完全なBooleanブロック \`<...>\` で書いてください。
 * 変数を値として使う場合は必ず \`(変数名)\` と書いてください。演算では各入力を個別の丸括弧で囲み、\`((ジャンプ力) + (重力))\` のように書いてください。\`(ジャンプ力 + 重力)\` や \`ジャンプ力 + 重力\` は使わないでください。
+* 「ずつ変える」には増減量だけを指定します。現在値を含めないでください。例えば重力を適用するときは \`[ジャンプ力 v] を (重力) ずつ変える\` が正しく、\`[ジャンプ力 v] を ((ジャンプ力) + (重力)) ずつ変える\` は誤りです。現在値との計算結果を代入する場合は \`[ジャンプ力 v] を ((ジャンプ力) + (重力)) にする\` を使います。
 * \`もし\`、\`ずっと\`、\`繰り返す\` の内側もインデントしません。C型制御ブロック1個につき、対応する \`end\` を必ず1行書いてください。
 * if/elseは \`もし <完全なBooleanブロック> なら\`、処理、\`でなければ\`、処理、\`end\` の順です。
 * 条件欄には文字列を書かず、下記の「調べる」または「演算」にあるBooleanブロックだけを書いてください。
@@ -86,6 +87,7 @@ const SYSTEM_PROMPT = `
 6. 括弧 \`()\`、\`[]\`、\`<>\` がすべて閉じている。
 7. 変更しないスクリプトも含め、現在の全コードが保持されている。
 8. 変数・座標・演算が普通の文字列ではなく、\`(変数名)\`、\`(y座標)\`、\`((値) + (値))\` の形になっている。
+9. 「ずつ変える」の入力に、変更対象と同じ変数自身を含めていない。
 
 ## 厳密な記法例
 比較条件: \`<(10) > (5)>\`
@@ -191,7 +193,7 @@ end
 ### 変数
 * \`(my variable)\`: 変数の値を返す。
 * \`[my variable v] を (0) にする\`: 変数へ値を設定する。
-* \`[my variable v] を (1) ずつ変える\`: 変数を増減する。
+* \`[my variable v] を (1) ずつ変える\`: 指定した増減量だけ変数を増減する。入力に \`(my variable)\` 自身を含めない。
 * \`変数 [my variable v] を表示する\` / \`変数 [my variable v] を隠す\`: 変数モニターを表示・非表示にする。
 
 ### リスト
@@ -400,14 +402,22 @@ ${inputValue}
 
         let newProjectJson = null;
         try {
+            const currentProject = typeof projectJson === 'string' ?
+                JSON.parse(projectJson) :
+                projectJson;
             newProjectJson = ScratchTextCompiler.compile(
                 scratchCode,
-                projectJson,
+                currentProject,
                 this.props.vm.editingTarget && this.props.vm.editingTarget.id
             );
-            const hasBlocks = newProjectJson.targets.some(target => Object.keys(target.blocks || {}).length > 0);
-            if (!hasBlocks) {
-                throw new Error('ScratchBlocks response did not contain supported blocks.');
+            const hadVisibleScripts = currentProject.targets.some(target => (
+                Object.values(target.blocks || {}).some(block => block.topLevel)
+            ));
+            const hasVisibleScripts = newProjectJson.targets.some(target => (
+                Object.values(target.blocks || {}).some(block => block.topLevel)
+            ));
+            if (hadVisibleScripts && !hasVisibleScripts) {
+                throw new Error('ScratchBlocks response did not contain visible scripts.');
             }
         } catch (e) {
             console.error('Error compiling ScratchBlocks response:', e);

@@ -92,6 +92,21 @@ test('compiles variables and arithmetic reporters inside value inputs', () => {
     );
 });
 
+test('removes the current variable from an incorrectly compounded change-by value', () => {
+    const project = ScratchTextCompiler.compile([
+        '[重力 v] を (-1) にする',
+        '[ジャンプ力 v] を (0) にする',
+        '[ジャンプ力 v] を ((ジャンプ力) + (重力)) ずつ変える'
+    ].join('\n'));
+    const change = getBlocksByOpcode(project, 'data_changevariableby')[0];
+    const valueId = change.inputs.VALUE[1];
+    const valueBlock = project.targets[0].blocks[valueId];
+
+    expect(valueBlock.opcode).toBe('data_variable');
+    expect(valueBlock.fields.VARIABLE[0]).toBe('重力');
+    expect(getBlocksByOpcode(project, 'operator_add')).toHaveLength(0);
+});
+
 test('replaces malformed Boolean input with a valid false Boolean block', () => {
     const project = ScratchTextCompiler.compile([
         '⚑ が押されたとき',
@@ -270,6 +285,30 @@ test('preserves existing target code when a section has only unsupported syntax'
     const project = ScratchTextCompiler.compile('# Stage\n未対応だが正しいかもしれないブロック', baseProject);
 
     expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+});
+
+test('preserves existing target code when its target section is empty', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[keep] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+
+    const project = ScratchTextCompiler.compile('# Sprite1\n', baseProject);
+
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+});
+
+test('clears existing target code only with an explicit empty marker', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[remove] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+
+    const project = ScratchTextCompiler.compile('# Sprite1\n# ブロックなし', baseProject);
+
+    expect(Object.keys(project.targets[0].blocks)).toHaveLength(0);
 });
 
 test('preserves the current target when a response has no supported blocks', () => {
