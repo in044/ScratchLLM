@@ -189,7 +189,13 @@ const blockSpecs = [
     {
         opcode: 'motion_setx',
         patterns: [/^x座標を (.+?) にする$/u],
-        build: (m, ctx) => ({inputs: {X: valueBlockInput(m[1], ctx, true)}}),
+        build: (m, ctx) => {
+            const incrementInput = selfUpdateValueInput('x座標', m[1], ctx);
+            return incrementInput ? {
+                opcode: 'motion_changexby',
+                inputs: {DX: incrementInput}
+            } : {inputs: {X: valueBlockInput(m[1], ctx, true)}};
+        },
         toText: (block, readInput) => `x座標を ${roundInput(readInput(block, 'X', '0'))} にする`
     },
     {
@@ -201,7 +207,13 @@ const blockSpecs = [
     {
         opcode: 'motion_sety',
         patterns: [/^y座標を (.+?) にする$/u],
-        build: (m, ctx) => ({inputs: {Y: valueBlockInput(m[1], ctx, true)}}),
+        build: (m, ctx) => {
+            const incrementInput = selfUpdateValueInput('y座標', m[1], ctx);
+            return incrementInput ? {
+                opcode: 'motion_changeyby',
+                inputs: {DY: incrementInput}
+            } : {inputs: {Y: valueBlockInput(m[1], ctx, true)}};
+        },
         toText: (block, readInput) => `y座標を ${roundInput(readInput(block, 'Y', '0'))} にする`
     },
     {
@@ -718,6 +730,14 @@ const blockSpecs = [
         patterns: [/^\[(.+?)\] を (.+?) にする$/u],
         build: (m, ctx) => {
             const variable = ctx.variable(unwrap(m[1]));
+            const incrementInput = selfUpdateValueInput(variable.name, m[2], ctx);
+            if (incrementInput) {
+                return {
+                    opcode: 'data_changevariableby',
+                    fields: {VARIABLE: [variable.name, variable.id]},
+                    inputs: {VALUE: incrementInput}
+                };
+            }
             return {
                 fields: {VARIABLE: [variable.name, variable.id]},
                 inputs: {VALUE: valueBlockInput(m[2], ctx)}
@@ -890,6 +910,37 @@ const checkOfficialBlocks = (code, blocks) => {
         counts[opcode] = (counts[opcode] || 0) + 1;
         return counts;
     }, {});
+    code.split('\n').forEach(line => {
+        const normalizedLine = normalize(line);
+        const variableAssignment = normalizedLine.match(/^\[(.+?)\] を (.+?) にする$/u);
+        const coordinateAssignment = normalizedLine.match(/^(x座標|y座標)を (.+?) にする$/u);
+        if (!variableAssignment && !coordinateAssignment) return;
+
+        const targetName = unwrap((variableAssignment || coordinateAssignment)[1]);
+        const expression = findBinaryExpression((variableAssignment || coordinateAssignment)[2]);
+        if (!expression) return;
+        const left = unwrap(expression.left);
+        const right = unwrap(expression.right);
+        const isSelfAdd = expression.opcode === 'operator_add' &&
+            (left === targetName || right === targetName);
+        const isSelfSubtract = expression.opcode === 'operator_subtract' && left === targetName;
+        if (!isSelfAdd && !isSelfSubtract) return;
+
+        expectedCounts[expression.opcode] = Math.max(0, (expectedCounts[expression.opcode] || 0) - 1);
+        if (variableAssignment) {
+            expectedCounts.data_setvariableto = Math.max(0, (expectedCounts.data_setvariableto || 0) - 1);
+            expectedCounts.data_variable = Math.max(0, (expectedCounts.data_variable || 0) - 1);
+            expectedCounts.data_changevariableby = (expectedCounts.data_changevariableby || 0) + 1;
+        } else {
+            const axis = targetName === 'x座標' ? 'x' : 'y';
+            const setOpcode = `motion_set${axis}`;
+            const positionOpcode = `motion_${axis}position`;
+            const changeOpcode = `motion_change${axis}by`;
+            expectedCounts[setOpcode] = Math.max(0, (expectedCounts[setOpcode] || 0) - 1);
+            expectedCounts[positionOpcode] = Math.max(0, (expectedCounts[positionOpcode] || 0) - 1);
+            expectedCounts[changeOpcode] = (expectedCounts[changeOpcode] || 0) + 1;
+        }
+    });
     const actualCounts = Object.values(blocks).reduce((counts, block) => {
         if (!block || Array.isArray(block) || block.shadow) return counts;
         counts[block.opcode] = (counts[block.opcode] || 0) + 1;
@@ -1102,6 +1153,25 @@ function changeByValueInput (variableName, value, ctx) {
         if (right === variableName) return valueBlockInput(expression.left, ctx, true, true);
     }
     return valueBlockInput(value, ctx, true);
+}
+
+function selfUpdateValueInput (variableName, value, ctx) {
+    const expression = findBinaryExpression(value);
+    if (!expression) return null;
+
+    const left = unwrap(expression.left);
+    const right = unwrap(expression.right);
+    if (expression.opcode === 'operator_add') {
+        if (left === variableName) return valueBlockInput(expression.right, ctx, true, true);
+        if (right === variableName) return valueBlockInput(expression.left, ctx, true, true);
+    }
+    if (expression.opcode === 'operator_subtract' && left === variableName) {
+        return addReporterBlock(ctx, 'operator_subtract', {
+            NUM1: primitiveNumber('0'),
+            NUM2: valueBlockInput(expression.right, ctx, true, true)
+        });
+    }
+    return null;
 }
 
 function variableBlockInput (name, ctx) {
@@ -1331,7 +1401,7 @@ class ScratchTextCompiler {
                 current.lastId = null;
             }
             const block = {
-                opcode: spec.opcode,
+                opcode: built.opcode || spec.opcode,
                 next: null,
                 parent: null,
                 inputs: built.inputs || {},

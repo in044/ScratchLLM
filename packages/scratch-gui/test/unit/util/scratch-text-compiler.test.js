@@ -107,8 +107,8 @@ test('compiles variables and arithmetic reporters inside value inputs', () => {
     const addBlocks = getBlocksByOpcode(project, 'operator_add');
 
     expect(opcodes).toContain('motion_yposition');
-    expect(opcodes.filter(opcode => opcode === 'data_variable')).toHaveLength(3);
-    expect(addBlocks).toHaveLength(2);
+    expect(opcodes.filter(opcode => opcode === 'data_variable')).toHaveLength(2);
+    expect(addBlocks).toHaveLength(1);
     expect(typeof changeY.inputs.DY[1]).toBe('string');
     expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain(
         'y座標を ((ジャンプ力) + (0)) ずつ変える'
@@ -128,6 +128,65 @@ test('removes the current variable from an incorrectly compounded change-by valu
     expect(valueBlock.opcode).toBe('data_variable');
     expect(valueBlock.fields.VARIABLE[0]).toBe('重力');
     expect(getBlocksByOpcode(project, 'operator_add')).toHaveLength(0);
+});
+
+test('normalizes self-add assignment into change-variable-by', () => {
+    const project = ScratchTextCompiler.compile(
+        '[ジャンプ力 v] を ((ジャンプ力) + (重力)) にする'
+    );
+    const change = getBlocksByOpcode(project, 'data_changevariableby')[0];
+    const value = project.targets[0].blocks[change.inputs.VALUE[1]];
+
+    expect(getBlocksByOpcode(project, 'data_setvariableto')).toHaveLength(0);
+    expect(value.opcode).toBe('data_variable');
+    expect(value.fields.VARIABLE[0]).toBe('重力');
+    expect(ScratchTextCompiler.projectToScratchBlocks(project))
+        .toContain('[ジャンプ力 v] を (重力) ずつ変える');
+});
+
+test('normalizes self-subtract assignment into negative change-variable-by', () => {
+    const project = ScratchTextCompiler.compile(
+        '[残り時間 v] を ((残り時間) - (経過時間)) にする'
+    );
+    const change = getBlocksByOpcode(project, 'data_changevariableby')[0];
+    const value = project.targets[0].blocks[change.inputs.VALUE[1]];
+
+    expect(value.opcode).toBe('operator_subtract');
+    expect(ScratchTextCompiler.projectToScratchBlocks(project))
+        .toContain('[残り時間 v] を ((0) - (経過時間)) ずつ変える');
+});
+
+test('normalizes x and y self-updates into coordinate change blocks', () => {
+    const project = ScratchTextCompiler.compile([
+        'x座標を ((x座標) + (x速度)) にする',
+        'y座標を ((y座標) - (落下量)) にする'
+    ].join('\n'));
+    const scratchBlocks = ScratchTextCompiler.projectToScratchBlocks(project);
+
+    expect(getBlocksByOpcode(project, 'motion_setx')).toHaveLength(0);
+    expect(getBlocksByOpcode(project, 'motion_sety')).toHaveLength(0);
+    expect(getBlocksByOpcode(project, 'motion_changexby')).toHaveLength(1);
+    expect(getBlocksByOpcode(project, 'motion_changeyby')).toHaveLength(1);
+    expect(scratchBlocks).toContain('x座標を (x速度) ずつ変える');
+    expect(scratchBlocks).toContain('y座標を ((0) - (落下量)) ずつ変える');
+});
+
+test('applies target sections after normalizing coordinate self-updates', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+    const project = ScratchTextCompiler.compile([
+        '# Sprite1',
+        '⚑ が押されたとき',
+        'x座標を ((x座標) + (x速度)) にする',
+        'y座標を ((y座標) - (落下量)) にする'
+    ].join('\n'), baseProject);
+
+    expect(getBlocksByOpcode(project, 'motion_changexby')).toHaveLength(1);
+    expect(getBlocksByOpcode(project, 'motion_changeyby')).toHaveLength(1);
+    expect(ScratchTextCompiler.getDiagnostics()).toEqual([]);
 });
 
 test('replaces malformed Boolean input with a valid false Boolean block', () => {
@@ -318,7 +377,7 @@ test('applies a target section containing nested variable reporters', () => {
     const project = ScratchTextCompiler.compile(text, baseProject);
     const scratchBlocks = ScratchTextCompiler.projectToScratchBlocks(project);
 
-    expect(scratchBlocks).toContain('[yの速さ v] を ((yの速さ) + (重力)) にする');
+    expect(scratchBlocks).toContain('[yの速さ v] を (重力) ずつ変える');
     expect(scratchBlocks).not.toContain('[old] と言う');
     expect(ScratchTextCompiler.getDiagnostics()).toEqual([]);
 });
