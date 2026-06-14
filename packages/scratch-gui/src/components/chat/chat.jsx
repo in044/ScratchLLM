@@ -20,6 +20,7 @@ import {
 
 import ScratchBlockRenderer from './scratch-block-renderer.jsx';
 import ScratchTextCompiler from '../../lib/scratch-text-compiler';
+import validateScratchProject from '../../lib/scratch-project-validator';
 
 
 
@@ -403,6 +404,7 @@ ${inputValue}
         }
 
         let newProjectJson = null;
+        let compilerDiagnostics = [];
         try {
             const currentProject = typeof projectJson === 'string' ?
                 JSON.parse(projectJson) :
@@ -412,6 +414,7 @@ ${inputValue}
                 currentProject,
                 this.props.vm.editingTarget && this.props.vm.editingTarget.id
             );
+            compilerDiagnostics = ScratchTextCompiler.getDiagnostics();
             const hadVisibleScripts = currentProject.targets.some(target => (
                 Object.values(target.blocks || {}).some(block => block.topLevel)
             ));
@@ -420,6 +423,10 @@ ${inputValue}
             ));
             if (hadVisibleScripts && !hasVisibleScripts) {
                 throw new Error('ScratchBlocks response did not contain visible scripts.');
+            }
+            const validation = validateScratchProject(newProjectJson);
+            if (!validation.valid) {
+                throw new Error(validation.errors.slice(0, 3).join('\n'));
             }
         } catch (e) {
             console.error('Error compiling ScratchBlocks response:', e);
@@ -435,6 +442,12 @@ ${inputValue}
             .then(() => {
                 if (!this._isMounted) return;
                 this.props.vm.refreshWorkspace();
+                if (compilerDiagnostics.length > 0) {
+                    this.props.onAddMessage({
+                        text: `一部のコードは安全のため変更しませんでした。\n${compilerDiagnostics.join('\n')}`,
+                        sender: 'bot'
+                    });
+                }
                 if (shouldStopLoading) this.props.onSetIsLoading(false);
             })
             .catch(e => {

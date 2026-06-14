@@ -18,6 +18,14 @@ test('extracts ScratchBlocks code fences and ignores explanation', () => {
     ].join('\n'));
 });
 
+test('extracts an unfenced target program as a tolerant fallback', () => {
+    const response = '変更しました。\n# Stage\n⚑ が押されたとき\n背景を (背景1 v) にする';
+
+    expect(ScratchTextCompiler.extractScratchBlocks(response)).toBe(
+        '# Stage\n⚑ が押されたとき\n背景を (背景1 v) にする'
+    );
+});
+
 test('compiles nested ScratchBlocks into Scratch 3 project JSON', () => {
     const project = ScratchTextCompiler.compile([
         '⚑ が押されたとき',
@@ -266,6 +274,55 @@ test('compiles target sections back into every sprite and stage without indentat
     expect(scratchBlocks).not.toContain('  (10) 歩動かす');
 });
 
+test('applies an if-else target section after official AST completeness checking', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[old] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+    const text = [
+        '# Sprite1',
+        '⚑ が押されたとき',
+        'もし <マウスが押された> なら',
+        '[yes] と言う',
+        'でなければ',
+        '[no] と言う',
+        'end'
+    ].join('\n');
+
+    const project = ScratchTextCompiler.compile(text, baseProject);
+    const scratchBlocks = ScratchTextCompiler.projectToScratchBlocks(project);
+
+    expect(getBlocksByOpcode(project, 'control_if_else')).toHaveLength(1);
+    expect(scratchBlocks).toContain('でなければ');
+    expect(scratchBlocks).not.toContain('[old] と言う');
+});
+
+test('applies a target section containing nested variable reporters', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[old] と言う'), isStage: false, name: 'スプライト1'}
+        ]
+    };
+    const text = [
+        '# スプライト1',
+        '⚑ が押されたとき',
+        '[重力 v] を (-1) にする',
+        '[yの速さ v] を (0) にする',
+        'ずっと',
+        '[yの速さ v] を ((yの速さ) + (重力)) にする',
+        'y座標を (yの速さ) ずつ変える',
+        'end'
+    ].join('\n');
+
+    const project = ScratchTextCompiler.compile(text, baseProject);
+    const scratchBlocks = ScratchTextCompiler.projectToScratchBlocks(project);
+
+    expect(scratchBlocks).toContain('[yの速さ v] を ((yの速さ) + (重力)) にする');
+    expect(scratchBlocks).not.toContain('[old] と言う');
+    expect(ScratchTextCompiler.getDiagnostics()).toEqual([]);
+});
+
 test('preserves omitted targets and uses the last duplicate target section', () => {
     const baseProject = {
         targets: [
@@ -288,6 +345,39 @@ test('preserves omitted targets and uses the last duplicate target section', () 
     ].join('\n'), baseProject);
     expect(ScratchTextCompiler.projectToScratchBlocks(duplicated)).toContain('[last] と言う');
     expect(ScratchTextCompiler.projectToScratchBlocks(duplicated)).not.toContain('[first] と言う');
+});
+
+test('accepts an empty section when the target already has no program', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget(''), isStage: true, name: 'Stage'},
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき'), isStage: false, name: 'スプライト1'}
+        ]
+    };
+
+    const project = ScratchTextCompiler.compile([
+        '# Stage',
+        '',
+        '# スプライト1',
+        '⚑ が押されたとき',
+        '(10) 歩動かす'
+    ].join('\n'), baseProject);
+
+    expect(Object.keys(project.targets[0].blocks)).toHaveLength(0);
+    expect(ScratchTextCompiler.getDiagnostics()).toEqual([]);
+});
+
+test('does not clear a nonempty target when its section is accidentally empty', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[keep] と言う'), isStage: true, name: 'Stage'}
+        ]
+    };
+
+    const project = ScratchTextCompiler.compile('# Stage\n', baseProject);
+
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+    expect(ScratchTextCompiler.getDiagnostics().join('\n')).toContain('変更しませんでした');
 });
 
 test('removes malformed variables previously generated from loose comparison brackets', () => {
@@ -319,6 +409,136 @@ test('preserves existing target code when a section has only unsupported syntax'
     const project = ScratchTextCompiler.compile('# Stage\n未対応だが正しいかもしれないブロック', baseProject);
 
     expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+});
+
+test('does not partially replace a target containing both valid and unknown syntax', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[keep] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+
+    const project = ScratchTextCompiler.compile([
+        '# Sprite1',
+        '⚑ が押されたとき',
+        '(10) 歩動かす',
+        'これは未知のブロック'
+    ].join('\n'), baseProject);
+
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).not.toContain('(10) 歩動かす');
+    expect(ScratchTextCompiler.getDiagnostics().join('\n')).toContain('これは未知のブロック');
+});
+
+test('compiles timer reset instead of preserving the old target', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[keep] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+
+    const project = ScratchTextCompiler.compile([
+        '# Sprite1',
+        '⚑ が押されたとき',
+        'タイマーをリセット'
+    ].join('\n'), baseProject);
+
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('タイマーをリセット');
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).not.toContain('[keep] と言う');
+});
+
+test('round-trips representative blocks from every core category', () => {
+    const source = [
+        '⚑ が押されたとき',
+        '(1) 秒で (どこかの場所 v) へ行く',
+        'コスチュームを (costume1 v) にする',
+        '[ピッチ v] の効果を (10) ずつ変える',
+        'タイマーをリセット',
+        '((1) から (10) までの乱数) 歩動かす',
+        '[thing] を [my list v] に追加する',
+        'もし <[my list v] に [thing] が含まれる> なら',
+        '背景を (背景1 v) にして待つ',
+        'end'
+    ].join('\n');
+
+    const first = ScratchTextCompiler.compile(source);
+    const serialized = ScratchTextCompiler.projectToScratchBlocks(first);
+    expect(serialized).toContain('<[my list v] に');
+    const second = ScratchTextCompiler.compile(serialized);
+    const opcodes = Object.values(second.targets[0].blocks).map(block => block.opcode);
+
+    expect(opcodes).toEqual(expect.arrayContaining([
+        'motion_glideto',
+        'looks_switchcostumeto',
+        'sound_changeeffectby',
+        'sensing_resettimer',
+        'operator_random',
+        'data_addtolist',
+        'data_listcontainsitem',
+        'looks_switchbackdroptoandwait'
+    ]));
+    expect(second.targets[0].lists['list_my list']).toEqual(['my list', []]);
+});
+
+test('compiles list contains as a Boolean reporter', () => {
+    const project = ScratchTextCompiler.compile('もし <[my list v] に [thing] が含まれる> なら\nend');
+
+    expect(getBlocksByOpcode(project, 'data_listcontainsitem')).toHaveLength(1);
+    expect(getBlocksByOpcode(project, 'operator_equals')).toHaveLength(0);
+});
+
+test('preserves target assets and target properties when compiling all target sections', () => {
+    const baseProject = {
+        targets: [{
+            ...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[old] と言う'),
+            id: 'sprite-id',
+            name: 'Sprite1',
+            isStage: false,
+            x: 42,
+            y: -18,
+            visible: false,
+            costumes: [{name: 'costume1'}],
+            sounds: [{name: 'Meow'}]
+        }],
+        monitors: [{id: 'monitor'}],
+        extensions: ['pen'],
+        meta: {semver: '3.0.0'}
+    };
+
+    const project = ScratchTextCompiler.compile('# Sprite1\n⚑ が押されたとき\n(10) 歩動かす', baseProject);
+
+    expect(project.targets[0]).toMatchObject({
+        id: 'sprite-id',
+        x: 42,
+        y: -18,
+        visible: false,
+        costumes: [{name: 'costume1'}],
+        sounds: [{name: 'Meow'}]
+    });
+    expect(project.monitors).toEqual([{id: 'monitor'}]);
+    expect(project.extensions).toEqual(['pen']);
+});
+
+test('reuses existing variable and list IDs by name', () => {
+    const baseTarget = ScratchTextCompiler.compileTarget('⚑ が押されたとき');
+    baseTarget.id = 'sprite-id';
+    baseTarget.name = 'Sprite1';
+    baseTarget.variables = {existingVariable: ['score', 5]};
+    baseTarget.lists = {existingList: ['items', ['old']]};
+
+    const project = ScratchTextCompiler.compile([
+        '# Sprite1',
+        '[score v] を (10) にする',
+        '[new] を [items v] に追加する'
+    ].join('\n'), {targets: [baseTarget]});
+    const blocks = Object.values(project.targets[0].blocks);
+
+    expect(project.targets[0].variables).toEqual({existingVariable: ['score', 5]});
+    expect(project.targets[0].lists).toEqual({existingList: ['items', ['old']]});
+    expect(blocks.find(block => block.opcode === 'data_setvariableto').fields.VARIABLE[1])
+        .toBe('existingVariable');
+    expect(blocks.find(block => block.opcode === 'data_addtolist').fields.LIST[1])
+        .toBe('existingList');
 });
 
 test('preserves existing target code when its target section is empty', () => {
@@ -355,4 +575,5 @@ test('preserves the current target when a response has no supported blocks', () 
     const project = ScratchTextCompiler.compile('未対応だが正しいかもしれないブロック', baseProject);
 
     expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+    expect(ScratchTextCompiler.getDiagnostics().join('\n')).toContain('変更しませんでした');
 });
