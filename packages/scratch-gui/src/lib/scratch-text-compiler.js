@@ -585,6 +585,32 @@ function stripOuterRoundBrackets (value) {
     return depth === 0 ? text.slice(1, -1).trim() : text;
 }
 
+function repairLooseRoundBrackets (value) {
+    let text = normalize(value);
+    let balance = [...text].reduce((total, character) => (
+        total + (character === '(' ? 1 : character === ')' ? -1 : 0)
+    ), 0);
+    while (balance > 0 && text.startsWith('(')) {
+        text = text.slice(1).trim();
+        balance--;
+    }
+    while (balance < 0 && text.endsWith(')')) {
+        text = text.slice(0, -1).trim();
+        balance++;
+    }
+    return text;
+}
+
+function removeMalformedGeneratedVariables (variables = {}) {
+    return Object.keys(variables).reduce((result, id) => {
+        const variable = variables[id];
+        const name = Array.isArray(variable) ? String(variable[0]) : '';
+        const repaired = repairLooseRoundBrackets(name);
+        if (!id.startsWith('var_') || repaired === name) result[id] = variable;
+        return result;
+    }, {});
+}
+
 function findBinaryExpression (value) {
     const text = stripOuterRoundBrackets(value);
     const operatorOpcodes = {
@@ -628,7 +654,7 @@ function variableBlockInput (name, ctx) {
 }
 
 function valueBlockInput (value, ctx, preferNumber = false, inferVariable = false) {
-    const text = normalize(value);
+    const text = repairLooseRoundBrackets(value);
     const unwrapped = unwrap(text);
     if (/^-?(?:\d+(?:\.\d+)?|\.\d+)$/u.test(unwrapped)) return primitiveNumber(unwrapped);
 
@@ -750,7 +776,7 @@ class ScratchTextCompiler {
             }
             target.blocks = compiledTarget.blocks;
             target.variables = {
-                ...(target.variables || {}),
+                ...removeMalformedGeneratedVariables(target.variables),
                 ...(compiledTarget.variables || {})
             };
         });
@@ -881,7 +907,7 @@ class ScratchTextCompiler {
 
         target.blocks = compiledTarget.blocks;
         target.variables = {
-            ...(target.variables || {}),
+            ...removeMalformedGeneratedVariables(target.variables),
             ...(compiledTarget.variables || {})
         };
         target.lists = target.lists || {};

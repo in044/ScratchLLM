@@ -66,6 +66,21 @@ test('compiles comparison and nested logical conditions as Boolean blocks', () =
     expect(mouseBlock.parent).toBe(andId);
 });
 
+test('repairs extra round brackets around comparison expressions', () => {
+    const project = ScratchTextCompiler.compile([
+        'もし <((x座標) > (240))> なら',
+        '[端です] と言う',
+        'end'
+    ].join('\n'));
+    const greaterThan = getBlocksByOpcode(project, 'operator_gt')[0];
+    const leftId = greaterThan.inputs.OPERAND1[1];
+
+    expect(project.targets[0].blocks[leftId].opcode).toBe('motion_xposition');
+    expect(greaterThan.inputs.OPERAND2).toEqual([1, [4, '240']]);
+    expect(getBlocksByOpcode(project, 'data_variable')).toHaveLength(0);
+    expect(project.targets[0].variables).toEqual({});
+});
+
 test('compiles variables and arithmetic reporters inside value inputs', () => {
     const project = ScratchTextCompiler.compile([
         '⚑ が押されたとき',
@@ -273,6 +288,25 @@ test('preserves omitted targets and uses the last duplicate target section', () 
     ].join('\n'), baseProject);
     expect(ScratchTextCompiler.projectToScratchBlocks(duplicated)).toContain('[last] と言う');
     expect(ScratchTextCompiler.projectToScratchBlocks(duplicated)).not.toContain('[first] と言う');
+});
+
+test('removes malformed variables previously generated from loose comparison brackets', () => {
+    const baseProject = {
+        targets: [{
+            ...ScratchTextCompiler.compileTarget('⚑ が押されたとき'),
+            isStage: false,
+            name: 'Sprite1',
+            variables: {
+                'var_(x座標': ['(x座標', 0],
+                'var_240)': ['240)', 0],
+                userVariableId: ['user variable', 0]
+            }
+        }]
+    };
+
+    const project = ScratchTextCompiler.compile('# Sprite1\n⚑ が押されたとき', baseProject);
+
+    expect(project.targets[0].variables).toEqual({userVariableId: ['user variable', 0]});
 });
 
 test('preserves existing target code when a section has only unsupported syntax', () => {
