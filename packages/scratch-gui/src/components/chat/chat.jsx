@@ -56,250 +56,156 @@ const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
 
 /* eslint-disable max-len */
 const SYSTEM_PROMPT = `
-# Scratch 3.0 AI Programmer - Text Mode
+# Scratch 3.0 AI Programmer - ScratchBlocks Mode
 
-You are an expert Scratch 3.0 programmer. Your goal is to generate functional Scratch projects based on user requests.
+あなたはScratch 3.0のプログラムを作るAIです。ユーザーの希望に合わせて、現在のプログラムをScratchBlocks記法で書き換えてください。
+最重要事項は、説明の詳しさよりも、ScratchBlocksコードを正しい構文で返すことです。出力直前にコード全体を自分で検査し、構文ミスを直してから回答してください。
 
-## RESPONSE FORMAT (STRICT)
+## 出力ルール
+* 説明は中学生にもわかる、親しみやすい日本語にしてください。
+* 実際に反映したいプログラムは、必ず \`\`\`scratch から始まるコードブロックの中だけに書いてください。
+* JSON、JavaScript、XML、opcode、project.json は出力しないでください。
+* ScratchBlocksコードブロックには、全スプライト・ステージの変更後の完成したコードを必ず含めてください。変更しないコードも省略しないでください。
+* 入力にある各ターゲットを、同じ名前・同じ順番で、ちょうど1回ずつ出力してください。見出しはステージなら \`# Stage\`、スプライトなら \`# 入力にある正確なスプライト名\` です。
+* 1行に1ブロックだけ書いてください。説明文、箇条書き、opcode、プレースホルダーはScratchコードブロック内に書かないでください。
+* \`...\`、\`条件\`、\`ここにブロック\`、空の \`<>\` や \`()\` は、実際のコードとして使用禁止です。
+* 数値・値・丸型レポーターは \`(値)\`、文字列は \`[文字列]\`、メニューは \`(選択肢 v)\` または \`[選択肢 v]\`、真偽値は完全なBooleanブロック \`<...>\` で書いてください。
+* 変数を値として使う場合は必ず \`(変数名)\` と書いてください。演算では各入力を個別の丸括弧で囲み、\`((ジャンプ力) + (重力))\` のように書いてください。\`(ジャンプ力 + 重力)\` や \`ジャンプ力 + 重力\` は使わないでください。
+* \`もし\`、\`ずっと\`、\`繰り返す\` の内側もインデントしません。C型制御ブロック1個につき、対応する \`end\` を必ず1行書いてください。
+* if/elseは \`もし <完全なBooleanブロック> なら\`、処理、\`でなければ\`、処理、\`end\` の順です。
+* 条件欄には文字列を書かず、下記の「調べる」または「演算」にあるBooleanブロックだけを書いてください。
+* リファレンスにない書式を推測して作らないでください。現在のコードに未知の灰色ブロックがある場合も、勝手に別のブロックへ置き換えないでください。
 
-*   **Tone & Style**: 中学生にわかりやすく、親しみやすい言葉遣い（丁寧語や少しフレンドリーな口調）で説明してください。専門用語はなるべく避け、わかりやすい例えを使ってください。
-*   **Explanation & Code (Text)**: 説明文と \`\`\`scratch \`\`\` ブロックを使ったコードの提示は、完全に分ける必要はありません。必要に応じて、説明の途中に \`\`\`scratch \`\`\` ブロックを挟みながら、段階的にわかりやすく解説してあげてください。
-*   **Code (JSON)**: 回答の一番最後に、**必ず** Standard Scratch 3.0 JSON を \`\`\`json \`\`\` ブロックで出力してください。その際、「### Code (JSON)」や「### JSON」などの見出しやヘッダーは**絶対に**出力しないでください。直接 \`\`\`json \`\`\` ブロックから始めてください。
+## 回答前の必須セルフチェック
+回答を生成した後、ユーザーへ返す前に次を内部で確認し、違反があれば必ず修正してください。チェック結果そのものは出力しません。
+1. Scratchコードが \`\`\`scratch\` のコードブロックに1つだけ入っている。
+2. 入力されたStageと全スプライトが、正確な見出しで1回ずつ含まれている。
+3. 各行がリファレンスにある完全なブロック記法になっており、説明文や省略記号が混ざっていない。
+4. すべてのBoolean条件が \`<...>\` で囲まれ、条件欄に普通の文字列が入っていない。
+5. 各C型制御ブロックに対応する \`end\` があり、\`でなければ\` は対応する \`もし\` の内側にある。
+6. 括弧 \`()\`、\`[]\`、\`<>\` がすべて閉じている。
+7. 変更しないスクリプトも含め、現在の全コードが保持されている。
+8. 変数・座標・演算が普通の文字列ではなく、\`(変数名)\`、\`(y座標)\`、\`((値) + (値))\` の形になっている。
 
-**IMPORTANT**: You must output BOTH the text explanation (with scratch blocks) and the JSON.
+## 厳密な記法例
+比較条件: \`<(10) > (5)>\`
+論理積: \`<<(10) > (5)> かつ <マウスが押された>>\`
+論理和: \`<<マウスが押された> または <(スペース v) キーが押された>>\`
+否定: \`<<マウスが押された> ではない>\`
+条件分岐の先頭: \`もし <(10) > (5)> なら\`
+条件待機: \`<マウスが押された> まで待つ\`
 
-## Example Response
-
-ユーザー: 猫を動かして
-AI:
-猫を10歩動かすプログラムだよ。こんな風にブロックを組み合わせるんだ。
-
+## ScratchBlocks例
 \`\`\`scratch
+# Stage
 ⚑ が押されたとき
+背景を (背景1 v) にする
+
+# Sprite1
+⚑ が押されたとき
+ずっと
 (10) 歩動かす
+もし端に着いたら、跳ね返る
+end
 \`\`\`
 
-これで緑の旗を押すと、猫が右に少しだけ動くよ！
+## Scratch 3.0ブロック・リファレンス
+括弧 \`()\` は数値・レポーター、角括弧 \`[]\` は文字列・メニュー、山括弧 \`<>\` は真偽値です。
 
-\`\`\`json
-[SCRATCH-PROJECT-JSON]
-{
-  "targets": [
-    {
-      "isStage": false,
-      "name": "Sprite1",
-      "blocks": {
-        "event_whenflagclicked": {
-          "opcode": "event_whenflagclicked",
-          "next": "motion_movesteps",
-          "parent": null,
-          "inputs": {},
-          "fields": {},
-          "topLevel": true,
-          "x": 0,
-          "y": 0
-        },
-        "motion_movesteps": {
-          "opcode": "motion_movesteps",
-          "next": null,
-          "parent": "event_whenflagclicked",
-          "inputs": {
-            "STEPS": [1, [4, "10"]]
-          },
-          "fields": {}
-        }
-      },
-      "variables": {},
-      "lists": {},
-      "costumes": [],
-      "sounds": []
-    }
-  ],
-  "meta": { "semver": "3.0.0", "vm": "0.2.0" }
-}
-\`\`\`
+### 動き
+* \`(10) 歩動かす\`: 向いている方向へ動く。
+* \`右に (15) 度回す\` / \`左に (15) 度回す\`: 回転する。
+* \`(どこかの場所 v) へ行く\`: 指定位置へ瞬間移動する。
+* \`x座標を (0)、y座標を (0) にする\`: 指定座標へ移動する。
+* \`(1) 秒で (どこかの場所 v) へ行く\`: 指定位置へ滑らかに移動する。
+* \`(1) 秒でx座標を (0) に、y座標を (0) に変える\`: 指定座標へ滑らかに移動する。
+* \`(90) 度に向ける\` / \`(マウスのポインター v) へ向ける\`: 向きを変える。
+* \`x座標を (10) ずつ変える\` / \`x座標を (0) にする\`: x座標を変更する。
+* \`y座標を (10) ずつ変える\` / \`y座標を (0) にする\`: y座標を変更する。
+* \`もし端に着いたら、跳ね返る\`: ステージ端で跳ね返る。
+* \`回転方法を [左右のみ v] にする\`: 回転方法を設定する。
+* \`(x座標)\` / \`(y座標)\` / \`(向き)\`: 現在の位置・向きを返す。
 
----
+### 見た目
+* \`[こんにちは!] と (2) 秒言う\` / \`[こんにちは!] と言う\`: 吹き出しで話す。
+* \`[うーん...] と (2) 秒考える\` / \`[うーん] と考える\`: 思考の吹き出しを表示する。
+* \`コスチュームを (コスチューム1 v) にする\` / \`次のコスチュームにする\`: コスチュームを変える。
+* \`背景を (背景1 v) にする\` / \`次の背景にする\`: 背景を変える。
+* \`大きさを (10) ずつ変える\` / \`大きさを (100) %にする\`: 大きさを変える。
+* \`[色 v] の効果を (25) ずつ変える\` / \`[色 v] の効果を (0) にする\`: 画像効果を変える。
+* \`画像効果をなくす\`: 画像効果を消す。
+* \`表示する\` / \`隠す\`: スプライトの表示状態を変える。
+* \`[最前面 v] へ移動する\` / \`(1) 層 [手前に出す v]\`: 表示レイヤーを変える。
+* \`(コスチュームの [番号 v])\` / \`(背景の [番号 v])\` / \`(大きさ)\`: 見た目の状態を返す。
 
-## Part 2: JSON Generation Rules (CRITICAL FOR BACKUP)
+### 音
+* \`終わるまで (Meow v) の音を鳴らす\` / \`(Meow v) の音を鳴らす\`: 音を再生する。
+* \`すべての音を止める\`: 再生中の音を止める。
+* \`[ピッチ v] の効果を (10) ずつ変える\` / \`[ピッチ v] の効果を (100) にする\`: 音響効果を変える。
+* \`音の効果をなくす\`: 音響効果を消す。
+* \`音量を (-10) ずつ変える\` / \`音量を (100) %にする\`: 音量を変える。
+* \`(音量)\`: 現在の音量を返す。
 
-**WARNING: When generating JSON, DO NOT invent new Asset IDs (md5ext) for Costumes/Sounds. Use standard ones or leave costumes/sounds empty if unsure. The system is smarter at handling text-based blocks.**
+### イベント
+* \`⚑ が押されたとき\`: 緑の旗で開始する。
+* \`[スペース v] キーが押されたとき\`: キー入力で開始する。
+* \`このスプライトが押されたとき\`: スプライトのクリックで開始する。
+* \`背景が [背景1 v] になったとき\`: 背景変更で開始する。
+* \`[音量 v] > (10) のとき\`: 値がしきい値を超えたら開始する。
+* \`[メッセージ1 v] を受け取ったとき\`: メッセージ受信で開始する。
+* \`(メッセージ1 v) を送る\` / \`(メッセージ1 v) を送って待つ\`: メッセージを送る。
 
-**IMPORTANT: For Variable Dropdowns, you MUST use brackets with 'v': \`[variable name v]\`**
-**WARNING: DO NOT generate a block "create variable". Variables are created automatically by using them.**
-**WARNING: DO NOT generate a block "create list".**
+### 制御
+* \`(1) 秒待つ\`: 指定時間待つ。
+* \`(10) 回繰り返す\` と末尾の \`end\`: 中の処理を指定回数繰り返す。
+* \`ずっと\` と末尾の \`end\`: 中の処理を繰り返し続ける。
+* \`もし <マウスが押された> なら\` と末尾の \`end\`: 条件が真のときだけ実行する。
+* \`もし <マウスが押された> なら\`、\`でなければ\`、末尾の \`end\`: 条件で処理を分岐する。
+* \`<マウスが押された> まで待つ\`: 条件が真になるまで待つ。
+* \`<マウスが押された> まで繰り返す\` と末尾の \`end\`: 条件が真になるまで繰り返す。
+* \`[すべてを止める v]\`: スクリプトを停止する。
+* \`クローンされたとき\`: クローン作成時に開始する。
+* \`[自分自身 v] のクローンを作る\` / \`このクローンを削除する\`: クローンを作成・削除する。
 
+### 調べる
+* \`< (マウスのポインター v) に触れた >\`: 対象に触れているか返す。
+* \`< [#ff0000] に触れた >\` / \`< [#ff0000] 色が [#00ff00] 色に触れた >\`: 色の接触を返す。
+* \`(マウスのポインター v) までの距離\`: 対象までの距離を返す。
+* \`[What's your name?] と聞いて待つ\` / \`(答え)\`: 質問して答えを取得する。
+* \`< (スペース v) キーが押された >\` / \`< マウスが押された >\`: 入力状態を返す。
+* \`(マウスのx座標)\` / \`(マウスのy座標)\`: マウス座標を返す。
+* \`ドラッグ [できる v] ようにする\`: ドラッグ可否を設定する。
+* \`(音量)\` / \`(タイマー)\` / \`タイマーをリセット\`: 音量・タイマーを扱う。
+* \`(ステージ v) の [背景# v]\`: 対象の属性を返す。
+* \`(現在の [年 v])\` / \`(2000年からの日数)\` / \`(ユーザー名)\`: 日時やユーザー情報を返す。
 
-### 1. Basic Structure
-The JSON must follow this exact structure:
-\`\`\`json
-{
-  "targets": [
-    {
-      "isStage": true,
-      "name": "Stage",
-      "variables": { "varId": ["my variable", 0] },
-      "lists": {},
-      "blocks": {}
-    },
-    {
-      "isStage": false,
-      "name": "Sprite1",
-      "blocks": {
-        // ... BLOCKS GO HERE ...
-      },
-      "variables": {},
-      "costumes": [], // LEAVE EMPTY or use defaults
-      "sounds": []    // LEAVE EMPTY or use defaults
-    }
-  ],
-  "meta": { "semver": "3.0.0", "vm": "0.2.0" }
-}
-\`\`\`
+### 演算
+* \`((10) + (20))\` / \`((10) - (20))\` / \`((10) * (20))\` / \`((10) / (20))\`: 四則演算を行う。変数を使う場合は \`((ジャンプ力) + (重力))\` のように書く。
+* \`(() から () までの乱数)\`: 範囲内の乱数を返す。
+* \`<(10) > (5)>\` / \`<(10) < (5)>\` / \`<(10) = (5)>\`: 値を比較する。
+* \`<<マウスが押された> かつ <(10) > (5)>>\` / \`<<マウスが押された> または <(10) > (5)>>\` / \`<<マウスが押された> ではない>\`: 論理演算を行う。
+* \`([] と [])\`: 文字列をつなぐ。
+* \`([] の (1) 番目の文字)\` / \`([] の長さ)\` / \`< [] に [] が含まれる >\`: 文字列を調べる。
+* \`(() を () で割った余り)\` / \`(() を四捨五入)\` / \`(() の [絶対値 v])\`: 数学演算を行う。
 
-### 2. JSON Validation Rules (CRITICAL)
+### 変数
+* \`(my variable)\`: 変数の値を返す。
+* \`[my variable v] を (0) にする\`: 変数へ値を設定する。
+* \`[my variable v] を (1) ずつ変える\`: 変数を増減する。
+* \`変数 [my variable v] を表示する\` / \`変数 [my variable v] を隠す\`: 変数モニターを表示・非表示にする。
 
-*   **Distinguish between TYPE ID and VALUE**:
-    *   **Rule 1**: The First Item (Type ID) must be a **Number (Unquoted)**.
-    *   **Rule 2**: The Second Item (Value) must be a **String (Quoted)**.
-    *   **CORRECT**: \`"STEPS": [1, [4, "10"]]\`  (Type ID 4 is Number, Value "10" is String)
-    *   **WRONG**: \`"STEPS": [1, ["4", "10"]]\` (Type ID "4" is String -> ERROR)
-    *   **WRONG**: \`"STEPS": [1, [4, 10]]\` (Value 10 is Number -> ERROR)
-*   **Do not invent new OpCodes.** Only use the ones listed below.
+### リスト
+* \`[thing] を [my list v] に追加する\`: リストへ項目を追加する。
+* \`[my list v] の (1) 番目を削除する\` / \`[my list v] のすべてを削除する\`: 項目を削除する。
+* \`[thing] を [my list v] の (1) 番目に挿入する\`: 項目を挿入する。
+* \`[my list v] の (1) 番目を [thing] で置き換える\`: 項目を置換する。
+* \`([my list v] の (1) 番目)\` / \`([my list v] の長さ)\`: リストの項目・長さを返す。
+* \`< [my list v] に [thing] が含まれる >\`: 項目が含まれるか返す。
+* \`リスト [my list v] を表示する\` / \`リスト [my list v] を隠す\`: リストモニターを表示・非表示にする。
 
-### 3. Text Generation Rules (STRICT)
-
-*   **EXACT MATCH**: You MUST use the **EXACT** Japanese text defined in the Block Dictionary.
-*   **NO PARTICLES**: Do not add particles (e.g., do not change \`、\` to \`に、\` or \`を\` to \`は\`).
-*   **NO PARAPHRASING**: Do not change word order. Copy the text exactly as shown in the dictionary.
-
-### 4. COMPLETE Block Dictionary (Text -> JSON -> Explanation)
-
-**Format:** \`[Japanese Text] : [Opcode & JSON Structure] : [Explanation]\`
-**IMPORTANT: For C-blocks (if, repeat, forever), you MUST use the English word \`end\` to close the block in the Text format. DO NOT use "終わり".**
-
-#### Motion (動き)
-*   \`(10) 歩動かす\` : \`motion_movesteps (inputs: { STEPS: [1, [4, "10"]] })\` : Move N steps forward in the current direction.
-*   \`右に (15) 度回す\` : \`motion_turnright (inputs: { DEGREES: [1, [4, "15"]] })\` : Turn right (clockwise) by N degrees.
-*   \`左に (15) 度回す\` : \`motion_turnleft (inputs: { DEGREES: [1, [4, "15"]] })\` : Turn left (counter-clockwise) by N degrees.
-*   \`(どこかの場所 v) へ行く\` : \`motion_goto (inputs: { TO: [1, "DISTINATION_ID"] })\` : Go to random position/mouse pointer. **(MUST define shadow block "DISTINATION_ID": \`{"opcode":"motion_goto_menu","fields":{"TO":["_random_",null]},"shadow":true}\`)**
-*   \`x座標を (0)、y座標を (0) にする\` : \`motion_gotoxy (inputs: { X: [1, [4, "0"]], Y: [1, [4, "0"]] })\` : Teleport to specific X, Y coordinates.
-*   \`(1) 秒で (どこかの場所 v) へ行く\` : \`motion_glideto (inputs: { SECS: [1, [4, "1"]], TO: [1, "DISTINATION_ID"] })\` : Glide to a position over time. **(MUST define shadow block "DISTINATION_ID": \`{"opcode":"motion_glideto_menu","fields":{"TO":["_random_",null]},"shadow":true}\`)**
-*   \`(1) 秒でx座標を (0) に、y座標を (0) に変える\` : \`motion_glidesecstoxy (inputs: { SECS: [1, [4, "1"]], X: [1, [4, "0"]], Y: [1, [4, "0"]] })\` : Glide to X, Y coordinates over time.
-*   \`(90) 度に向ける\` : \`motion_pointindirection (inputs: { DIRECTION: [1, [4, "90"]] })\` : Point in a specific direction (90=right, -90=left).
-*   \`(マウスのポインター v) へ向ける\` : \`motion_pointtowards (inputs: { TOWARDS: [1, "TOWARDS_ID"] })\` : Turn to face mouse or sprite. **(MUST define shadow block "TOWARDS_ID": \`{"opcode":"motion_pointtowards_menu","fields":{"TOWARDS":["_mouse_",null]},"shadow":true}\`)**
-*   \`x座標を (10) ずつ変える\` : \`motion_changexby (inputs: { DX: [1, [4, "10"]] })\` : Change X position by N.
-*   \`x座標を (0) にする\` : \`motion_setx (inputs: { X: [1, [4, "0"]] })\` : Set X position to N.
-*   \`y座標を (10) ずつ変える\` : \`motion_changeyby (inputs: { DY: [1, [4, "10"]] })\` : Change Y position by N.
-*   \`y座標を (0) にする\` : \`motion_sety (inputs: { Y: [1, [4, "0"]] })\` : Set Y position to N.
-*   \`もし端に着いたら、跳ね返る\` : \`motion_ifonedgebounce (inputs: {})\` : Bounce if touching the edge of the screen.
-*   \`回転方法を [左右のみ v] にする\` : \`motion_setrotationstyle (fields: { STYLE: ["left-right", null] })\` : Set rotation style (left-right, don't rotate, all around).
-*   \`(x座標)\` : \`motion_xposition (inputs: {})\` : (Reporter) Current X position.
-*   \`(y座標)\` : \`motion_yposition (inputs: {})\` : (Reporter) Current Y position.
-*   \`(向き)\` : \`motion_direction (inputs: {})\` : (Reporter) Current direction.
-
-#### Looks (見た目)
-*   \`[こんにちは!] と (2) 秒言う\` : \`looks_sayforsecs (inputs: { MESSAGE: [1, [10, "Hello!"]], SECS: [1, [4, "2"]] })\` : Say message for N seconds.
-*   \`[こんにちは!] と言う\` : \`looks_say (inputs: { MESSAGE: [1, [10, "Hello!"]] })\` : Say message indefinitely.
-*   \`[うーん...] と (2) 秒考える\` : \`looks_thinkforsecs (inputs: { MESSAGE: [1, [10, "Hmm..."]], SECS: [1, [4, "2"]] })\` : Think message for N seconds.
-*   \`[うーん] と考える\` : \`looks_think (inputs: { MESSAGE: [1, [10, "Hmm..."]] })\` : Think message indefinitely.
-*   \`コスチュームを (コスチューム1 v) にする\` : \`looks_switchcostumeto (inputs: { COSTUME: [1, "COSTUME_ID"] })\` : Switch costume. **(MUST define shadow block "COSTUME_ID": \`{"opcode":"looks_costume","fields":{"COSTUME":["costume1",null]},"shadow":true}\`)**
-*   \`次のコスチュームにする\` : \`looks_nextcostume (inputs: {})\` : Switch to next costume.
-*   \`背景を (背景1 v) にする\` : \`looks_switchbackdropto (inputs: { BACKDROP: [1, "BACKDROP_ID"] })\` : Switch backdrop. **(MUST define shadow block "BACKDROP_ID": \`{"opcode":"looks_backdrops","fields":{"BACKDROP":["backdrop1",null]},"shadow":true}\`)**
-*   \`次の背景にする\` : \`looks_nextbackdrop (inputs: {})\` : Switch to next backdrop.
-*   \`大きさを (10) ずつ変える\` : \`looks_changesizeby (inputs: { CHANGE: [1, [4, "10"]] })\` : Change size by N.
-*   \`大きさを (100) %にする\` : \`looks_setsizeto (inputs: { SIZE: [1, [4, "100"]] })\` : Set size to N%.
-*   \`[色 v] の効果を (25) ずつ変える\` : \`looks_changeeffectby (inputs: { CHANGE: [1, [4, "25"]] }, fields: { EFFECT: ["color", null] })\` : Change graphic effect.
-*   \`[色 v] の効果を (0) にする\` : \`looks_seteffectto (inputs: { VALUE: [1, [4, "0"]] }, fields: { EFFECT: ["color", null] })\` : Set graphic effect.
-*   \`画像効果をなくす\` : \`looks_cleargraphiceffects (inputs: {})\` : Clear all graphic effects.
-*   \`表示する\` : \`looks_show (inputs: {})\` : Show sprite.
-*   \`隠す\` : \`looks_hide (inputs: {})\` : Hide sprite.
-*   \`[最前面 v] へ移動する\` : \`looks_gotofrontback (fields: { FRONT_BACK: ["front", null] })\` : Go to front/back layer.
-*   \`(1) 層 [手前に出す v]\` : \`looks_goforwardbackwardlayers (inputs: { NUM: [1, [4, "1"]] }, fields: { FORWARD_BACKWARD: ["forward", null] })\` : Change layer order.
-*   \`(コスチュームの [番号 v])\` : \`looks_costumenumbername (fields: { NUMBER_NAME: ["number", null] })\` : (Reporter) Costume number/name.
-*   \`(背景の [番号 v])\` : \`looks_backdropnumbername (fields: { NUMBER_NAME: ["number", null] })\` : (Reporter) Backdrop number/name.
-*   \`(大きさ)\` : \`looks_size (inputs: {})\` : (Reporter) Current size.
-
-#### Sound (音)
-*   \`終わるまで (Meow v) の音を鳴らす\` : \`sound_playuntildone (inputs: { SOUND_MENU: [1, "SOUND_ID"] })\` : Play sound until done. **(MUST define shadow block "SOUND_ID": \`{"opcode":"sound_sounds_menu","fields":{"SOUND_MENU":["Meow",null]},"shadow":true}\`)**
-*   \`(Meow v) の音を鳴らす\` : \`sound_play (inputs: { SOUND_MENU: [1, "SOUND_ID"] })\` : Start playing sound. **(MUST define shadow block "SOUND_ID": \`{"opcode":"sound_sounds_menu","fields":{"SOUND_MENU":["Meow",null]},"shadow":true}\`)**
-*   \`すべての音を止める\` : \`sound_stopallsounds (inputs: {})\` : Stop all sounds.
-*   \`[ピッチ v] の効果を (10) ずつ変える\` : \`sound_changeeffectby (inputs: { VALUE: [1, [4, "10"]] }, fields: { EFFECT: ["pitch", null] })\` : Change sound effect.
-*   \`[ピッチ v] の効果を (100) にする\` : \`sound_seteffectto (inputs: { VALUE: [1, [4, "100"]] }, fields: { EFFECT: ["pitch", null] })\` : Set sound effect.
-*   \`音の効果をなくす\` : \`sound_cleareffects (inputs: {})\` : Clear sound effects.
-*   \`音量を (-10) ずつ変える\` : \`sound_changevolumeby (inputs: { VOLUME: [1, [4, "-10"]] })\` : Change volume.
-*   \`音量を (100) %にする\` : \`sound_setvolumeto (inputs: { VOLUME: [1, [4, "100"]] })\` : Set volume.
-*   \`(音量)\` : \`sound_volume (inputs: {})\` : (Reporter) Current volume.
-
-#### Events (イベント)
-*   \`⚑ が押されたとき\` : \`event_whenflagclicked (topLevel: true)\` : Trigger on green flag.
-*   \`[スペース v] キーが押されたとき\` : \`event_whenkeypressed (fields: { KEY_OPTION: ["space", null] }, topLevel: true)\` : Trigger on key press.
-*   \`このスプライトが押されたとき\` : \`event_whenthisspriteclicked (topLevel: true)\` : Trigger on click.
-*   \`背景が [背景1 v] になったとき\` : \`event_whenbackdropswitchesto (fields: { BACKDROP: ["backdrop1", null] }, topLevel: true)\` : Trigger on backdrop switch.
-*   \`[音量 v] > (10) のとき\` : \`event_whengreaterthan (inputs: { VALUE: [1, [4, "10"]] }, fields: { WHENGREATERTHANMENU: ["LOUDNESS", null] }, topLevel: true)\` : Trigger when value > threshold.
-*   \`[メッセージ1 v] を受け取ったとき\` : \`event_whenbroadcastreceived (fields: { BROADCAST_OPTION: ["message1", "b_id"] }, topLevel: true)\` : Trigger on broadcast.
-*   \`(メッセージ1 v) を送る\` : \`event_broadcast (inputs: { BROADCAST_INPUT: [1, [11, "message1", "b_id"]] })\` : Send broadcast.
-*   \`(メッセージ1 v) を送って待つ\` : \`event_broadcastandwait (inputs: { BROADCAST_INPUT: [1, [11, "message1", "b_id"]] })\` : Send broadcast and wait.
-
-#### Control (制御)
-*   \`(1) 秒待つ\` : \`control_wait (inputs: { DURATION: [1, [4, "1"]] })\` : Wait N seconds.
-*   \`(10) 回繰り返す\` : \`control_repeat (inputs: { TIMES: [1, [4, "10"]], SUBSTACK: [2, "block_id"] })\` : Repeat N times.
-*   \`ずっと\` : \`control_forever (inputs: { SUBSTACK: [2, "block_id"] })\` : Infinite loop.
-*   \`もし < > なら\` : \`control_if (inputs: { CONDITION: [2, "boolean_block_id"], SUBSTACK: [2, "block_id"] })\` : If condition is true.
-*   \`もし < > なら ... でなければ\` : \`control_if_else (inputs: { CONDITION: [2, "boolean_block_id"], SUBSTACK: [2, "if_block_id"], SUBSTACK2: [2, "else_block_id"] })\` : If/Else.
-*   \`< > まで待つ\` : \`control_wait_until (inputs: { CONDITION: [2, "boolean_block_id"] })\` : Wait until condition is true.
-*   \`< > まで繰り返す\` : \`control_repeat_until (inputs: { CONDITION: [2, "boolean_block_id"], SUBSTACK: [2, "block_id"] })\` : Repeat until condition is true.
-*   \`[すべてを止める v]\` : \`control_stop (fields: { STOP_OPTION: ["all", null] })\` : Stop scripts.
-*   \`クローンされたとき\` : \`control_start_as_clone (topLevel: true)\` : Trigger when cloned.
-*   \`[自分自身 v] のクローンを作る\` : \`control_create_clone_of (inputs: { CLONE_OPTION: [1, "CLONE_ID"] })\` : Create clone. **(MUST define shadow block "CLONE_ID": \`{"opcode":"control_create_clone_of_menu","fields":{"CLONE_OPTION":["_myself_",null]},"shadow":true}\`)**
-*   \`このクローンを削除する\` : \`control_delete_this_clone (inputs: {})\` : Delete this clone.
-
-#### Sensing (調べる)
-*   \`< (マウスのポインター v) に触れた >\` : \`sensing_touchingobject (inputs: { TOUCHINGOBJECTMENU: [1, "TOUCH_ID"] })\` : Touching object? **(MUST define shadow block "TOUCH_ID": \`{"opcode":"sensing_touchingobjectmenu","fields":{"TOUCHINGOBJECTMENU":["_mouse_",null]},"shadow":true}\`)**
-*   \`< [#ff0000] に触れた >\` : \`sensing_touchingcolor (inputs: { COLOR: [1, [9, "#ff0000"]] })\` : Touching color?
-*   \`< [#ff0000] 色が [#00ff00] 色に触れた >\` : \`sensing_coloristouchingcolor (inputs: { COLOR: [1, [9, "#ff0000"]], COLOR2: [1, [9, "#00ff00"]] })\` : Color touches color?
-*   \`(マウスのポインター v) までの距離\` : \`sensing_distanceto (inputs: { DISTANCETOMENU: [1, "DIST_ID"] })\` : Distance to object. **(MUST define shadow block "DIST_ID": \`{"opcode":"sensing_distancetomenu","fields":{"DISTANCETOMENU":["_mouse_",null]},"shadow":true}\`)**
-*   \`[What's your name?] と聞いて待つ\` : \`sensing_askandwait (inputs: { QUESTION: [1, [10, "What's your name?"]] })\` : Ask question.
-*   \`(答え)\` : \`sensing_answer (inputs: {})\` : (Reporter) Answer.
-*   \`< (スペース v) キーが押された >\` : \`sensing_keypressed (inputs: { KEY_OPTION: [1, "KEY_ID"] })\` : Key pressed? **(MUST define shadow block "KEY_ID": \`{"opcode":"sensing_keyoptions","fields":{"KEY_OPTION":["space",null]},"shadow":true}\`)**
-*   \`< マウスが押された >\` : \`sensing_mousedown (inputs: {})\` : (Reporter) Mouse down?
-*   \`(マウスのx座標)\` : \`sensing_mousex (inputs: {})\` : (Reporter) Mouse X.
-*   \`(マウスのy座標)\` : \`sensing_mousey (inputs: {})\` : (Reporter) Mouse Y.
-*   \`ドラッグ [できる v] ようにする\` : \`sensing_setdragmode (fields: { DRAG_MODE: ["draggable", null] })\` : Set drag mode.
-*   \`(音量)\` : \`sensing_loudness (inputs: {})\` : (Reporter) Microphone loudness.
-*   \`(タイマー)\` : \`sensing_timer (inputs: {})\` : (Reporter) Timer value.
-*   \`タイマーをリセット\` : \`sensing_resettimer (inputs: {})\` : Reset timer.
-*   \`(ステージ v) の [背景# v]\` : \`sensing_of (inputs: { OBJECT: [1, "OBJ_ID"] }, fields: { PROPERTY: ["x position", null] })\` : Property of object. **(MUST define shadow block "OBJ_ID": \`{"opcode":"sensing_of_object_menu","fields":{"OBJECT":["_stage_",null]},"shadow":true}\`)**
-*   \`(現在の [年 v])\` : \`sensing_current (fields: { CURRENTMENU: ["YEAR", null] })\` : Current date/time.
-*   \`(2000年からの日数)\` : \`sensing_dayssince2000 (inputs: {})\` : (Reporter) Days since 2000.
-*   \`(ユーザー名)\` : \`sensing_username (inputs: {})\` : (Reporter) Username.
-
-#### Operators (演算)
-*   \`(() + ())\` : \`operator_add (inputs: { NUM1: [1, [4, ""]], NUM2: [1, [4, ""]] })\` : Add.
-*   \`(() - ())\` : \`operator_subtract (inputs: { NUM1: [1, [4, ""]], NUM2: [1, [4, ""]] })\` : Subtract.
-*   \`(() * ())\` : \`operator_multiply (inputs: { NUM1: [1, [4, ""]], NUM2: [1, [4, ""]] })\` : Multiply.
-*   \`(() / ())\` : \`operator_divide (inputs: { NUM1: [1, [4, ""]], NUM2: [1, [4, ""]] })\` : Divide.
-*   \`(() から () までの乱数)\` : \`operator_random (inputs: { FROM: [1, [4, "1"]], TO: [1, [4, "10"]] })\` : Random number.
-*   \`< () > () >\` : \`operator_gt (inputs: { OPERAND1: [1, [10, ""]], OPERAND2: [1, [10, "50"]] })\` : Greater than.
-*   \`< () < () >\` : \`operator_lt (inputs: { OPERAND1: [1, [10, ""]], OPERAND2: [1, [10, "50"]] })\` : Less than.
-*   \`< () = () >\` : \`operator_equals (inputs: { OPERAND1: [1, [10, ""]], OPERAND2: [1, [10, "50"]] })\` : Equals.
-*   \`< < > かつ < > >\` : \`operator_and (inputs: { OPERAND1: [2, "bool_id"], OPERAND2: [2, "bool_id"] })\` : Logical AND.
-*   \`< < > または < > >\` : \`operator_or (inputs: { OPERAND1: [2, "bool_id"], OPERAND2: [2, "bool_id"] })\` : Logical OR.
-*   \`< < > ではない >\` : \`operator_not (inputs: { OPERAND: [2, "bool_id"] })\` : Logical NOT.
-*   \`([] と [])\` : \`operator_join (inputs: { STRING1: [1, [10, "apple "]], STRING2: [1, [10, "banana"]] })\` : Join strings.
-*   \`([] の (1) 番目の文字)\` : \`operator_letter_of (inputs: { LETTER: [1, [4, "1"]], STRING: [1, [10, "apple"]] })\` : Character at index.
-*   \`([] の長さ)\` : \`operator_length (inputs: { STRING: [1, [10, "apple"]] })\` : Length of string.
-*   \`< [] に [] が含まれる >\` : \`operator_contains (inputs: { STRING1: [1, [10, "apple"]], STRING2: [1, [10, "a"]] })\` : String contains substring?
-*   \`(() を () で割った余り)\` : \`operator_mod (inputs: { NUM1: [1, [4, ""]], NUM2: [1, [4, ""]] })\` : Modulo.
-*   \`(() を四捨五入)\` : \`operator_round (inputs: { NUM: [1, [4, ""]] })\` : Round.
-*   \`(() の [絶対値 v])\` : \`operator_mathop (inputs: { NUM: [1, [4, ""]] }, fields: { OPERATOR: ["abs", null] })\` : Math functions (abs, floor, etc.).
-
-#### Variables (変数)
-*   \`(my variable)\` : \`data_variable (fields: { VARIABLE: ["my variable", "var_id"] })\` : (Reporter) Value of variable.
-*   \`[my variable v] を (0) にする\` : \`data_setvariableto (inputs: { VALUE: [1, [10, "0"]] }, fields: { VARIABLE: ["my variable", "var_id"] })\` : Set variable.
-*   \`[my variable v] を (1) ずつ変える\` : \`data_changevariableby (inputs: { VALUE: [1, [4, "1"]] }, fields: { VARIABLE: ["my variable", "var_id"] })\` : Change variable.
-*   \`変数 [my variable v] を表示する\` : \`data_showvariable (fields: { VARIABLE: ["my variable", "var_id"] })\` : Show variable monitor.
-*   \`変数 [my variable v] を隠す\` : \`data_hidevariable (fields: { VARIABLE: ["my variable", "var_id"] })\` : Hide variable monitor.
+### ブロック定義
+* \`定義 my block\`: 自分で作ったブロックを定義する。
+* \`my block\`: 定義したブロックを呼び出す。
 `;
 
 export class ChatComponent extends React.Component {
@@ -362,7 +268,19 @@ export class ChatComponent extends React.Component {
         }
 
         const projectJson = this.props.vm.toJSON();
-        const prompt = `The user wants to modify the existing program.\nCurrent project state: \n${projectJson} \n\nUser prompt: "${inputValue}"`;
+        const projectScratchBlocks = ScratchTextCompiler.projectToScratchBlocks(projectJson);
+        const prompt = `ユーザーは現在のScratchプログラムを変更したいです。
+
+現在のプログラム（ScratchBlocks記法）:
+\`\`\`scratch
+${projectScratchBlocks}
+\`\`\`
+
+ユーザーの依頼:
+${inputValue}
+
+変更後の全スプライト・ステージの完成したプログラムを、ターゲット見出し付きのScratchBlocks記法で返してください。インデントは不要です。
+回答前に、Boolean条件、括弧、end、全ターゲット、未変更コードの保持をもう一度検査してから返してください。`;
 
         const history = this.props.messages.map(msg => ({
             role: msg.sender === 'user' ? 'user' : 'assistant',
@@ -452,137 +370,7 @@ export class ChatComponent extends React.Component {
                     fullResponse = `Error: ${data.error.message || data.error} `;
                 }
 
-                let explanation = fullResponse;
-                let newProjectJson = null;
-
-                // DIRECT JSON PRIORITY (User Request)
-                const jsonMatch = fullResponse.match(/```json\s*(?:\[SCRATCH-PROJECT-JSON\])?\s*([\s\S]*?)```/);
-                if (jsonMatch && jsonMatch[1]) {
-                    try {
-                        const jsonContent = jsonMatch[1].replace(/\/\/.*$/gm, '').trim();
-                        newProjectJson = JSON.parse(jsonContent);
-
-                        // SANITIZATION: Fix common AI errors (e.g. Type IDs as strings)
-                        const sanitizeProjectJson = (project) => {
-                            if (!project || !project.targets) return project;
-                            project.targets.forEach(target => {
-                                // Fix variable definitions (must be [name, value])
-                                if (target.variables) {
-                                    Object.keys(target.variables).forEach(key => {
-                                        const val = target.variables[key];
-                                        if (!Array.isArray(val)) {
-                                            target.variables[key] = [key, typeof val === 'number' ? val : 0];
-                                        } else if (val.length < 2) {
-                                            target.variables[key] = [val[0] || key, 0];
-                                        }
-                                    });
-                                }
-                                // Fix list definitions (must be [name, array])
-                                if (target.lists) {
-                                    Object.keys(target.lists).forEach(key => {
-                                        const val = target.lists[key];
-                                        if (!Array.isArray(val)) {
-                                            target.lists[key] = [key, []];
-                                        } else if (val.length < 2 || !Array.isArray(val[1])) {
-                                            target.lists[key] = [val[0] || key, []];
-                                        }
-                                    });
-                                }
-                                if (!target.blocks) return;
-                                Object.values(target.blocks).forEach(block => {
-                                    if (!block.inputs) return;
-                                    Object.values(block.inputs).forEach(input => {
-                                        // Input format: [shadow, [TYPE, VALUE]] or [1, [TYPE, VALUE]]
-                                        // We are looking for the value array: [TYPE, VALUE]
-                                        if (!Array.isArray(input)) return;
-
-                                        // Iterate to find the value array (usually the last element if it's an array)
-                                        input.forEach(item => {
-                                            if (Array.isArray(item) && item.length >= 2) {
-                                                // Check Type ID (item[0])
-                                                // Valid Primitive Types: 4-10 (math/string), 11-13 (vars)
-                                                const typeId = item[0];
-                                                if (typeof typeId === 'string' && /^\d+$/.test(typeId)) {
-                                                    const numType = parseInt(typeId, 10);
-                                                    // Only convert if it looks like a primitive type ID
-                                                    if (numType >= 4 && numType <= 13) {
-                                                        item[0] = numType;
-                                                        console.log(`Auto-Repaired JSON Type ID: "${typeId}" -> ${numType}`);
-                                                    }
-                                                }
-                                            }
-                                        });
-                                    });
-                                });
-                            });
-                            return project;
-                        };
-
-                        newProjectJson = sanitizeProjectJson(newProjectJson);
-
-                        explanation = fullResponse.substring(0, jsonMatch.index).trim();
-                        console.log("Loaded Project via Direct AI JSON");
-                    } catch (e) {
-                        console.error('Error parsing AI JSON:', e);
-                        explanation = 'I tried to use the AI JSON, but it was invalid.';
-                        newProjectJson = null;
-                    }
-                }
-
-                if (explanation) {
-                    explanation = explanation.replace('[SCRATCH-PROJECT-JSON]', '').trim();
-                }
-
-                const botMessage = { text: explanation, sender: 'bot' };
-                this.props.onAddMessage(botMessage);
-
-                if (newProjectJson) {
-                    // SANITIZATION: Restore valid assets from original project
-                    // The AI often hallucinates Asset IDs. We must replace them with valid ones.
-                    try {
-                        const originalProject = JSON.parse(projectJson); // Parse original string
-
-                        if (newProjectJson.targets && originalProject.targets) {
-                            newProjectJson.targets.forEach(newTarget => {
-                                const originalTarget = originalProject.targets.find(t => t.name === newTarget.name && t.isStage === newTarget.isStage);
-                                if (originalTarget) {
-                                    // Restore Costumes and Sounds from original
-                                    newTarget.costumes = originalTarget.costumes;
-                                    newTarget.sounds = originalTarget.sounds;
-                                } else {
-                                    // New target created by AI? Needs at least one costume.
-                                    // Use a minimal fallback if no costumes provided or if they assume fake MD5s.
-                                    // Ideally we skip creating new sprites if we can't guarantee assets.
-                                    // For now, let's just leave it (risky) or try to give it the default cat if empty.
-                                    if (!newTarget.costumes || newTarget.costumes.length === 0) {
-                                        newTarget.costumes = []; // Will fail validation if truly empty.
-                                        // TODO: Add default blank costume?
-                                    }
-                                }
-                            });
-                        }
-                    } catch (e) {
-                        console.error("Error restoring assets:", e);
-                        // Fallback: If parsing original failed, we can't do much.
-                    }
-
-                    this.props.vm.loadProject(newProjectJson)
-                        .then(() => {
-                            if (!this._isMounted) return;
-                            this.props.vm.refreshWorkspace();
-                            this.props.onSetIsLoading(false);
-                        })
-                        .catch(e => {
-                            if (!this._isMounted) return;
-                            console.error('Error loading project:', e);
-                            const errorMessage = { text: 'Failed to load the new project.', sender: 'bot' };
-                            this.props.onAddMessage(errorMessage);
-                            this.props.onSetIsLoading(false);
-                        });
-                } else {
-                    if (!this._isMounted) return;
-                    this.props.onSetIsLoading(false);
-                }
+                this._handleScratchBlocksResponse(fullResponse, projectJson, true);
             })
             .catch(error => {
                 if (!this._isMounted) return;
@@ -593,111 +381,61 @@ export class ChatComponent extends React.Component {
             });
     }
 
+    _handleScratchBlocksResponse(fullResponse, projectJson, shouldStopLoading) {
+        const scratchCode = ScratchTextCompiler.extractScratchBlocks(fullResponse);
+        const displayResponse = fullResponse
+            .replace(/```json\s*[\s\S]*?```/giu, '')
+            .replace('[SCRATCH-PROJECT-JSON]', '')
+            .trim();
+
+        this.props.onAddMessage({
+            text: displayResponse || fullResponse,
+            sender: 'bot'
+        });
+
+        if (!scratchCode) {
+            if (shouldStopLoading) this.props.onSetIsLoading(false);
+            return;
+        }
+
+        let newProjectJson = null;
+        try {
+            newProjectJson = ScratchTextCompiler.compile(
+                scratchCode,
+                projectJson,
+                this.props.vm.editingTarget && this.props.vm.editingTarget.id
+            );
+            const hasBlocks = newProjectJson.targets.some(target => Object.keys(target.blocks || {}).length > 0);
+            if (!hasBlocks) {
+                throw new Error('ScratchBlocks response did not contain supported blocks.');
+            }
+        } catch (e) {
+            console.error('Error compiling ScratchBlocks response:', e);
+            this.props.onAddMessage({
+                text: `ScratchBlocks記法をプログラムに変換できませんでした。\n${e.message}`,
+                sender: 'bot'
+            });
+            if (shouldStopLoading) this.props.onSetIsLoading(false);
+            return;
+        }
+
+        this.props.vm.loadProject(newProjectJson)
+            .then(() => {
+                if (!this._isMounted) return;
+                this.props.vm.refreshWorkspace();
+                if (shouldStopLoading) this.props.onSetIsLoading(false);
+            })
+            .catch(e => {
+                if (!this._isMounted) return;
+                console.error('Error loading ScratchBlocks project:', e);
+                this.props.onAddMessage({ text: 'プロジェクトの読み込みに失敗しました。', sender: 'bot' });
+                if (shouldStopLoading) this.props.onSetIsLoading(false);
+            });
+    }
+
     // 管理者に承認されたレスポンスを処理するメソッド
     _handleApprovedResponse(fullResponse) {
-        const projectJson = this.props.vm.toJSON();
-        let explanation = fullResponse;
-        let newProjectJson = null;
-
-        const jsonMatch = fullResponse.match(/```json\s*(?:\[SCRATCH-PROJECT-JSON\])?\s*([\s\S]*?)```/);
-        if (jsonMatch && jsonMatch[1]) {
-            try {
-                const jsonContent = jsonMatch[1].replace(/\/\/.*$/gm, '').trim();
-                newProjectJson = JSON.parse(jsonContent);
-
-                const sanitizeProjectJson = project => {
-                    if (!project || !project.targets) return project;
-                    project.targets.forEach(target => {
-                        // Fix variable definitions
-                        if (target.variables) {
-                            Object.keys(target.variables).forEach(key => {
-                                const val = target.variables[key];
-                                if (!Array.isArray(val)) {
-                                    target.variables[key] = [key, typeof val === 'number' ? val : 0];
-                                } else if (val.length < 2) {
-                                    target.variables[key] = [val[0] || key, 0];
-                                }
-                            });
-                        }
-                        // Fix list definitions
-                        if (target.lists) {
-                            Object.keys(target.lists).forEach(key => {
-                                const val = target.lists[key];
-                                if (!Array.isArray(val)) {
-                                    target.lists[key] = [key, []];
-                                } else if (val.length < 2 || !Array.isArray(val[1])) {
-                                    target.lists[key] = [val[0] || key, []];
-                                }
-                            });
-                        }
-                        if (!target.blocks) return;
-                        Object.values(target.blocks).forEach(block => {
-                            if (!block.inputs) return;
-                            Object.values(block.inputs).forEach(input => {
-                                if (!Array.isArray(input)) return;
-                                input.forEach(item => {
-                                    if (Array.isArray(item) && item.length >= 2) {
-                                        const typeId = item[0];
-                                        if (typeof typeId === 'string' && /^\d+$/.test(typeId)) {
-                                            const numType = parseInt(typeId, 10);
-                                            if (numType >= 4 && numType <= 13) {
-                                                item[0] = numType;
-                                            }
-                                        }
-                                    }
-                                });
-                            });
-                        });
-                    });
-                    return project;
-                };
-
-                newProjectJson = sanitizeProjectJson(newProjectJson);
-                explanation = fullResponse.substring(0, jsonMatch.index).trim();
-            } catch (e) {
-                console.error('Error parsing approved AI JSON:', e);
-                newProjectJson = null;
-            }
-        }
-
-        if (explanation) {
-            explanation = explanation.replace('[SCRATCH-PROJECT-JSON]', '').trim();
-        }
-
-        const botMessage = { text: explanation, sender: 'bot' };
-        this.props.onAddMessage(botMessage);
-
-        if (newProjectJson) {
-            try {
-                const originalProject = JSON.parse(projectJson);
-                if (newProjectJson.targets && originalProject.targets) {
-                    newProjectJson.targets.forEach(newTarget => {
-                        const originalTarget = originalProject.targets.find(
-                            t => t.name === newTarget.name && t.isStage === newTarget.isStage
-                        );
-                        if (originalTarget) {
-                            newTarget.costumes = originalTarget.costumes;
-                            newTarget.sounds = originalTarget.sounds;
-                        } else if (!newTarget.costumes || newTarget.costumes.length === 0) {
-                            newTarget.costumes = [];
-                        }
-                    });
-                }
-            } catch (e) {
-                console.error('Error restoring assets (approved):', e);
-            }
-
-            this.props.vm.loadProject(newProjectJson)
-                .then(() => {
-                    if (!this._isMounted) return;
-                    this.props.vm.refreshWorkspace();
-                })
-                .catch(e => {
-                    if (!this._isMounted) return;
-                    console.error('Error loading approved project:', e);
-                    this.props.onAddMessage({ text: 'プロジェクトの読み込みに失敗しました。', sender: 'bot' });
-                });
-        }
+        this._handleScratchBlocksResponse(fullResponse, this.props.vm.toJSON(), false);
     }
 
     render() {

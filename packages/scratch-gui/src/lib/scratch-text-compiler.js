@@ -1,520 +1,972 @@
+/* eslint-disable max-len, func-style, require-jsdoc */
+const primitiveNumber = value => [1, [4, String(value)]];
+const primitiveString = value => [1, [10, String(value)]];
+const normalize = text => String(text || '')
+    .replace(/[⚑🚩]/gu, '旗')
+    .replace(/[（]/gu, '(')
+    .replace(/[）]/gu, ')')
+    .replace(/[［]/gu, '[')
+    .replace(/[］]/gu, ']')
+    .replace(/[＜]/gu, '<')
+    .replace(/[＞]/gu, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-import ja from 'scratchblocks/locales/ja.json';
+const normalizeLine = line => normalize(String(line || '')
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/u, '')
+    .replace(/^\s*`|`\s*$/gu, '')
+    .replace(/[;；]\s*$/u, ''))
+    .replace(/^(?:終了|おわり|終わり)$/u, 'end')
+    .replace(/^(?:else|それ以外|そうでなければ)$/iu, 'でなければ');
 
-/**
- * Compiler to convert Japanese ScratchBlocks text into Scratch Project JSON.
- */
-class ScratchTextCompiler {
-    constructor() {
-        this.blockPatterns = [];
-        this.initializePatterns();
+const targetHeader = line => String(line || '').trim()
+    .match(/^#{1,6}\s*(.+?)(?:\s*[:：])?$/u);
+
+const unwrap = value => String(value || '')
+    .trim()
+    .replace(/^\((.*)\)$/u, '$1')
+    .replace(/^\[(.*)\]$/u, '$1')
+    .replace(/^<(.*)>$/u, '$1')
+    .replace(/\s+v$/u, '')
+    .trim();
+
+const stringInput = value => primitiveString(unwrap(value));
+
+const roundInput = value => {
+    const text = String(value);
+    return text.startsWith('(') && text.endsWith(')') ? text : `(${text})`;
+};
+const booleanText = value => {
+    const text = String(value);
+    return text.startsWith('<') && text.endsWith('>') ? text : `<${text}>`;
+};
+
+const menuValueMap = {
+    どこかの場所: '_random_',
+    マウスのポインター: '_mouse_',
+    自分自身: '_myself_',
+    すべてを止める: 'all',
+    このスクリプト: 'this script',
+    スプライトの他のスクリプト: 'other scripts in sprite',
+    左右のみ: 'left-right',
+    回転しない: "don't rotate",
+    自由に回転: 'all around',
+    最前面: 'front',
+    最背面: 'back',
+    手前に出す: 'forward',
+    奥に下げる: 'backward',
+    スペース: 'space',
+    上向き矢印: 'up arrow',
+    下向き矢印: 'down arrow',
+    右向き矢印: 'right arrow',
+    左向き矢印: 'left arrow',
+    音量: 'LOUDNESS',
+    タイマー: 'TIMER'
+};
+
+const menuValue = value => {
+    const unwrapped = unwrap(value);
+    return menuValueMap[unwrapped] || unwrapped;
+};
+
+const blockSpecs = [
+    {
+        opcode: 'event_whenflagclicked',
+        patterns: [/^(?:旗|green flag) が(?:押された|クリックされた)とき$/u],
+        hat: true,
+        toText: () => '⚑ が押されたとき'
+    },
+    {
+        opcode: 'event_whenkeypressed',
+        patterns: [/^\[(.+?)\] キーが押されたとき$/u],
+        hat: true,
+        build: m => ({fields: {KEY_OPTION: [menuValue(m[1]), null]}}),
+        toText: block => `[${reverseMenu(fieldValue(block, 'KEY_OPTION'))} v] キーが押されたとき`
+    },
+    {
+        opcode: 'event_whenthisspriteclicked',
+        patterns: [/^このスプライトが押されたとき$/u],
+        hat: true,
+        toText: () => 'このスプライトが押されたとき'
+    },
+    {
+        opcode: 'event_whenbroadcastreceived',
+        patterns: [/^\[(.+?)\] を受け取ったとき$/u],
+        hat: true,
+        build: m => {
+            const name = unwrap(m[1]);
+            return {fields: {BROADCAST_OPTION: [name, `broadcast_${name}`]}};
+        },
+        toText: block => `[${fieldValue(block, 'BROADCAST_OPTION')} v] を受け取ったとき`
+    },
+    {
+        opcode: 'event_whengreaterthan',
+        patterns: [/^\[(.+?)\] > (.+?) のとき$/u],
+        hat: true,
+        build: (m, ctx) => ({
+            fields: {WHENGREATERTHANMENU: [menuValue(m[1]), null]},
+            inputs: {VALUE: valueBlockInput(m[2], ctx, true)}
+        }),
+        toText: (block, readInput) => `[${reverseMenu(fieldValue(block, 'WHENGREATERTHANMENU'))} v] > ${readInput(block, 'VALUE', '10')} のとき`
+    },
+    {
+        opcode: 'motion_movesteps',
+        patterns: [/^(.+?) 歩動かす$/u],
+        build: (m, ctx) => ({inputs: {STEPS: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `${roundInput(readInput(block, 'STEPS', '10'))} 歩動かす`
+    },
+    {
+        opcode: 'motion_turnright',
+        patterns: [/^(?:右に|↻) (.+?) 度回す$/u],
+        build: (m, ctx) => ({inputs: {DEGREES: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `右に ${roundInput(readInput(block, 'DEGREES', '15'))} 度回す`
+    },
+    {
+        opcode: 'motion_turnleft',
+        patterns: [/^(?:左に|↺) (.+?) 度回す$/u],
+        build: (m, ctx) => ({inputs: {DEGREES: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `左に ${roundInput(readInput(block, 'DEGREES', '15'))} 度回す`
+    },
+    {
+        opcode: 'motion_gotoxy',
+        patterns: [/^x座標を (.+?)、?y座標を (.+?) にする$/u],
+        build: (m, ctx) => ({inputs: {X: valueBlockInput(m[1], ctx, true), Y: valueBlockInput(m[2], ctx, true)}}),
+        toText: (block, readInput) => `x座標を ${roundInput(readInput(block, 'X', '0'))}、y座標を ${roundInput(readInput(block, 'Y', '0'))} にする`
+    },
+    {
+        opcode: 'motion_goto',
+        patterns: [/^(.+?) へ行く$/u],
+        build: (m, ctx) => ({inputs: {TO: ctx.addShadow('motion_goto_menu', 'TO', menuValue(m[1]))}}),
+        toText: (block, readInput) => `(${readInput(block, 'TO', 'どこかの場所')} v) へ行く`
+    },
+    {
+        opcode: 'motion_glidesecstoxy',
+        patterns: [/^(.+?) 秒でx座標を (.+?) に、?y座標を (.+?) に変える$/u],
+        build: (m, ctx) => ({inputs: {
+            SECS: valueBlockInput(m[1], ctx, true),
+            X: valueBlockInput(m[2], ctx, true),
+            Y: valueBlockInput(m[3], ctx, true)
+        }}),
+        toText: (block, readInput) => `${roundInput(readInput(block, 'SECS', '1'))} 秒でx座標を ${roundInput(readInput(block, 'X', '0'))} に、y座標を ${roundInput(readInput(block, 'Y', '0'))} に変える`
+    },
+    {
+        opcode: 'motion_pointindirection',
+        patterns: [/^(.+?) 度に向ける$/u],
+        build: (m, ctx) => ({inputs: {DIRECTION: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `${roundInput(readInput(block, 'DIRECTION', '90'))} 度に向ける`
+    },
+    {
+        opcode: 'motion_changexby',
+        patterns: [/^x座標を (.+?) ずつ変える$/u],
+        build: (m, ctx) => ({inputs: {DX: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `x座標を ${roundInput(readInput(block, 'DX', '10'))} ずつ変える`
+    },
+    {
+        opcode: 'motion_setx',
+        patterns: [/^x座標を (.+?) にする$/u],
+        build: (m, ctx) => ({inputs: {X: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `x座標を ${roundInput(readInput(block, 'X', '0'))} にする`
+    },
+    {
+        opcode: 'motion_changeyby',
+        patterns: [/^y座標を (.+?) ずつ変える$/u],
+        build: (m, ctx) => ({inputs: {DY: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `y座標を ${roundInput(readInput(block, 'DY', '10'))} ずつ変える`
+    },
+    {
+        opcode: 'motion_sety',
+        patterns: [/^y座標を (.+?) にする$/u],
+        build: (m, ctx) => ({inputs: {Y: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `y座標を ${roundInput(readInput(block, 'Y', '0'))} にする`
+    },
+    {
+        opcode: 'motion_ifonedgebounce',
+        patterns: [/^もし端に着いたら、?跳ね返る$/u],
+        toText: () => 'もし端に着いたら、跳ね返る'
+    },
+    {
+        opcode: 'motion_setrotationstyle',
+        patterns: [/^回転方法を \[(.+?)\] にする$/u],
+        build: m => ({fields: {STYLE: [menuValue(m[1]), null]}}),
+        toText: block => `回転方法を [${reverseMenu(fieldValue(block, 'STYLE'))} v] にする`
+    },
+    {
+        opcode: 'looks_sayforsecs',
+        patterns: [/^\[(.*?)\] と (.+?) 秒言う$/u],
+        build: (m, ctx) => ({inputs: {MESSAGE: stringInput(m[1]), SECS: valueBlockInput(m[2], ctx, true)}}),
+        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'こんにちは!')}] と ${roundInput(readInput(block, 'SECS', '2'))} 秒言う`
+    },
+    {
+        opcode: 'looks_say',
+        patterns: [/^\[(.*?)\] と言う$/u],
+        build: m => ({inputs: {MESSAGE: stringInput(m[1])}}),
+        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'こんにちは!')}] と言う`
+    },
+    {
+        opcode: 'looks_thinkforsecs',
+        patterns: [/^\[(.*?)\] と (.+?) 秒考える$/u],
+        build: (m, ctx) => ({inputs: {MESSAGE: stringInput(m[1]), SECS: valueBlockInput(m[2], ctx, true)}}),
+        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'うーん...')}] と ${roundInput(readInput(block, 'SECS', '2'))} 秒考える`
+    },
+    {
+        opcode: 'looks_think',
+        patterns: [/^\[(.*?)\] と考える$/u],
+        build: m => ({inputs: {MESSAGE: stringInput(m[1])}}),
+        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'うーん')}] と考える`
+    },
+    {opcode: 'looks_nextcostume', patterns: [/^次のコスチュームにする$/u], toText: () => '次のコスチュームにする'},
+    {opcode: 'looks_nextbackdrop', patterns: [/^次の背景にする$/u], toText: () => '次の背景にする'},
+    {
+        opcode: 'looks_changesizeby',
+        patterns: [/^大きさを (.+?) ずつ変える$/u],
+        build: (m, ctx) => ({inputs: {CHANGE: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `大きさを ${roundInput(readInput(block, 'CHANGE', '10'))} ずつ変える`
+    },
+    {
+        opcode: 'looks_setsizeto',
+        patterns: [/^大きさを (.+?) ?%にする$/u],
+        build: (m, ctx) => ({inputs: {SIZE: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `大きさを ${roundInput(readInput(block, 'SIZE', '100'))} %にする`
+    },
+    {opcode: 'looks_show', patterns: [/^表示する$/u], toText: () => '表示する'},
+    {opcode: 'looks_hide', patterns: [/^隠す$/u], toText: () => '隠す'},
+    {
+        opcode: 'sound_playuntildone',
+        patterns: [/^終わるまで (.+?) の音を鳴らす$/u],
+        build: (m, ctx) => ({inputs: {SOUND_MENU: ctx.addShadow('sound_sounds_menu', 'SOUND_MENU', unwrap(m[1]))}}),
+        toText: (block, readInput) => `終わるまで (${readInput(block, 'SOUND_MENU', 'Meow')} v) の音を鳴らす`
+    },
+    {
+        opcode: 'sound_play',
+        patterns: [/^(.+?) の音を鳴らす$/u],
+        build: (m, ctx) => ({inputs: {SOUND_MENU: ctx.addShadow('sound_sounds_menu', 'SOUND_MENU', unwrap(m[1]))}}),
+        toText: (block, readInput) => `(${readInput(block, 'SOUND_MENU', 'Meow')} v) の音を鳴らす`
+    },
+    {opcode: 'sound_stopallsounds', patterns: [/^すべての音を止める$/u], toText: () => 'すべての音を止める'},
+    {
+        opcode: 'sound_changevolumeby',
+        patterns: [/^音量を (.+?) ずつ変える$/u],
+        build: (m, ctx) => ({inputs: {VOLUME: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `音量を ${roundInput(readInput(block, 'VOLUME', '-10'))} ずつ変える`
+    },
+    {
+        opcode: 'sound_setvolumeto',
+        patterns: [/^音量を (.+?) ?%にする$/u],
+        build: (m, ctx) => ({inputs: {VOLUME: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `音量を ${roundInput(readInput(block, 'VOLUME', '100'))} %にする`
+    },
+    {
+        opcode: 'operator_add',
+        patterns: [],
+        reporter: true,
+        toText: (block, readInput) => `(${roundInput(readInput(block, 'NUM1', '0'))} + ${roundInput(readInput(block, 'NUM2', '0'))})`
+    },
+    {
+        opcode: 'operator_subtract',
+        patterns: [],
+        reporter: true,
+        toText: (block, readInput) => `(${roundInput(readInput(block, 'NUM1', '0'))} - ${roundInput(readInput(block, 'NUM2', '0'))})`
+    },
+    {
+        opcode: 'operator_multiply',
+        patterns: [],
+        reporter: true,
+        toText: (block, readInput) => `(${roundInput(readInput(block, 'NUM1', '0'))} * ${roundInput(readInput(block, 'NUM2', '0'))})`
+    },
+    {
+        opcode: 'operator_divide',
+        patterns: [],
+        reporter: true,
+        toText: (block, readInput) => `(${roundInput(readInput(block, 'NUM1', '0'))} / ${roundInput(readInput(block, 'NUM2', '0'))})`
+    },
+    {opcode: 'motion_xposition', patterns: [/^\(x座標\)$/u], reporter: true, toText: () => '(x座標)'},
+    {opcode: 'motion_yposition', patterns: [/^\(y座標\)$/u], reporter: true, toText: () => '(y座標)'},
+    {opcode: 'motion_direction', patterns: [/^\(向き\)$/u], reporter: true, toText: () => '(向き)'},
+    {
+        opcode: 'data_variable',
+        patterns: [/^\((.+?)\)$/u],
+        reporter: true,
+        build: (m, ctx) => {
+            const variable = ctx.variable(unwrap(m[1]));
+            return {fields: {VARIABLE: [variable.name, variable.id]}};
+        },
+        toText: block => `(${fieldValue(block, 'VARIABLE')})`
+    },
+    {
+        opcode: 'operator_and',
+        patterns: [/^<\s*(<.+>)\s+かつ\s+(<.+>)\s*>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {
+            OPERAND1: booleanBlockInput(m[1], ctx),
+            OPERAND2: booleanBlockInput(m[2], ctx)
+        }}),
+        toText: (block, readInput) => `<${booleanText(readInput(block, 'OPERAND1', ''))} かつ ${booleanText(readInput(block, 'OPERAND2', ''))}>`
+    },
+    {
+        opcode: 'operator_or',
+        patterns: [/^<\s*(<.+>)\s+または\s+(<.+>)\s*>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {
+            OPERAND1: booleanBlockInput(m[1], ctx),
+            OPERAND2: booleanBlockInput(m[2], ctx)
+        }}),
+        toText: (block, readInput) => `<${booleanText(readInput(block, 'OPERAND1', ''))} または ${booleanText(readInput(block, 'OPERAND2', ''))}>`
+    },
+    {
+        opcode: 'operator_not',
+        patterns: [/^<\s*(<.+>)\s+ではない\s*>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {OPERAND: booleanBlockInput(m[1], ctx)}}),
+        toText: (block, readInput) => `<${booleanText(readInput(block, 'OPERAND', ''))} ではない>`
+    },
+    {
+        opcode: 'operator_gt',
+        patterns: [/^<\s*(.+?)\s+>\s+(.+?)\s*>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {
+            OPERAND1: valueBlockInput(m[1], ctx),
+            OPERAND2: valueBlockInput(m[2], ctx)
+        }}),
+        toText: (block, readInput) => `<${roundInput(readInput(block, 'OPERAND1', ''))} > ${roundInput(readInput(block, 'OPERAND2', ''))}>`
+    },
+    {
+        opcode: 'operator_lt',
+        patterns: [/^<\s*(.+?)\s+<\s+(.+?)\s*>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {
+            OPERAND1: valueBlockInput(m[1], ctx),
+            OPERAND2: valueBlockInput(m[2], ctx)
+        }}),
+        toText: (block, readInput) => `<${roundInput(readInput(block, 'OPERAND1', ''))} < ${roundInput(readInput(block, 'OPERAND2', ''))}>`
+    },
+    {
+        opcode: 'operator_equals',
+        patterns: [/^<\s*(.+?)\s+=\s+(.+?)\s*>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {
+            OPERAND1: valueBlockInput(m[1], ctx),
+            OPERAND2: valueBlockInput(m[2], ctx)
+        }}),
+        toText: (block, readInput) => `<${roundInput(readInput(block, 'OPERAND1', ''))} = ${roundInput(readInput(block, 'OPERAND2', ''))}>`
+    },
+    {
+        opcode: 'control_wait',
+        patterns: [/^(.+?) 秒待つ$/u],
+        build: (m, ctx) => ({inputs: {DURATION: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `${roundInput(readInput(block, 'DURATION', '1'))} 秒待つ`
+    },
+    {
+        opcode: 'control_repeat',
+        patterns: [/^(.+?) 回繰り返す$/u],
+        cBlock: true,
+        build: (m, ctx) => ({inputs: {TIMES: valueBlockInput(m[1], ctx, true)}}),
+        toText: (block, readInput) => `${roundInput(readInput(block, 'TIMES', '10'))} 回繰り返す`
+    },
+    {opcode: 'control_forever', patterns: [/^ずっと$/u], cBlock: true, toText: () => 'ずっと'},
+    {
+        opcode: 'control_if',
+        patterns: [/^もし (.+?) なら$/u],
+        cBlock: true,
+        build: (m, ctx) => ({inputs: {CONDITION: booleanBlockInput(m[1], ctx)}}),
+        toText: (block, readInput) => `もし ${booleanText(readInput(block, 'CONDITION', ''))} なら`
+    },
+    {
+        opcode: 'control_if_else',
+        patterns: [/^もし (.+?) なら$/u],
+        cBlock: true,
+        hasElse: true,
+        build: (m, ctx) => ({inputs: {CONDITION: booleanBlockInput(m[1], ctx)}}),
+        toText: (block, readInput) => `もし ${booleanText(readInput(block, 'CONDITION', ''))} なら`
+    },
+    {
+        opcode: 'control_wait_until',
+        patterns: [/^(.+?) まで待つ$/u],
+        build: (m, ctx) => ({inputs: {CONDITION: booleanBlockInput(m[1], ctx)}}),
+        toText: (block, readInput) => `${booleanText(readInput(block, 'CONDITION', ''))} まで待つ`
+    },
+    {
+        opcode: 'control_repeat_until',
+        patterns: [/^(.+?) まで繰り返す$/u],
+        cBlock: true,
+        build: (m, ctx) => ({inputs: {CONDITION: booleanBlockInput(m[1], ctx)}}),
+        toText: (block, readInput) => `${booleanText(readInput(block, 'CONDITION', ''))} まで繰り返す`
+    },
+    {
+        opcode: 'control_stop',
+        patterns: [/^\[(.+?)\]$/u],
+        build: m => ({fields: {STOP_OPTION: [menuValue(m[1]), null]}}),
+        toText: block => `[${reverseMenu(fieldValue(block, 'STOP_OPTION'))} v]`
+    },
+    {opcode: 'control_start_as_clone', patterns: [/^クローンされたとき$/u], hat: true, toText: () => 'クローンされたとき'},
+    {
+        opcode: 'control_create_clone_of',
+        patterns: [/^\[(.+?)\] のクローンを作る$/u],
+        build: (m, ctx) => ({inputs: {CLONE_OPTION: ctx.addShadow('control_create_clone_of_menu', 'CLONE_OPTION', menuValue(m[1]))}}),
+        toText: (block, readInput) => `[${reverseMenu(readInput(block, 'CLONE_OPTION', '自分自身'))} v] のクローンを作る`
+    },
+    {opcode: 'control_delete_this_clone', patterns: [/^このクローンを削除する$/u], toText: () => 'このクローンを削除する'},
+    {
+        opcode: 'sensing_keypressed',
+        patterns: [/^< ?(.+?) キーが押された ?>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {KEY_OPTION: ctx.addShadow('sensing_keyoptions', 'KEY_OPTION', menuValue(m[1]))}}),
+        toText: (block, readInput) => `<(${reverseMenu(readInput(block, 'KEY_OPTION', 'スペース'))} v) キーが押された>`
+    },
+    {
+        opcode: 'sensing_mousedown',
+        patterns: [/^< ?マウスが押された ?>$/u],
+        boolean: true,
+        toText: () => '<マウスが押された>'
+    },
+    {
+        opcode: 'sensing_touchingobject',
+        patterns: [/^< ?(.+?) に触れた ?>$/u],
+        boolean: true,
+        build: (m, ctx) => ({inputs: {TOUCHINGOBJECTMENU: ctx.addShadow('sensing_touchingobjectmenu', 'TOUCHINGOBJECTMENU', menuValue(m[1]))}}),
+        toText: (block, readInput) => `<(${reverseMenu(readInput(block, 'TOUCHINGOBJECTMENU', 'マウスのポインター'))} v) に触れた>`
+    },
+    {
+        opcode: 'sensing_askandwait',
+        patterns: [/^\[(.*?)\] と聞いて待つ$/u],
+        build: m => ({inputs: {QUESTION: stringInput(m[1])}}),
+        toText: (block, readInput) => `[${readInput(block, 'QUESTION', "What's your name?")}] と聞いて待つ`
+    },
+    {
+        opcode: 'data_setvariableto',
+        patterns: [/^\[(.+?)\] を (.+?) にする$/u],
+        build: (m, ctx) => {
+            const variable = ctx.variable(unwrap(m[1]));
+            return {
+                fields: {VARIABLE: [variable.name, variable.id]},
+                inputs: {VALUE: valueBlockInput(m[2], ctx)}
+            };
+        },
+        toText: (block, readInput) => `[${fieldValue(block, 'VARIABLE')} v] を ${roundInput(readInput(block, 'VALUE', '0'))} にする`
+    },
+    {
+        opcode: 'data_changevariableby',
+        patterns: [/^\[(.+?)\] を (.+?) ずつ変える$/u],
+        build: (m, ctx) => {
+            const variable = ctx.variable(unwrap(m[1]));
+            return {
+                fields: {VARIABLE: [variable.name, variable.id]},
+                inputs: {VALUE: valueBlockInput(m[2], ctx, true)}
+            };
+        },
+        toText: (block, readInput) => `[${fieldValue(block, 'VARIABLE')} v] を ${roundInput(readInput(block, 'VALUE', '1'))} ずつ変える`
+    },
+    {
+        opcode: 'data_showvariable',
+        patterns: [/^変数 \[(.+?)\] を表示する$/u],
+        build: (m, ctx) => {
+            const variable = ctx.variable(unwrap(m[1]));
+            return {fields: {VARIABLE: [variable.name, variable.id]}};
+        },
+        toText: block => `変数 [${fieldValue(block, 'VARIABLE')} v] を表示する`
+    },
+    {
+        opcode: 'data_hidevariable',
+        patterns: [/^変数 \[(.+?)\] を隠す$/u],
+        build: (m, ctx) => {
+            const variable = ctx.variable(unwrap(m[1]));
+            return {fields: {VARIABLE: [variable.name, variable.id]}};
+        },
+        toText: block => `変数 [${fieldValue(block, 'VARIABLE')} v] を隠す`
+    },
+    {
+        opcode: 'event_broadcast',
+        patterns: [/^(.+?) を送る$/u],
+        build: m => {
+            const name = unwrap(m[1]);
+            return {inputs: {BROADCAST_INPUT: [1, [11, name, `broadcast_${name}`]]}};
+        },
+        toText: (block, readInput) => `(${readInput(block, 'BROADCAST_INPUT', 'メッセージ1')} v) を送る`
+    },
+    {
+        opcode: 'event_broadcastandwait',
+        patterns: [/^(.+?) を送って待つ$/u],
+        build: m => {
+            const name = unwrap(m[1]);
+            return {inputs: {BROADCAST_INPUT: [1, [11, name, `broadcast_${name}`]]}};
+        },
+        toText: (block, readInput) => `(${readInput(block, 'BROADCAST_INPUT', 'メッセージ1')} v) を送って待つ`
+    }
+];
+
+const specsByOpcode = blockSpecs.reduce((acc, spec) => {
+    acc[spec.opcode] = spec;
+    return acc;
+}, {});
+
+function blockInputFromText (value, ctx, acceptSpec = () => true) {
+    const candidates = [normalize(value), `<${unwrap(value)}>`];
+    for (const candidate of candidates) {
+        for (const spec of blockSpecs) {
+            if (spec.hat || spec.cBlock || !acceptSpec(spec)) {
+                continue;
+            }
+            for (const pattern of spec.patterns) {
+                const match = candidate.match(pattern);
+                if (!match) {
+                    continue;
+                }
+                const built = spec.build ? spec.build(match, ctx) : {};
+                const id = ctx.uid();
+                ctx.blocks[id] = {
+                    opcode: spec.opcode,
+                    next: null,
+                    parent: null,
+                    inputs: built.inputs || {},
+                    fields: built.fields || {},
+                    shadow: false,
+                    topLevel: false
+                };
+                Object.values(ctx.blocks[id].inputs).forEach(input => {
+                    const childId = Array.isArray(input) && typeof input[1] === 'string' ? input[1] : null;
+                    if (childId && ctx.blocks[childId]) {
+                        ctx.blocks[childId].parent = id;
+                    }
+                });
+                return [2, id];
+            }
+        }
+    }
+    return null;
+}
+
+function booleanBlockInput (value, ctx) {
+    const input = blockInputFromText(value, ctx, spec => spec.boolean);
+    if (input) return input;
+
+    const id = ctx.uid();
+    ctx.blocks[id] = {
+        opcode: 'operator_equals',
+        next: null,
+        parent: null,
+        inputs: {
+            OPERAND1: primitiveString('1'),
+            OPERAND2: primitiveString('0')
+        },
+        fields: {},
+        shadow: false,
+        topLevel: false
+    };
+    return [2, id];
+}
+
+function addReporterBlock (ctx, opcode, inputs = {}, fields = {}) {
+    const id = ctx.uid();
+    ctx.blocks[id] = {
+        opcode,
+        next: null,
+        parent: null,
+        inputs,
+        fields,
+        shadow: false,
+        topLevel: false
+    };
+    Object.values(inputs).forEach(input => {
+        const childId = Array.isArray(input) && typeof input[1] === 'string' ? input[1] : null;
+        if (childId && ctx.blocks[childId]) ctx.blocks[childId].parent = id;
+    });
+    return [2, id];
+}
+
+function stripOuterRoundBrackets (value) {
+    const text = normalize(value);
+    if (!text.startsWith('(') || !text.endsWith(')')) return text;
+
+    let depth = 0;
+    for (let index = 0; index < text.length; index++) {
+        if (text[index] === '(') depth++;
+        if (text[index] === ')') depth--;
+        if (depth === 0 && index < text.length - 1) return text;
+    }
+    return depth === 0 ? text.slice(1, -1).trim() : text;
+}
+
+function findBinaryExpression (value) {
+    const text = stripOuterRoundBrackets(value);
+    const operatorOpcodes = {
+        '+': 'operator_add',
+        '-': 'operator_subtract',
+        '*': 'operator_multiply',
+        '/': 'operator_divide'
+    };
+
+    for (const operators of [['+', '-'], ['*', '/']]) {
+        let depth = 0;
+        for (let index = text.length - 1; index >= 0; index--) {
+            if (text[index] === ')') depth++;
+            if (text[index] === '(') depth--;
+            if (depth !== 0 || !operators.includes(text[index])) continue;
+            if (index === 0 || /[+\-*/]/u.test(text[index - 1])) continue;
+            const left = text.slice(0, index).trim();
+            const right = text.slice(index + 1).trim();
+            if (left && right) return {opcode: operatorOpcodes[text[index]], left, right};
+        }
+    }
+    return null;
+}
+
+function variableBlockInput (name, ctx) {
+    const variable = ctx.variable(unwrap(name));
+    return addReporterBlock(ctx, 'data_variable', {}, {
+        VARIABLE: [variable.name, variable.id]
+    });
+}
+
+function valueBlockInput (value, ctx, preferNumber = false, inferVariable = false) {
+    const text = normalize(value);
+    const unwrapped = unwrap(text);
+    if (/^-?(?:\d+(?:\.\d+)?|\.\d+)$/u.test(unwrapped)) return primitiveNumber(unwrapped);
+
+    const expression = findBinaryExpression(text);
+    if (expression) {
+        return addReporterBlock(ctx, expression.opcode, {
+            NUM1: valueBlockInput(expression.left, ctx, true, true),
+            NUM2: valueBlockInput(expression.right, ctx, true, true)
+        });
     }
 
-    /**
-     * Parse the locale JSON to build regex patterns for each block.
-     * Example: "MOTION_MOVESTEPS": "%1 歩動かす" -> /^(.+) 歩動かす$/
-     */
-    /**
-     * Parse the locale JSON to build regex patterns for each block.
-     * Example: "MOTION_MOVESTEPS": "%1 歩動かす" -> /^(.+) 歩動かす$/
-     */
-    initializePatterns() {
-        // Known mappings from scratchblocks internal keys to VM opcodes
-        this.opcodeMap = {
-            'EVENT_WHENFLAGCLICKED': 'event_whenflagclicked',
-            'MOTION_MOVESTEPS': 'motion_movesteps',
-            'MOTION_TURNRIGHT': 'motion_turnright',
-            'MOTION_TURNLEFT': 'motion_turnleft',
-            'MOTION_POINTINDIRECTION': 'motion_pointindirection',
-            'MOTION_POINTTOWARDS': 'motion_pointtowards',
-            'MOTION_GOTO': 'motion_goto',
-            'MOTION_GLIDETO': 'motion_glideto',
-            'MOTION_GLIDESECSTOXY': 'motion_glidesecstoxy',
-            'MOTION_CHANGEXBY': 'motion_changexby',
-            'MOTION_SETX': 'motion_setx',
-            'MOTION_CHANGEYBY': 'motion_changeyby',
-            'MOTION_SETY': 'motion_sety',
-            'MOTION_IFONEDGEBOUNCE': 'motion_ixonedgebounce',
-            'MOTION_SETROTATIONSTYLE': 'motion_setrotationstyle',
-            'LOOKS_SAYFORSECS': 'looks_sayforsecs',
-            'LOOKS_SAY': 'looks_say',
-            'LOOKS_THINKFORSECS': 'looks_thinkforsecs',
-            'LOOKS_THINK': 'looks_think',
-            'LOOKS_SWITCHCOSTUMETO': 'looks_switchcostumeto',
-            'LOOKS_NEXTCOSTUME': 'looks_nextcostume',
-            'LOOKS_SWITCHBACKDROPTO': 'looks_switchbackdropto',
-            'LOOKS_NEXTBACKDROP': 'looks_nextbackdrop',
-            'LOOKS_CHANGESIZEBY': 'looks_changesizeby',
-            'LOOKS_SETSIZETO': 'looks_setsizeto',
-            'LOOKS_CHANGEEFFECTBY': 'looks_changeeffectby',
-            'LOOKS_SETEFFECTTO': 'looks_seteffectto',
-            'LOOKS_CLEARGRAPHICEFFECTS': 'looks_cleargraphiceffects',
-            'LOOKS_SHOW': 'looks_show',
-            'LOOKS_HIDE': 'looks_hide',
-            'LOOKS_GOTOFRONTBACK': 'looks_gotofrontback',
-            'LOOKS_GOFORWARDBACKWARDLAYERS': 'looks_goforwardbackwardlayers',
-            'SOUND_PLAYUNTILDONE': 'sound_playuntildone',
-            'SOUND_PLAY': 'sound_play',
-            'SOUND_STOPALLSOUNDS': 'sound_stopallsounds',
-            'SOUND_CHANGEVOLUMEBY': 'sound_changevolumeby',
-            'SOUND_SETVOLUMETO': 'sound_setvolumeto',
-            'SOUND_CLEAREFFECTS': 'sound_cleareffects',
-            'CONTROL_WAIT': 'control_wait',
-            'CONTROL_REPEAT': 'control_repeat',
-            'CONTROL_FOREVER': 'control_forever',
-            'CONTROL_IF': 'control_if',
-            'CONTROL_IF_ELSE': 'control_if_else',
-            'CONTROL_WAITUNTIL': 'control_wait_until',
-            'CONTROL_REPEATUNTIL': 'control_repeat_until',
-            'CONTROL_STOP': 'control_stop',
-            'CONTROL_STARTASCLONE': 'control_start_as_clone',
-            'CONTROL_CREATECLONEOF': 'control_create_clone_of',
-            'CONTROL_DELETETHISCLONE': 'control_delete_this_clone',
-            'SENSING_TOUCHINGOBJECT': 'sensing_touchingobject',
-            'SENSING_TOUCHINGCOLOR': 'sensing_touchingcolor',
-            'SENSING_COLORISTOUCHINGCOLOR': 'sensing_coloristouchingcolor',
-            'SENSING_DISTANCETO': 'sensing_distanceto',
-            'SENSING_KEYPRESSED': 'sensing_keypressed',
-            'SENSING_MOUSEDOWN': 'sensing_mousedown',
-            'SENSING_MOUSEX': 'sensing_mousex',
-            'SENSING_MOUSEY': 'sensing_mousey',
-            'SENSING_SETDRAGMODE': 'sensing_setdragmode',
-            'SENSING_LOUDNESS': 'sensing_loudness',
-            'SENSING_TIMER': 'sensing_timer',
-            'SENSING_RESETTIMER': 'sensing_resettimer',
-            'SENSING_OF': 'sensing_of',
-            'SENSING_CURRENT': 'sensing_current',
-            'SENSING_DAYSSINCE2000': 'sensing_dayssince2000',
-            'SENSING_USERNAME': 'sensing_username',
-            'SENSING_ASKANDWAIT': 'sensing_askandwait',
-            'SENSING_ANSWER': 'sensing_answer',
-            'OPERATORS_ADD': 'operator_add',
-            'OPERATORS_SUBTRACT': 'operator_subtract',
-            'OPERATORS_MULTIPLY': 'operator_multiply',
-            'OPERATORS_DIVIDE': 'operator_divide',
-            'OPERATORS_RANDOM': 'operator_random',
-            'OPERATORS_GT': 'operator_gt',
-            'OPERATORS_LT': 'operator_lt',
-            'OPERATORS_EQUALS': 'operator_equals',
-            'OPERATORS_AND': 'operator_and',
-            'OPERATORS_OR': 'operator_or',
-            'OPERATORS_NOT': 'operator_not',
-            'OPERATORS_JOIN': 'operator_join',
-            'OPERATORS_LETTEROF': 'operator_letter_of',
-            'OPERATORS_LENGTH': 'operator_length',
-            'OPERATORS_CONTAINS': 'operator_contains',
-            'OPERATORS_MOD': 'operator_mod',
-            'OPERATORS_ROUND': 'operator_round',
-            'OPERATORS_MATHOP': 'operator_mathop',
-            'DATA_SETVARIABLETO': 'data_setvariableto',
-            'DATA_CHANGEVARIABLEBY': 'data_changevariableby',
-            'DATA_SHOWVARIABLE': 'data_showvariable',
-            'DATA_HIDEVARIABLE': 'data_hidevariable',
-            'PROCEDURES_DEFINITION': 'procedures_definition',
-            // Reporters
-            'SENSING_OF_XPOSITION': 'motion_xposition',
-            'SENSING_OF_YPOSITION': 'motion_yposition',
-            'SENSING_OF_DIRECTION': 'motion_direction',
-            'SENSING_OF_SIZE': 'looks_size',
-            'SOUND_VOLUME': 'sound_volume',
-            'SENSING_LOUDNESS': 'sensing_loudness',
-            'SENSING_TIMER': 'sensing_timer',
-            'SENSING_ANSWER': 'sensing_answer',
-            'SENSING_USERNAME': 'sensing_username',
-            'SENSING_CURRENT': 'sensing_current',
-            'SENSING_DAYSSINCE2000': 'sensing_dayssince2000'
-        };
+    const reporter = blockInputFromText(text, ctx, spec => spec.reporter);
+    if (reporter) return reporter;
+    if (inferVariable && /^[^\d()[\]<>+\-*/]+$/u.test(unwrapped)) {
+        return variableBlockInput(unwrapped, ctx);
+    }
+    return preferNumber ? primitiveNumber(unwrapped) : primitiveString(unwrapped);
+}
 
-        // Aliases to handle variations
-        this.aliases = ja.aliases || {};
+const reverseMenu = value => {
+    const found = Object.keys(menuValueMap).find(key => menuValueMap[key] === value);
+    return found || value;
+};
 
-        const allDefinitions = { ...ja };
-        // Merge aliases into definitions map if they map to keys in ja
-        Object.keys(this.aliases).forEach(alias => {
-            const targetKey = this.aliases[alias];
-            if (!allDefinitions[alias]) {
-                allDefinitions[targetKey + '_ALIAS_' + alias] = alias; // Fake key to register pattern
+const fieldValue = (block, name, fallback = '') => {
+    const field = block.fields && block.fields[name];
+    return Array.isArray(field) ? field[0] : fallback;
+};
+
+class ScratchTextCompiler {
+    uid () {
+        return `ai_${Math.random().toString(36)
+            .slice(2, 11)}`;
+    }
+
+    extractScratchBlocks (text) {
+        const matches = [];
+        const regex = /```(?:scratch|scratchblocks)\s*([\s\S]*?)```|```\s*\n([\s\S]*?)```/giu;
+        let match = regex.exec(text);
+        while (match) {
+            matches.push((match[1] || match[2]).trim());
+            match = regex.exec(text);
+        }
+        return matches.join('\n\n');
+    }
+
+    compile (text, baseProject = null, targetId = null) {
+        if (baseProject && this.hasTargetHeaders(text)) {
+            return this.compileProject(text, baseProject);
+        }
+        const target = this.compileTarget(text);
+        if (!baseProject) {
+            return {
+                targets: [target],
+                meta: {semver: '3.0.0', vm: '0.2.0'},
+                extensions: []
+            };
+        }
+        if (Object.keys(target.blocks).length === 0 && text.trim()) {
+            return typeof baseProject === 'string' ?
+                JSON.parse(baseProject) :
+                JSON.parse(JSON.stringify(baseProject));
+        }
+        return this.mergeTargetIntoProject(baseProject, target, targetId);
+    }
+
+    hasTargetHeaders (text) {
+        return text.split('\n').some(line => targetHeader(line));
+    }
+
+    splitTargetSections (text, targetNames = null) {
+        const sections = [];
+        let current = null;
+
+        text.split('\n').forEach(line => {
+            const header = targetHeader(line);
+            if (header && (!targetNames || targetNames.includes(header[1].trim()))) {
+                current = {name: header[1].trim(), code: []};
+                sections.push(current);
+            } else if (current) {
+                current.code.push(line);
             }
         });
 
-        Object.keys(allDefinitions).forEach(key => {
-            const pattern = allDefinitions[key];
-            if (typeof pattern !== 'string') return;
-
-            // Convert scratchblocks pattern (e.g. "%1 歩動かす") to Regex
-            // Escape special regex chars
-            let regexStr = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-            // Allow optional whitespace for spaces in pattern
-            regexStr = regexStr.replace(/ /g, '\\s*');
-
-            // Matches %1, %2, etc. - Use lazy match
-            regexStr = regexStr.replace(/%[0-9]+/g, '(.*?)');
-
-            // Anchor to start/end of trimmed line
-            regexStr = `^${regexStr}$`;
-
-            this.blockPatterns.push({
-                key: key,
-                regex: new RegExp(regexStr),
-                original: pattern
-            });
-        });
-
-        // Add explicit alias patterns
-        const manualAliases = {
-            '⚑ が押されたとき': 'EVENT_WHENFLAGCLICKED',
-            '⚑ がクリックされたとき': 'EVENT_WHENFLAGCLICKED',
-            '(green flag) が押されたとき': 'EVENT_WHENFLAGCLICKED',
-            '定義 %1': 'PROCEDURES_DEFINITION'
-        };
-
-        // Custom handling for 'My Blocks' / Definition
-        this.blockPatterns.push({
-            key: 'PROCEDURES_DEFINITION',
-            regex: /^定義\s*(.*?)$/,
-            original: '定義 %1'
-        });
-
-        // Merge manual aliases into this.aliases
-        Object.assign(this.aliases, manualAliases);
-
-        Object.keys(this.aliases).forEach(aliasPattern => {
-            if (aliasPattern.includes('定義')) return; // handled above
-
-            let regexStr = aliasPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            regexStr = regexStr.replace(/ /g, '\\s*');
-            regexStr = regexStr.replace(/%[0-9]+/g, '(.*?)');
-            regexStr = `^${regexStr}$`;
-
-            this.blockPatterns.push({
-                key: this.aliases[aliasPattern], // Map directly to the target key
-                regex: new RegExp(regexStr),
-                original: aliasPattern
-            });
-        });
-
-        // Add "End" definition for C-blocks
-        this.blockPatterns.push({
-            key: 'END',
-            regex: /^エンド$/,
-            original: 'end'
-        });
-
-        // Add "Else" definition
-        this.blockPatterns.push({
-            key: 'CONTROL_ELSE',
-            regex: /^でなければ$/,
-            original: 'else'
-        });
+        return sections
+            .map(section => ({...section, code: section.code.join('\n').trim()}));
     }
 
-    getVmOpcode(key) {
-        if (this.opcodeMap[key]) return this.opcodeMap[key];
-        // Heuristic: motion_movesteps
-        // Key is often MOTION_MOVESTEPS
-        return key.toLowerCase();
+    compileProject (text, baseProject) {
+        const project = typeof baseProject === 'string' ?
+            JSON.parse(baseProject) :
+            JSON.parse(JSON.stringify(baseProject));
+
+        const targetNames = project.targets.map(target => (
+            target.isStage ? 'Stage' : target.name
+        ));
+        const sections = this.splitTargetSections(text, targetNames);
+        const latestSections = sections.filter((section, index) => (
+            sections.map(candidate => candidate.name).lastIndexOf(section.name) === index
+        ));
+        latestSections.forEach(section => {
+            const target = section.name === 'Stage' ?
+                project.targets.find(candidate => candidate.isStage) :
+                project.targets.find(candidate => candidate.name === section.name);
+            if (!target) {
+                return;
+            }
+            const compiledTarget = this.compileTarget(section.code);
+            const explicitlyEmpty = section.code.split('\n')
+                .map(line => line.trim())
+                .filter(Boolean)
+                .every(line => /^#\s*(?:ブロックなし|ここにブロック)$/u.test(line));
+            if (!explicitlyEmpty && Object.keys(compiledTarget.blocks).length === 0) {
+                return;
+            }
+            target.blocks = compiledTarget.blocks;
+            target.variables = {
+                ...(target.variables || {}),
+                ...(compiledTarget.variables || {})
+            };
+        });
+
+        return project;
     }
 
-    uid() {
-        return 'id_' + Math.random().toString(36).substr(2, 9);
-    }
-
-    /**
-     * Compile text to JSON
-     * @param {string} text 
-     */
-    compile(text) {
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-        const project = {
-            targets: [{
-                isStage: false,
-                name: "Sprite1",
-                variables: {},
-                lists: {},
-                broadcasts: {},
-                blocks: {},
-                currentCostume: 0,
-                costumes: [],
-                sounds: []
-            }],
-            meta: {
-                semver: "3.0.0",
-                vm: "0.2.0"
+    compileTarget (text) {
+        const blocks = {};
+        const variables = {};
+        const state = {
+            blocks,
+            variables,
+            variable: name => {
+                const existingId = Object.keys(variables).find(id => variables[id][0] === name);
+                if (existingId) return {id: existingId, name};
+                const id = `var_${name}`;
+                variables[id] = [name, 0];
+                return {id, name};
             },
-            extensions: []
+            addShadow: (opcode, fieldName, value) => {
+                const id = this.uid();
+                blocks[id] = {
+                    opcode,
+                    next: null,
+                    parent: null,
+                    inputs: {},
+                    fields: {[fieldName]: [value, null]},
+                    shadow: true,
+                    topLevel: false
+                };
+                return [1, id];
+            },
+            uid: () => this.uid()
         };
-        const blocks = project.targets[0].blocks;
-        const variables = project.targets[0].variables;
 
-        let parentStack = []; // Parsing stack for nesting
-        let lastBlockId = null; // Previous block at current level
+        const stack = [{parentId: null, inputName: null, lastId: null}];
+        const lines = text.split('\n')
+            .map(line => normalizeLine(line))
+            .filter(line => line && !/^#/.test(line) && !/^\/\//.test(line));
 
-        // Helper to push a new block
-        const addBlock = (opcode, inputs = {}, fields = {}, isHat = false, shadow = false) => {
+        lines.forEach(line => {
+            if (/^(end|エンド|終わり)$/iu.test(line)) {
+                if (stack.length > 1) stack.pop();
+                return;
+            }
+            if (/^(else|でなければ)$/iu.test(line)) {
+                const current = stack[stack.length - 1];
+                const parent = blocks[current.parentId];
+                if (!parent || parent.opcode !== 'control_if') return;
+                parent.opcode = 'control_if_else';
+                stack[stack.length - 1] = {parentId: current.parentId, inputName: 'SUBSTACK2', lastId: null};
+                return;
+            }
+
+            const specMatch = this.matchLine(line);
+            if (!specMatch) return;
+
+            const {spec, match} = specMatch;
+            const built = spec.build ? spec.build(match, state) : {};
             const id = this.uid();
+            const current = stack[stack.length - 1];
+            if (spec.hat && stack.length === 1) {
+                current.lastId = null;
+            }
             const block = {
-                opcode: opcode,
+                opcode: spec.opcode,
                 next: null,
                 parent: null,
-                inputs: inputs,
-                fields: fields,
-                shadow: shadow,
-                topLevel: isHat
+                inputs: built.inputs || {},
+                fields: built.fields || {},
+                shadow: false,
+                topLevel: Boolean(spec.hat || (!current.parentId && !current.lastId))
             };
 
-            if (isHat) {
+            if (block.topLevel) {
                 block.x = 0;
-                block.y = 0;
-            } else {
-                if (lastBlockId) {
-                    // Link from previous block
-                    blocks[lastBlockId].next = id;
-                    block.parent = lastBlockId;
-                } else if (parentStack.length > 0) {
-                    // First block in a C-block substack
-                    const parent = parentStack[parentStack.length - 1];
-                    // parent.substackInputName needs to be set. 
-                    // Usually SUBSTACK or SUBSTACK2 (for if-else)
-                    const substackName = parent.nextInputName || "SUBSTACK";
+                block.y = Object.keys(blocks).filter(key => blocks[key].topLevel).length * 120;
+            }
 
-                    // If input doesn't exist, create it
-                    if (!blocks[parent.id].inputs[substackName]) {
-                        blocks[parent.id].inputs[substackName] = [2, id];
-                    }
-                    block.parent = parent.id;
-
-                    // Clear the nextInputName so subsequent blocks don't overwrite
-                    if (parent.nextInputName) delete parent.nextInputName;
-                }
+            if (current.lastId) {
+                blocks[current.lastId].next = id;
+                block.parent = current.lastId;
+            } else if (current.parentId) {
+                const parent = blocks[current.parentId];
+                parent.inputs[current.inputName || 'SUBSTACK'] = [2, id];
+                block.parent = current.parentId;
             }
 
             blocks[id] = block;
-            lastBlockId = id;
-            return id;
-        };
-
-        for (let line of lines) {
-            // Check for END
-            if (line === 'エンド' || line === 'end') {
-                if (parentStack.length > 0) {
-                    const popped = parentStack.pop();
-                    lastBlockId = popped.id; // Resume from parent
-                    continue;
-                }
-            }
-            // Check for ELSE
-            if (line === 'でなければ' || line === 'else') {
-                if (parentStack.length > 0) {
-                    // Switch to the second substack of the current parent (If block)
-                    const parent = parentStack[parentStack.length - 1];
-                    // Typically 'control_if_else' uses 'SUBSTACK2'
-                    parent.nextInputName = "SUBSTACK2";
-                    lastBlockId = null; // Reset last block for new substack
-                    continue;
-                }
-            }
-
-            let match = null;
-            let matchedKey = null;
-
-            // Find matching block
-            for (let p of this.blockPatterns) {
-                const m = line.match(p.regex);
-                if (m) {
-                    match = m;
-                    matchedKey = p.key;
-                    break;
-                }
-            }
-
-            if (!matchedKey) {
-                // Try manual "raw" match for (10) 歩動かす style if standard failed?
-                // But generally regex should catch it.
-                // Check if line is just "end" or "else" case-insensitive?
-                if (line.match(/^end|エンド$/i)) matchedKey = 'END';
-                else if (line.match(/^else|でなければ$/i)) matchedKey = 'CONTROL_ELSE';
-                else {
-                    console.warn(`No match found for line: ${line}`);
-                    continue;
-                }
-            }
-
-            // Handle END
-            if (matchedKey === 'END') {
-                if (parentStack.length > 0) {
-                    const popped = parentStack.pop();
-                    lastBlockId = popped.id;
-                    continue;
-                }
-                continue;
-            }
-
-            // Handle ELSE
-            if (matchedKey === 'CONTROL_ELSE') {
-                if (parentStack.length > 0) {
-                    const parent = parentStack[parentStack.length - 1];
-                    parent.nextInputName = "SUBSTACK2";
-                    lastBlockId = null;
-                    continue;
-                }
-                continue;
-            }
-
-            const opcode = this.getVmOpcode(matchedKey);
-            const args = match ? match.slice(1) : [];
-
-            // Determine Inputs/Fields based on Opcode (Heuristic or Table)
-            // This is the tricky part: Mapping extracted "10" to "STEPS" or "DEGREES"
-            // For now, we will use a generic "ARG0", "ARG1" approach if mapped, or simple mapping for common blocks
-
-            const inputs = {};
-            const fields = {};
-
-            // Simple Argument Mapper
-            const processArg = (val) => {
-                val = val.trim();
-
-                // Handle ( ) - Number, Reporter, or Variable
-                if (val.startsWith('(') && val.endsWith(')')) {
-                    const inner = val.slice(1, -1).trim();
-
-                    // 1. Check if it's a number
-                    if (!isNaN(inner) && inner !== '') {
-                        return [1, [10, inner]]; // Number primitive
-                    }
-
-                    // 2. Check if it matches a known Reporter Block (e.g. "x座標")
-                    let reporterMatch = null;
-                    let reporterKey = null;
-                    for (let p of this.blockPatterns) {
-                        const m = inner.match(p.regex);
-                        if (m) {
-                            reporterMatch = m;
-                            reporterKey = p.key;
-                            break;
-                        }
-                    }
-
-                    if (reporterMatch && reporterKey) {
-                        // It's a reporter! Compile it recursively-ish
-                        const reporterOpcode = this.getVmOpcode(reporterKey);
-                        const reporterArgs = reporterMatch.slice(1);
-
-                        // Recursively process args for the reporter? 
-                        // For simplicity, assume reporters here are simple (no nested args) or handle basic cases
-                        // Note: To support nested reporters properly, we need full recursion. 
-                        // Current regex approach captures "inner" which might contain parens.
-                        // Ideally we'd recursively `processArg` on capture groups.
-
-                        const repInputs = {};
-                        const repFields = {};
-
-                        // Quick check for variable reporter?
-                        // If reporterKey is 'DATA_SHOWVARIABLE' -> No, that's Stack.
-                        // Reporters are usually SENSING, OPERATORS, DATA (val).
-
-                        const repId = addBlock(reporterOpcode, repInputs, repFields, false, true); // shadow=true? No, standard block = false. 
-                        // Actually standard inputs use [3, ID, [10, ""]] for blocks plugging into inputs
-                        // But [2, ID] works too. Unshadowed.
-                        // Let's return the Input array format.
-                        return [3, repId, [10, ""]]; // Block covering empty number primitive
-                    }
-
-                    // 3. Assume it's a Variable
-                    // Create variable if not exists (handled by addBlock/fields logic? No, explicit here)
-                    const varName = inner;
-                    const varId = 'var_' + varName;
-                    variables[varId] = [varName, 0];
-
-                    // Create data_variable block
-                    // Opcode: data_variable ? No, looks like it's a reporter block usually.
-                    // Actually, getting a variable value is usually done via `data_variable` block in VM?
-                    // Let's check scratch-vm specs. `data_variable` is the opcode for the reporter.
-                    // Arguments: FIELD "VARIABLE" referencing the var.
-
-                    const varBlockId = this.uid();
-                    blocks[varBlockId] = {
-                        opcode: 'data_variable',
-                        next: null,
-                        parent: null,
-                        inputs: {},
-                        fields: { "VARIABLE": [varName, varId] },
-                        shadow: false,
-                        topLevel: false
-                    };
-                    return [3, varBlockId, [10, ""]];
-                }
-
-                // Handle [ ] - String or Menu
-                if (val.startsWith('[') && val.endsWith(']')) {
-                    const inner = val.slice(1, -1);
-                    // Check for " v" suffix for dropdowns
-                    // Logic: "option v" -> Field "option"
-                    if (inner.endsWith(' v')) {
-                        const fieldVal = inner.replace(' v', '');
-                        return { type: 'field', value: fieldVal };
-                    }
-                    // Regular string
-                    return [1, [10, inner]];
-                }
-
-                // Fallback (Raw text)
-                if (!isNaN(val)) return [1, [10, val]];
-                return [1, [10, val]];
-            };
-
-            // Mapping definitions for Input names
-            let inputNames = [];
-            let fieldNames = [];
-
-            if (matchedKey === 'MOTION_MOVESTEPS') inputNames = ['STEPS'];
-            if (matchedKey === 'MOTION_TURNRIGHT') inputNames = ['DEGREES'];
-            if (matchedKey === 'MOTION_TURNLEFT') inputNames = ['DEGREES'];
-            if (matchedKey === 'LOOKS_SAYFORSECS') inputNames = ['MESSAGE', 'SECS'];
-            if (matchedKey === 'LOOKS_SAY') inputNames = ['MESSAGE'];
-            if (matchedKey === 'EVENT_WHENFLAGCLICKED') { /* Hat */ }
-            if (matchedKey === 'CONTROL_WAIT') inputNames = ['DURATION'];
-            if (matchedKey === 'CONTROL_REPEAT') inputNames = ['TIMES'];
-
-            // Assign args
-            args.forEach((arg, i) => {
-                const processed = processArg(arg);
-                const inputName = inputNames[i] || `NUM${i + 1}`; // Fallback
-
-                if (processed.type === 'field') {
-                    // It's a field
-                    let fieldName = inputName;
-                    if (matchedKey.includes('VARIABLE')) fieldName = 'VARIABLE';
-                    // Handle variable creation
-                    if (fieldName === 'VARIABLE') {
-                        const varName = processed.value;
-                        const varId = 'var_' + varName;
-                        variables[varId] = [varName, 0];
-                        fields[fieldName] = [varName, varId];
-                    } else {
-                        fields[fieldName] = [processed.value, null];
-                    }
-                } else {
-                    inputs[inputName] = processed;
+            Object.values(block.inputs).forEach(input => {
+                const childId = Array.isArray(input) && typeof input[1] === 'string' ? input[1] : null;
+                if (childId && blocks[childId]) {
+                    blocks[childId].parent = id;
                 }
             });
+            current.lastId = id;
 
-            // Special handling for Hat blocks
-            const isHat = opcode.startsWith('event_') || opcode === 'control_start_as_clone';
+            if (spec.cBlock) {
+                stack.push({parentId: id, inputName: 'SUBSTACK', lastId: null});
+            }
+        });
 
-            // Special handling for C-blocks
-            const isCBlock = opcode === 'control_forever' || opcode === 'control_repeat' || opcode === 'control_if' || opcode === 'control_if_else' || opcode === 'control_repeat_until';
+        return {
+            isStage: false,
+            name: 'Sprite1',
+            variables,
+            lists: {},
+            broadcasts: {},
+            blocks,
+            currentCostume: 0,
+            costumes: [],
+            sounds: []
+        };
+    }
 
-            const newBlockId = addBlock(opcode, inputs, fields, isHat);
+    mergeTargetIntoProject (baseProject, compiledTarget, targetId = null) {
+        const project = typeof baseProject === 'string' ?
+            JSON.parse(baseProject) :
+            JSON.parse(JSON.stringify(baseProject));
+        if (!project.targets || project.targets.length === 0) {
+            return project;
+        }
 
-            if (isCBlock) {
-                parentStack.push({ id: newBlockId, nextInputName: 'SUBSTACK' });
-                lastBlockId = null; // Start of substack
+        const target = project.targets.find(candidate => candidate.id === targetId) ||
+            project.targets.find(candidate => !candidate.isStage) ||
+            project.targets[0];
+
+        target.blocks = compiledTarget.blocks;
+        target.variables = {
+            ...(target.variables || {}),
+            ...(compiledTarget.variables || {})
+        };
+        target.lists = target.lists || {};
+        target.broadcasts = {
+            ...(target.broadcasts || {}),
+            ...(compiledTarget.broadcasts || {})
+        };
+        return project;
+    }
+
+    matchLine (line) {
+        const normalizedLine = normalize(line);
+        for (const spec of blockSpecs) {
+            for (const pattern of spec.patterns) {
+                const match = normalizedLine.match(pattern);
+                if (match) return {spec, match};
+            }
+        }
+        return null;
+    }
+
+    projectToScratchBlocks (projectJson, targetId = null) {
+        const project = typeof projectJson === 'string' ? JSON.parse(projectJson) : projectJson;
+        if (!project || !project.targets) return '';
+
+        const targets = targetId ?
+            project.targets.filter(target => target.id === targetId) :
+            project.targets;
+
+        return targets.map(target => {
+            const blocks = target.blocks || {};
+            const scriptIds = Object.keys(blocks)
+                .filter(id => blocks[id].topLevel)
+                .sort((a, b) => (blocks[a].y || 0) - (blocks[b].y || 0));
+            const scripts = scriptIds
+                .map(id => this.stringifyStack(blocks, id, 0))
+                .filter(Boolean)
+                .join('\n\n');
+            return `# ${target.isStage ? 'Stage' : target.name || 'Sprite'}\n${scripts || '# ブロックなし'}`;
+        }).join('\n\n');
+    }
+
+    stringifyStack (blocks, startId) {
+        const lines = [];
+        let id = startId;
+        while (id && blocks[id]) {
+            const block = blocks[id];
+            const line = this.stringifyBlock(blocks, block);
+            if (line) lines.push(line);
+            id = block.next;
+        }
+        return lines.join('\n');
+    }
+
+    stringifyBlock (blocks, block) {
+        const spec = specsByOpcode[block.opcode];
+        const readInput = (sourceBlock, name, fallback) => this.readInput(blocks, sourceBlock, name, fallback);
+        if (!spec || !spec.toText) {
+            return `${block.opcode} :: grey`;
+        }
+
+        const head = spec.toText(block, readInput);
+        if (!spec.cBlock && block.opcode !== 'control_if_else') return head;
+
+        const body = this.stringifySubstack(blocks, block, 'SUBSTACK');
+        if (block.opcode === 'control_if_else') {
+            const elseBody = this.stringifySubstack(blocks, block, 'SUBSTACK2');
+            return `${head}\n${body}\nでなければ\n${elseBody}\nend`;
+        }
+        return `${head}\n${body}\nend`;
+    }
+
+    stringifySubstack (blocks, block, inputName) {
+        const input = block.inputs && block.inputs[inputName];
+        const childId = Array.isArray(input) ? input[1] : null;
+        return childId && blocks[childId] ? this.stringifyStack(blocks, childId) : '# ここにブロック';
+    }
+
+    readInput (blocks, block, name, fallback = '') {
+        const input = block.inputs && block.inputs[name];
+        if (!Array.isArray(input)) return fallback;
+
+        const direct = input.find(item => Array.isArray(item));
+        if (direct) return direct[1];
+
+        const childId = input.find(item => typeof item === 'string');
+        if (childId && blocks[childId]) {
+            const child = blocks[childId];
+            const fields = child.fields || {};
+            const firstField = Object.keys(fields)[0];
+            if (firstField && Array.isArray(fields[firstField])) return fields[firstField][0];
+            const spec = specsByOpcode[child.opcode];
+            if (spec && spec.toText) {
+                return spec.toText(child, (sourceBlock, inputName, childFallback) => (
+                    this.readInput(blocks, sourceBlock, inputName, childFallback)
+                ));
             }
         }
 
-        return project;
+        return fallback;
     }
 }
 
