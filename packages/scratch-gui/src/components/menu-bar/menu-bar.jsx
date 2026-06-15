@@ -702,7 +702,7 @@ class MenuBar extends React.Component {
 
                 <div className={classNames(styles.menuBarItem, styles.hoverable)}>
                     <a 
-                        href="https://github.com/kyurururn/scratchLLM" 
+                        href="https://github.com/in044/ScratchLLM"
                         target="_blank" 
                         rel="noopener noreferrer"
                         style={{ display: 'flex', alignItems: 'center', color: 'white', textDecoration: 'none', padding: '0 1rem', height: '100%' }}
