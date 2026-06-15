@@ -27,6 +27,11 @@ import ScratchBlockRenderer, {
 } from './scratch-block-renderer.jsx';
 import ScratchTextCompiler from '../../lib/scratch-text-compiler';
 import validateScratchProject from '../../lib/scratch-project-validator';
+import {
+    addLibrarySprite,
+    buildProjectAssetSummary,
+    buildSpriteCatalog
+} from '../../lib/automatic-sprite-selection';
 
 export const markdownToSafeHtml = text => DOMPurify.sanitize(
     marked.parse(text, {
@@ -80,17 +85,25 @@ export const renderMessageContent = text => {
 //   REACT_APP_API_BASE_URL=https://your-domain.example.com
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
 const SYNTAX_REPAIR_URL = `${process.env.REACT_APP_API_BASE_URL}/api/repair-scratch`;
+const SPRITE_SELECTION_URL = `${process.env.REACT_APP_API_BASE_URL}/api/select-sprite`;
 
 export const buildLlmRequestPayload = ({
     userInput,
     currentProgram,
+    currentAssets,
     history,
     explanationLength
 }) => ({
     userInput,
     currentProgram,
+    currentAssets,
     history,
     explanationLength
+});
+
+export const buildSpriteAddedMessage = spriteNames => ({
+    text: `${(Array.isArray(spriteNames) ? spriteNames : [spriteNames]).join('、')}を追加しました。`,
+    sender: 'bot'
 });
 
 export class ChatComponent extends React.Component {
@@ -179,7 +192,36 @@ export class ChatComponent extends React.Component {
         textarea.style.height = `${newHeight}px`;
     }
 
-    handleSend() {
+    async _addRequestedLibrarySprites (userInput) {
+        try {
+            const response = await fetch(SPRITE_SELECTION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json; charset=UTF-8'
+                },
+                body: JSON.stringify({
+                    userInput,
+                    spriteCatalog: buildSpriteCatalog()
+                })
+            });
+            if (!response.ok) throw new Error(`Sprite selection returned ${response.status}.`);
+            const data = await response.json();
+            const spriteNames = Array.isArray(data.spriteNames) ? data.spriteNames : [];
+            const addedSpriteNames = [];
+            for (const spriteName of spriteNames) {
+                // Add sequentially so VM target updates do not race each other.
+                const addedSpriteName = await addLibrarySprite(this.props.vm, spriteName);
+                if (addedSpriteName) addedSpriteNames.push(addedSpriteName);
+            }
+
+            return addedSpriteNames;
+        } catch (error) {
+            console.warn('Automatic sprite selection was unavailable:', error);
+            return [];
+        }
+    }
+
+    async handleSend() {
         const { inputValue } = this.state;
         if (inputValue.trim() === '' || this.props.isLoading) return;
 
@@ -191,6 +233,13 @@ export class ChatComponent extends React.Component {
 
         if (this.textareaRef.current) {
             this.textareaRef.current.style.height = '30px';
+        }
+
+        const addedSpriteNames = await this._addRequestedLibrarySprites(inputValue);
+        if (!this._isMounted) return;
+        if (addedSpriteNames.length > 0) {
+            this.props.vm.refreshWorkspace();
+            this.props.onAddMessage(buildSpriteAddedMessage(addedSpriteNames));
         }
 
         const projectJson = this.props.vm.toJSON();
@@ -208,6 +257,7 @@ export class ChatComponent extends React.Component {
             body: JSON.stringify(buildLlmRequestPayload({
                 userInput: inputValue,
                 currentProgram: projectScratchBlocks,
+                currentAssets: buildProjectAssetSummary(projectJson),
                 history,
                 explanationLength: this.props.explanationLength
             }))

@@ -8,6 +8,7 @@ import ScratchBlockRenderer, {
 } from '../../../src/components/chat/scratch-block-renderer.jsx';
 import {
     buildLlmRequestPayload,
+    buildSpriteAddedMessage,
     markdownToSafeHtml,
     renderMessageContent
 } from '../../../src/components/chat/chat.jsx';
@@ -56,11 +57,21 @@ describe('Chat message rendering', () => {
     });
 });
 
+describe('Automatic sprite notification', () => {
+    test('builds a bot message after library sprites are added', () => {
+        expect(buildSpriteAddedMessage(['Butterfly 2', 'Bat'])).toEqual({
+            text: 'Butterfly 2、Batを追加しました。',
+            sender: 'bot'
+        });
+    });
+});
+
 describe('LLM request payload', () => {
     test('sends data inputs without protected prompts or model settings', () => {
         const payload = buildLlmRequestPayload({
             userInput: '初期化を追加して',
             currentProgram: '# Stage\n# ブロックなし',
+            currentAssets: {targets: []},
             history: [{role: 'user', content: '前の依頼'}],
             explanationLength: 'short'
         });
@@ -68,6 +79,7 @@ describe('LLM request payload', () => {
         expect(payload).toEqual({
             userInput: '初期化を追加して',
             currentProgram: '# Stage\n# ブロックなし',
+            currentAssets: {targets: []},
             history: [{role: 'user', content: '前の依頼'}],
             explanationLength: 'short'
         });

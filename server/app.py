@@ -50,6 +50,7 @@ admin_queues_lock = Lock()
 
 LLM_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-5.4')
 SYNTAX_REPAIR_MODEL = os.environ.get('OPENAI_SYNTAX_REPAIR_MODEL', 'gpt-5.4-mini')
+SPRITE_SELECTION_MODEL = os.environ.get('OPENAI_SPRITE_SELECTION_MODEL', 'gpt-5.4-mini')
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), 'scratch_system_prompt.txt')
 with open(PROMPT_PATH, encoding='utf-8') as prompt_file:
     # Recreate the leading and trailing newlines from the original JS template literal.
@@ -108,9 +109,123 @@ def sanitize_history(value):
     return history
 
 
+def sanitize_sprite_catalog(value):
+    if not isinstance(value, list):
+        raise BadRequest('spriteCatalog must be an array.')
+
+    catalog = []
+    for item in value[:1000]:
+        if not isinstance(item, dict):
+            continue
+        name = item.get('name')
+        tags = item.get('tags', [])
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if not isinstance(tags, list):
+            tags = []
+        catalog.append({
+            'name': name.strip()[:100],
+            'tags': [
+                tag.strip()[:50]
+                for tag in tags[:20]
+                if isinstance(tag, str) and tag.strip()
+            ]
+        })
+    if not catalog:
+        raise BadRequest('spriteCatalog must contain at least one sprite.')
+    return catalog
+
+
+def sanitize_current_assets(value):
+    if value is None:
+        return {'targets': []}
+    if not isinstance(value, dict) or not isinstance(value.get('targets'), list):
+        raise BadRequest('currentAssets must contain a targets array.')
+
+    targets = []
+    for target in value['targets'][:100]:
+        if not isinstance(target, dict):
+            continue
+        name = target.get('name')
+        if not isinstance(name, str) or not name.strip():
+            continue
+        costumes = target.get('costumes', [])
+        sounds = target.get('sounds', [])
+        if not isinstance(costumes, list):
+            costumes = []
+        if not isinstance(sounds, list):
+            sounds = []
+        targets.append({
+            'name': name.strip()[:100],
+            'costumes': [
+                item.strip()[:100]
+                for item in costumes[:100]
+                if isinstance(item, str) and item.strip()
+            ],
+            'sounds': [
+                item.strip()[:100]
+                for item in sounds[:100]
+                if isinstance(item, str) and item.strip()
+            ]
+        })
+    return {'targets': targets}
+
+
+def build_sprite_selection_messages(data):
+    user_input = require_string(data, 'userInput', 10000)
+    catalog = sanitize_sprite_catalog(data.get('spriteCatalog'))
+    catalog_text = '\n'.join(
+        f'- {item["name"]}: {", ".join(item["tags"])}'
+        for item in catalog
+    )
+    prompt = f"""ユーザーの依頼を読み、Scratchのスプライトライブラリから新しいスプライトを追加すべきか判定してください。
+ユーザーが新しい登場物・キャラクター・物体の追加を依頼している場合だけ、一覧から必要なスプライトを選んでください。
+複数の登場物を依頼された場合は複数選び、同じ種類を複数依頼された場合は同じnameを必要な数だけ繰り返してください。
+明示されていないスプライトを余分に選ばず、最大10個までにしてください。
+既存スプライトの動作変更、コード追加、背景追加、質問、説明依頼では選ばないでください。
+必ず一覧にあるnameを一字一句そのまま使用してください。
+
+ユーザーの依頼:
+{user_input}
+
+スプライト一覧:
+{catalog_text}
+
+JSONだけを返してください。
+追加する場合: {{"spriteNames":["一覧のname","一覧のname"]}}
+追加しない場合: {{"spriteNames":[]}}"""
+    return [
+        {
+            'role': 'system',
+            'content': 'あなたはScratchスプライトライブラリの保守的な選択器です。JSONだけを返します。'
+        },
+        {'role': 'user', 'content': prompt}
+    ], catalog
+
+
+def parse_sprite_selection(content, catalog):
+    try:
+        selection = json.loads(content or '{}')
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(selection, dict):
+        return []
+    names = selection.get('spriteNames')
+    if not isinstance(names, list):
+        legacy_name = selection.get('spriteName')
+        names = [legacy_name] if isinstance(legacy_name, str) else []
+    valid_names = {item['name'] for item in catalog}
+    return [
+        name
+        for name in names[:10]
+        if isinstance(name, str) and name in valid_names
+    ]
+
+
 def build_llm_messages(data):
     user_input = require_string(data, 'userInput', 10000)
     current_program = require_string(data, 'currentProgram', 200000)
+    current_assets = sanitize_current_assets(data.get('currentAssets'))
     explanation_length = data.get('explanationLength', 'normal')
     if explanation_length not in EXPLANATION_LENGTH_PROMPTS:
         explanation_length = 'normal'
@@ -125,6 +240,10 @@ def build_llm_messages(data):
 ```
 </current_program>
 
+<current_assets>
+{json.dumps(current_assets, ensure_ascii=False)}
+</current_assets>
+
 <request>
 ユーザーの依頼:
 {user_input}
@@ -134,6 +253,7 @@ def build_llm_messages(data):
 必要なら、解説する実在ブロックだけをターゲット見出しなしの ```scratch``` 断片で示してください。
 変更後の完成したプログラムは、回答の最後に全ターゲットの見出しを含む1個の ```scratch-project``` コードブロックで返してください。
 現在コードにある全ターゲット・未変更コード・空ターゲットを保持し、インデントは使用しないでください。
+`current_assets` は各ターゲットで使用できる素材名の一覧です。コスチューム・背景・音はこの一覧にある名前だけを使用してください。
 解説用のScratch断片には、`# Stage`、スプライト見出し、`# ブロックなし`、完成コードに存在しないブロックを含めないでください。
 回答直前に、各行の対応構文、Boolean入力、括弧、メニューのv、end、全ターゲット、未変更コードの保持を検査してください。
 構文テンプレートやリファレンスの内容を作品の機能として流用しないでください。"""
@@ -458,6 +578,45 @@ def repair_scratch():
         return jsonify({'error': e.description}), 400
     except Exception as e:
         print(f"Error repairing ScratchBlocks syntax: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────
+# スプライトライブラリ自動選択
+# ─────────────────────────────────────────────
+@app.route('/api/select-sprite', methods=['POST'])
+def select_sprite():
+    try:
+        with state_lock:
+            ai_enabled = app_state['ai_enabled']
+        if not ai_enabled:
+            return jsonify({'spriteNames': [], 'disabled': True}), 503
+
+        data = parse_json_request()
+        messages, catalog = build_sprite_selection_messages(data)
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            return jsonify({'error': 'OpenAI API key is not set.'}), 500
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        moderation = client.moderations.create(input=data['userInput'])
+        if moderation.results[0].flagged:
+            return jsonify({
+                'error': 'This content violates our safety policies.',
+                'flagged': True
+            }), 400
+        response = client.chat.completions.create(
+            model=SPRITE_SELECTION_MODEL,
+            messages=messages,
+            response_format={'type': 'json_object'}
+        )
+        content = response.choices[0].message.content
+        return jsonify({'spriteNames': parse_sprite_selection(content, catalog)})
+    except BadRequest as e:
+        return jsonify({'error': e.description}), 400
+    except Exception as e:
+        print(f"Error selecting sprite: {e}")
         return jsonify({'error': str(e)}), 500
 
 
