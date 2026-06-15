@@ -1,15 +1,23 @@
 
 import PropTypes from 'prop-types';
-import React, { useState, useCallback } from 'react';
+import React, {useState, useCallback, useRef} from 'react';
 import { connect } from 'react-redux';
 import classNames from 'classnames';
 import styles from './chat.css';
 import chatIcon from './icon--chat.svg';
 import ChatComponent from './chat.jsx';
 
+const MIN_FLOATING_WIDTH = 300;
+
 const ExpandableChat = props => {
     const [expanded, setExpanded] = useState(true);
-    const [dimensions, setDimensions] = useState({ width: 325, height: 500, left: 328, bottom: 16, opacity: 1 });
+    const [dimensions, setDimensions] = useState({
+        width: MIN_FLOATING_WIDTH,
+        height: 500,
+        left: 328,
+        bottom: 16,
+        opacity: 1
+    });
     const [lastPosition, setLastPosition] = useState(null);
     const [resizingDirection, setResizingDirection] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -17,6 +25,7 @@ const ExpandableChat = props => {
     const [isVisible, setIsVisible] = useState(true); // Track if component should be visible
     const [noTransition, setNoTransition] = useState(false); // Disable transitions during reset
     const [hasBeenDocked, setHasBeenDocked] = useState(false);
+    const floatingSize = useRef({width: MIN_FLOATING_WIDTH, height: 500});
 
     // Track if it has ever been docked
     React.useEffect(() => {
@@ -39,6 +48,8 @@ const ExpandableChat = props => {
 
             setDimensions(prev => ({
                 ...prev,
+                width: floatingSize.current.width,
+                height: floatingSize.current.height,
                 left: initialLeft,
                 bottom: initialBottom
             }));
@@ -102,7 +113,7 @@ const ExpandableChat = props => {
             setExpanded(false);
             setLastPosition(null);
             setDimensions({
-                width: 325,
+                width: MIN_FLOATING_WIDTH,
                 height: 500,
                 left: 328,
                 bottom: 16,
@@ -184,13 +195,13 @@ const ExpandableChat = props => {
 
             // Right (includes corner-tr and corner-br)
             if (direction === 'right' || direction === 'corner-tr' || direction === 'corner-br') {
-                newWidth = Math.max(325, Math.min(480, startWidth + deltaX));
+                newWidth = Math.max(MIN_FLOATING_WIDTH, Math.min(480, startWidth + deltaX));
             }
 
             // Left (includes corner-tl and corner-bl)
             if (direction === 'left' || direction === 'corner-tl' || direction === 'corner-bl') {
                 const proposedWidth = startWidth - deltaX;
-                newWidth = Math.max(325, Math.min(480, proposedWidth));
+                newWidth = Math.max(MIN_FLOATING_WIDTH, Math.min(480, proposedWidth));
                 const actualWidthChange = startWidth - newWidth;
                 newLeft = startLeft + actualWidthChange;
             }
@@ -225,6 +236,10 @@ const ExpandableChat = props => {
                 left: newLeft,
                 bottom: newBottom
             });
+            floatingSize.current = {
+                width: newWidth,
+                height: newHeight
+            };
         };
 
         const stopDrag = () => {

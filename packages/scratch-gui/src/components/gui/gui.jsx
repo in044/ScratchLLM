@@ -232,7 +232,7 @@ const GUIComponent = props => {
 
         const handleMouseMove = e => {
             const deltaX = e.clientX - dragStartX.current;
-            const newWidth = Math.max(200, Math.min(600, dragStartWidth.current + deltaX));
+            const newWidth = Math.max(300, Math.min(600, dragStartWidth.current + deltaX));
             setChatPaneWidth(newWidth);
         };
 
