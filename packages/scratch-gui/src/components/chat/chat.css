@@ -7,8 +7,8 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f4f7fb;
-    color: #333b4f;
+    background: #e6f0ff;
+    color: #30405a;
 }
 
 
@@ -16,11 +16,11 @@
     position: relative;
     min-height: 48px;
     padding: 7.5px 12px;
-    border-bottom: 1px solid #d9e2f1;
+    border-bottom: 1px solid #cfdef2;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #fff;
+    background: #e6f0ff;
     box-sizing: border-box;
     flex-shrink: 0;
 }
@@ -75,7 +75,7 @@
 }
 
 .closeButton:hover {
-    background-color: #edf3fc;
+    background-color: #d5e6fc;
 }
 
 .closeButton:hover img {
@@ -90,7 +90,7 @@
     /* Critical for flexbox overflow */
     overflow: hidden;
     /* Prevent children from overflowing */
-    background: #f4f7fb;
+    background: #e6f0ff;
 }
 
 .messages {
@@ -102,7 +102,7 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    background: linear-gradient(180deg, #f7f9fc 0%, #f2f6fb 100%);
+    background: #e6f0ff;
 }
 
 .message {
@@ -201,9 +201,9 @@
     margin: 0.85em 0;
     overflow-x: auto;
     padding: 6px;
-    border: 1px solid #e1e7f0;
+    border: 1px solid #d5e3f5;
     border-radius: 8px;
-    background: #f8fafc;
+    background: #f7fbff;
 }
 
 :global(.chat-scratchblocks-container:first-child) {
@@ -228,8 +228,8 @@
 
 .bot {
     align-self: flex-start;
-    background-color: #fff;
-    border: 1px solid #e1e7f0;
+    background-color: #fafdff;
+    border: 1px solid #d5e3f5;
     border-bottom-left-radius: 4px;
     box-shadow: 0 2px 6px rgba(45, 61, 89, 0.06);
 }
@@ -238,17 +238,17 @@
     align-self: flex-start;
     color: #888;
     padding: 8px 12px;
-    border: 1px solid #e1e7f0;
+    border: 1px solid #d5e3f5;
     border-radius: 12px;
-    background: #fff;
+    background: #fafdff;
 }
 
 .input-container {
     display: flex;
     align-items: flex-end;
     padding: 10px 10px 10px;
-    border-top: 1px solid #d9e2f1;
-    background: #fff;
+    border-top: 1px solid #cfdef2;
+    background: #e6f0ff;
     flex-shrink: 0;
     /* Prevent input area from shrinking */
 }
@@ -256,7 +256,7 @@
 .input {
     flex-grow: 1;
     padding: 6px 9px;
-    border: 1px solid #cbd6e6;
+    border: 1px solid #c7d8ef;
     border-radius: 8px;
     font-size: 12px;
     min-height: 30px;
@@ -266,8 +266,8 @@
     resize: none;
     box-sizing: border-box;
     /* ←これ必須！ */
-    background: #f8fafc;
-    color: #333b4f;
+    background: #f8fbff;
+    color: #30405a;
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
@@ -321,7 +321,7 @@
 }
 
 .clearButton:hover:not(:disabled) {
-    background-color: #edf3fc;
+    background-color: #d5e6fc;
 }
 
 .clearButton:disabled {
@@ -361,10 +361,10 @@
     width: 260px;
     max-width: calc(100vw - 16px);
     padding: 8px 10px;
-    border: 1px solid #d9e2f1;
+    border: 1px solid #cbdcf4;
     border-radius: 8px;
     box-sizing: border-box;
-    background: #fff;
+    background: #fafdff;
     box-shadow: 0 4px 12px rgba(45, 61, 89, 0.14);
     color: #575e75;
     font-size: 11px;
@@ -646,6 +646,43 @@
     flex-direction: column;
     animation: fadeIn 0.3s ease forwards;
     opacity: 0;
+}
+
+.expanded-chat-window .container,
+.expanded-chat-window .body {
+    background: #f4f7fb;
+    color: #333b4f;
+}
+
+.expanded-chat-window .header {
+    border-bottom-color: #d9e2f1;
+    background: #fff;
+}
+
+.expanded-chat-window .messages {
+    background: linear-gradient(180deg, #f7f9fc 0%, #f2f6fb 100%);
+}
+
+.expanded-chat-window .input-container {
+    border-top-color: #d9e2f1;
+    background: #fff;
+}
+
+.expanded-chat-window .input {
+    border-color: #cbd6e6;
+    background: #f8fafc;
+    color: #333b4f;
+}
+
+.expanded-chat-window .bot,
+.expanded-chat-window .loading {
+    border-color: #e1e7f0;
+    background: #fff;
+}
+
+.expanded-chat-window .closeButton:hover,
+.expanded-chat-window .clearButton:hover:not(:disabled) {
+    background-color: #edf3fc;
 }
 
 @keyframes fadeIn {
