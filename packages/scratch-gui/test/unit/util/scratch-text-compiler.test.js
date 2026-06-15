@@ -18,6 +18,50 @@ test('extracts ScratchBlocks code fences and ignores explanation', () => {
     ].join('\n'));
 });
 
+test('extracts only the final project while ignoring explanatory Scratch snippets', () => {
+    const response = [
+        'この部分で値を設定します。',
+        '```scratch',
+        '[値 v] を (0) にする',
+        '```',
+        '完成したプログラムです。',
+        '```scratch-project',
+        '# Stage',
+        '# ブロックなし',
+        '',
+        '# Sprite1',
+        '⚑ が押されたとき',
+        '[値 v] を (0) にする',
+        '```'
+    ].join('\n');
+
+    expect(ScratchTextCompiler.extractScratchBlocks(response)).toBe([
+        '# Stage',
+        '# ブロックなし',
+        '',
+        '# Sprite1',
+        '⚑ が押されたとき',
+        '[値 v] を (0) にする'
+    ].join('\n'));
+});
+
+test('uses the last legacy Scratch fence instead of joining explanatory snippets', () => {
+    const response = [
+        '```scratch',
+        '[説明用 v] を (1) にする',
+        '```',
+        '```scratch',
+        '# Sprite1',
+        '⚑ が押されたとき',
+        '```'
+    ].join('\n');
+
+    expect(ScratchTextCompiler.extractScratchBlocks(response)).toBe([
+        '# Sprite1',
+        '⚑ が押されたとき'
+    ].join('\n'));
+});
+
 test('extracts an unfenced target program as a tolerant fallback', () => {
     const response = '変更しました。\n# Stage\n⚑ が押されたとき\n背景を (背景1 v) にする';
 

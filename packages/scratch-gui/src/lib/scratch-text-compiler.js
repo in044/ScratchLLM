@@ -1223,14 +1223,23 @@ class ScratchTextCompiler {
     }
 
     extractScratchBlocks (text) {
-        const matches = [];
-        const regex = /```(?:scratch|scratchblocks)\s*([\s\S]*?)```|```\s*\n([\s\S]*?)```/giu;
-        let match = regex.exec(text);
+        const projectMatches = [];
+        const projectRegex = /```scratch-project\s*([\s\S]*?)```/giu;
+        let match = projectRegex.exec(text);
         while (match) {
-            matches.push((match[1] || match[2]).trim());
-            match = regex.exec(text);
+            projectMatches.push(match[1].trim());
+            match = projectRegex.exec(text);
         }
-        if (matches.length > 0) return matches.join('\n\n');
+        if (projectMatches.length > 0) return projectMatches[projectMatches.length - 1];
+
+        const legacyMatches = [];
+        const legacyRegex = /```(?:scratch|scratchblocks)\s*([\s\S]*?)```|```\s*\n([\s\S]*?)```/giu;
+        match = legacyRegex.exec(text);
+        while (match) {
+            legacyMatches.push((match[1] || match[2]).trim());
+            match = legacyRegex.exec(text);
+        }
+        if (legacyMatches.length > 0) return legacyMatches[legacyMatches.length - 1];
 
         const lines = String(text || '').split('\n');
         const firstHeader = lines.findIndex(line => targetHeader(line));
