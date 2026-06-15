@@ -49,11 +49,10 @@ class ScratchBlockRenderer extends React.Component {
     render() {
         return (
             <div
-                className="scratchblocks-container"
+                className="scratchblocks-container chat-scratchblocks-container"
                 ref={el => {
                     this.container = el;
                 }}
-                style={{ overflowX: 'auto', padding: '5px 0 0 0' }}
             />
         );
     }

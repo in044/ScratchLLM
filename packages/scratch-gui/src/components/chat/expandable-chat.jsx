@@ -54,7 +54,7 @@ const ExpandableChat = props => {
                 setIsDragging(true);
 
                 const doMove = moveEvent => {
-                    // Match sidebar width (335px) for docking zone
+                    // Match sidebar width for docking zone
                     if (moveEvent.clientX < 50) {
                         setIsHoveringDock(true);
                     } else {
@@ -184,13 +184,13 @@ const ExpandableChat = props => {
 
             // Right (includes corner-tr and corner-br)
             if (direction === 'right' || direction === 'corner-tr' || direction === 'corner-br') {
-                newWidth = Math.max(325, Math.min(800, startWidth + deltaX));
+                newWidth = Math.max(325, Math.min(480, startWidth + deltaX));
             }
 
             // Left (includes corner-tl and corner-bl)
             if (direction === 'left' || direction === 'corner-tl' || direction === 'corner-bl') {
                 const proposedWidth = startWidth - deltaX;
-                newWidth = Math.max(325, Math.min(800, proposedWidth));
+                newWidth = Math.max(325, Math.min(480, proposedWidth));
                 const actualWidthChange = startWidth - newWidth;
                 newLeft = startLeft + actualWidthChange;
             }

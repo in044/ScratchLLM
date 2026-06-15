@@ -1,8 +1,11 @@
 import PropTypes from 'prop-types';
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { connect } from 'react-redux';
 import { FormattedMessage } from 'react-intl';
 import classNames from 'classnames';
+import DOMPurify from 'dompurify';
+import {marked} from 'marked';
 import styles from './chat.css';
 import sendIcon from './icon--send.svg';
 import trashIcon from './icon--trash.svg';
@@ -22,35 +25,50 @@ import ScratchBlockRenderer from './scratch-block-renderer.jsx';
 import ScratchTextCompiler from '../../lib/scratch-text-compiler';
 import validateScratchProject from '../../lib/scratch-project-validator';
 
+export const markdownToSafeHtml = text => DOMPurify.sanitize(
+    marked.parse(text, {
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false
+    }),
+    {
+        ALLOWED_ATTR: ['href', 'title'],
+        ALLOWED_TAGS: [
+            'a', 'blockquote', 'br', 'code', 'del', 'em',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr',
+            'li', 'ol', 'p', 'pre', 'strong',
+            'table', 'tbody', 'td', 'th', 'thead', 'tr', 'ul'
+        ]
+    }
+);
 
-
-
-const renderMessageContent = text => {
+/* eslint-disable react/no-danger */
+export const renderMessageContent = text => {
     // Only explanatory snippets render in chat. The scratch-project fence is
     // machine-readable output used to update the VM and is hidden from users.
     const visibleText = text.replace(/```scratch-project\s*[\s\S]*?```/giu, '');
-    const parts = visibleText.split(/(```scratch\n[\s\S]*?```)/g);
+    const parts = visibleText.split(/(```scratch[ \t]*\r?\n[\s\S]*?```)/gu);
     return parts.map((part, index) => {
-        if (part.startsWith('```scratch')) {
+        if (/^```scratch[ \t]*\r?\n/u.test(part)) {
             // Remove the markers
-            const code = part.replace(/^```scratch\n|```$/g, '');
+            const code = part.replace(/^```scratch[ \t]*\r?\n|```$/gu, '');
             return (<ScratchBlockRenderer
                 key={index}
                 code={code}
             />);
         }
-        // Check for other code blocks (optional, but good for normal formatting)
-        // For now, just render text as is but strictly scratch blocks are handled specially.
+        if (!part) return null;
         return (
-            <span
+            <div
                 key={index}
-                style={{ whiteSpace: 'pre-wrap' }}
-            >
-                {part}
-            </span>
+                className={styles.markdownContent}
+                dangerouslySetInnerHTML={{__html: markdownToSafeHtml(part)}}
+            />
         );
     });
 };
+/* eslint-enable react/no-danger */
 
 // API base URL is loaded from the .env file via REACT_APP_API_BASE_URL.
 // Create a .env file in packages/scratch-gui/ with:
@@ -279,13 +297,18 @@ export class ChatComponent extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-            inputValue: ''
+            inputValue: '',
+            disclaimerTooltip: null,
+            disclaimerTooltipVisible: false
         };
         this.textareaRef = React.createRef();
+        this.disclaimerInfoRef = React.createRef();
         this.handleSend = this.handleSend.bind(this);
         this.handleInputChange = this.handleInputChange.bind(this);
         this.handleKeyPress = this.handleKeyPress.bind(this);
         this.handleClearHistory = this.handleClearHistory.bind(this);
+        this.handleShowDisclaimerTooltip = this.handleShowDisclaimerTooltip.bind(this);
+        this.handleHideDisclaimerTooltip = this.handleHideDisclaimerTooltip.bind(this);
     }
 
     componentDidMount() {
@@ -294,10 +317,46 @@ export class ChatComponent extends React.Component {
 
     componentWillUnmount() {
         this._isMounted = false;
+        clearTimeout(this.disclaimerTooltipTimer);
     }
 
     handleClearHistory() {
         this.props.onClearHistory();
+    }
+
+    handleShowDisclaimerTooltip() {
+        if (!this.disclaimerInfoRef.current) return;
+
+        clearTimeout(this.disclaimerTooltipTimer);
+        const iconRect = this.disclaimerInfoRef.current.getBoundingClientRect();
+        const tooltipWidth = 260;
+        const tooltipHeight = 58;
+        const viewportMargin = 8;
+        const left = Math.max(
+            viewportMargin,
+            Math.min(
+                window.innerWidth - tooltipWidth - viewportMargin,
+                iconRect.left + (iconRect.width / 2) - (tooltipWidth / 2)
+            )
+        );
+        const showAbove = iconRect.bottom + viewportMargin + tooltipHeight > window.innerHeight;
+
+        this.setState({
+            disclaimerTooltip: {
+                left,
+                top: showAbove ? iconRect.top - viewportMargin : iconRect.bottom + viewportMargin,
+                showAbove
+            },
+            disclaimerTooltipVisible: true
+        });
+    }
+
+    handleHideDisclaimerTooltip() {
+        this.setState({disclaimerTooltipVisible: false});
+        clearTimeout(this.disclaimerTooltipTimer);
+        this.disclaimerTooltipTimer = setTimeout(() => {
+            if (this._isMounted) this.setState({disclaimerTooltip: null});
+        }, 160);
     }
 
     handleKeyPress(e) {
@@ -534,7 +593,7 @@ ${inputValue}
     }
 
     render() {
-        const { inputValue } = this.state;
+        const { inputValue, disclaimerTooltip, disclaimerTooltipVisible } = this.state;
         const { messages, isLoading, hasConsented, pendingRequestId } = this.props;
 
         if (!hasConsented) {
@@ -545,7 +604,20 @@ ${inputValue}
                         onMouseDown={this.props.onDragHeader}
                         style={{ cursor: 'move' }}
                     >
-                        <div className={styles.headerTitle}>{'AIチャットを使う前に'}</div>
+                        <button
+                            className={styles.closeButton}
+                            onClick={this.props.onClose}
+                        >
+                            <img
+                                alt="Close Chat"
+                                src={chatCloseIcon}
+                                style={{ width: '24px', height: '24px' }}
+                            />
+                        </button>
+                        <div className={styles.headerTitleGroup}>
+                            <div className={styles.headerTitle}>{'AIチャットを使う前に'}</div>
+                        </div>
+                        <div className={styles.headerActionPlaceholder} />
                     </div>
                     <div className={styles.body} style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#575E75' }}>
                         <p style={{ fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '20px' }}>
@@ -583,7 +655,22 @@ ${inputValue}
                             style={{ width: '24px', height: '24px' }}
                         />
                     </button>
-                    <div className={styles.headerTitle}>{'AIアシスタント'}</div>
+                    <div className={styles.headerTitleGroup}>
+                        <div className={styles.headerTitle}>{'AIアシスタント'}</div>
+                        <div
+                            ref={this.disclaimerInfoRef}
+                            aria-label="AI利用時の注意"
+                            className={styles.disclaimerInfo}
+                            role="note"
+                            tabIndex="0"
+                            onBlur={this.handleHideDisclaimerTooltip}
+                            onFocus={this.handleShowDisclaimerTooltip}
+                            onMouseEnter={this.handleShowDisclaimerTooltip}
+                            onMouseLeave={this.handleHideDisclaimerTooltip}
+                        >
+                            {'i'}
+                        </div>
+                    </div>
                     <button
                         className={styles.clearButton}
                         disabled={isLoading || messages.length === 0}
@@ -639,11 +726,22 @@ ${inputValue}
                             />
                         </button>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: '#666', textAlign: 'center', marginTop: '2.5px', marginBottom: '2.5px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0 4px' }}>
-                        <span>{'※AIはまちがえることがあります。'}</span>
-                        <span>{'個人情報は入力しないでください。'}</span>
-                    </div>
                 </div>
+                {disclaimerTooltip && ReactDOM.createPortal(
+                    <div
+                        className={classNames(styles.disclaimerTooltip, {
+                            [styles.disclaimerTooltipVisible]: disclaimerTooltipVisible
+                        })}
+                        style={{
+                            left: disclaimerTooltip.left,
+                            top: disclaimerTooltip.top,
+                            transform: disclaimerTooltip.showAbove ? 'translateY(-100%)' : 'none'
+                        }}
+                    >
+                        {'AIはまちがえることがあります。個人情報は入力しないでください。'}
+                    </div>,
+                    document.body
+                )}
             </div>
         );
     }

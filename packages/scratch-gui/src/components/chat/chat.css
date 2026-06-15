@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+@import "../../css/z-index.css";
 
 .container {
     font-family: 'Noto Sans JP', sans-serif;
@@ -6,25 +7,37 @@
     height: 100%;
     display: flex;
     flex-direction: column;
+    background: #f4f7fb;
+    color: #333b4f;
 }
 
 
 .header {
-    padding-left: 15px;
-    padding-right: 15px;
-    padding-top: 7.5px;
-    padding-bottom: 7.5px;
-    border-bottom: 1px solid #ccc;
+    position: relative;
+    min-height: 48px;
+    padding: 7.5px 12px;
+    border-bottom: 1px solid #d9e2f1;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: #fff;
+    box-sizing: border-box;
+    flex-shrink: 0;
 }
 
 .headerTitle {
     font-weight: bold;
     font-size: 16px;
-    margin-left: 5px;
     white-space: nowrap;
+}
+
+.header-title-group {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    transform: translate(-50%, -50%);
 }
 
 .clearButton {
@@ -51,7 +64,8 @@
     justify-content: center;
     width: 30px;
     height: 30px;
-    border-radius: 5px;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
 }
 
 .closeButton img {
@@ -61,7 +75,7 @@
 }
 
 .closeButton:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: #edf3fc;
 }
 
 .closeButton:hover img {
@@ -76,6 +90,7 @@
     /* Critical for flexbox overflow */
     overflow: hidden;
     /* Prevent children from overflowing */
+    background: #f4f7fb;
 }
 
 .messages {
@@ -83,53 +98,166 @@
     flex-shrink: 1;
     min-height: 0;
     /* Critical for flexbox overflow */
-    padding: 10px;
+    padding: 10px 7px;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    background: linear-gradient(180deg, #f7f9fc 0%, #f2f6fb 100%);
 }
 
 .message {
-    padding: 8px 12px;
-    border-radius: 10px;
-    margin-bottom: 5px;
-    max-width: 80%;
+    width: auto;
+    max-width: min(calc(100% - 30px), 480px);
+    padding: 9px 10px;
+    border-radius: 12px;
+    margin-bottom: 10px;
     word-wrap: break-word;
-    white-space: pre-wrap;
     font-size: 12px;
+    box-sizing: border-box;
+}
+
+.markdown-content {
+    font-size: 12px;
+    line-height: 1.65;
+}
+
+.markdown-content * {
+    font-size: inherit;
+}
+
+.markdown-content> :first-child {
+    margin-top: 0;
+}
+
+.markdown-content> :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    line-height: 1.25;
+    margin: 1.2em 0 0.55em;
+}
+
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre {
+    margin: 0.75em 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    padding-left: 1.8em;
+}
+
+.markdown-content li {
+    margin: 0.25em 0;
+}
+
+.markdown-content blockquote {
+    border-left: 3px solid rgba(87, 94, 117, 0.35);
+    color: #575e75;
+    padding-left: 0.8em;
+}
+
+.markdown-content code {
+    background: rgba(87, 94, 117, 0.12);
+    border-radius: 3px;
+    font-family: monospace;
+    padding: 0.1em 0.3em;
+}
+
+.markdown-content pre {
+    background: #2d2d2d;
+    border-radius: 5px;
+    color: #f8f8f2;
+    overflow-x: auto;
+    padding: 0.75em;
+    white-space: pre;
+}
+
+.markdown-content pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+}
+
+.markdown-content a {
+    color: #0066cc;
+    text-decoration: underline;
+}
+
+.user .markdown-content a {
+    color: white;
+}
+
+:global(.chat-scratchblocks-container) {
+    margin: 0.85em 0;
+    overflow-x: auto;
+    padding: 6px;
+    border: 1px solid #e1e7f0;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+:global(.chat-scratchblocks-container:first-child) {
+    margin-top: 0;
+}
+
+:global(.chat-scratchblocks-container:last-child) {
+    margin-bottom: 0;
+}
+
+:global(.chat-scratchblocks-container svg) {
+    display: block;
 }
 
 .user {
     align-self: flex-end;
-    background-color: #007bff;
+    background: linear-gradient(135deg, #3486f4, #2876e8);
     color: white;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 5px rgba(40, 118, 232, 0.18);
 }
 
 .bot {
     align-self: flex-start;
-    background-color: #f1f0f0;
+    background-color: #fff;
+    border: 1px solid #e1e7f0;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 6px rgba(45, 61, 89, 0.06);
 }
 
 .loading {
     align-self: flex-start;
     color: #888;
+    padding: 8px 12px;
+    border: 1px solid #e1e7f0;
+    border-radius: 12px;
+    background: #fff;
 }
 
 .input-container {
     display: flex;
     align-items: flex-end;
-    padding-top: 5px;
-    padding-left: 10px;
-    padding-right: 10px;
+    padding: 10px 10px 10px;
+    border-top: 1px solid #d9e2f1;
+    background: #fff;
     flex-shrink: 0;
     /* Prevent input area from shrinking */
 }
 
 .input {
     flex-grow: 1;
-    padding: 6px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+    padding: 6px 9px;
+    border: 1px solid #cbd6e6;
+    border-radius: 8px;
     font-size: 12px;
     min-height: 30px;
     height: 30px;
@@ -138,12 +266,22 @@
     resize: none;
     box-sizing: border-box;
     /* ←これ必須！ */
+    background: #f8fafc;
+    color: #333b4f;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.input:focus {
+    border-color: #4d97ff;
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(77, 151, 255, 0.16);
 }
 
 .send-button {
     margin-left: 5px;
-    border: 1px solid #cccccc;
-    background-color: #007bff;
+    border: 1px solid #2876e8;
+    background: linear-gradient(135deg, #3486f4, #2876e8);
     border-radius: 8px;
     cursor: pointer;
     width: 30px;
@@ -152,6 +290,18 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+    box-shadow: 0 2px 5px rgba(40, 118, 232, 0.2);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.send-button:hover:not(:disabled) {
+    box-shadow: 0 3px 8px rgba(40, 118, 232, 0.3);
+    transform: translateY(-1px);
+}
+
+.send-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
 }
 
 .send-button img {
@@ -166,6 +316,12 @@
     cursor: pointer;
     padding: 0;
     margin-left: 8px;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
+}
+
+.clearButton:hover:not(:disabled) {
+    background-color: #edf3fc;
 }
 
 .clearButton:disabled {
@@ -173,12 +329,74 @@
     opacity: 0.5;
 }
 
+.header-action-placeholder {
+    width: 30px;
+    height: 30px;
+}
+
+.disclaimer-info {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 6px);
+    width: 16px;
+    height: 16px;
+    border: 1px solid #aeb8ca;
+    border-radius: 50%;
+    box-sizing: border-box;
+    color: #7a8294;
+    cursor: help;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1;
+    /* Optical alignment with the title glyphs. */
+    transform: translateY(calc(-50% + 1px));
+}
+
+.disclaimer-tooltip {
+    position: fixed;
+    z-index: $z-index-context-menu;
+    width: 260px;
+    max-width: calc(100vw - 16px);
+    padding: 8px 10px;
+    border: 1px solid #d9e2f1;
+    border-radius: 8px;
+    box-sizing: border-box;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(45, 61, 89, 0.14);
+    color: #575e75;
+    font-size: 11px;
+    font-weight: normal;
+    line-height: 1.45;
+    opacity: 0;
+    pointer-events: none;
+    text-align: left;
+    transition: opacity 0.16s ease;
+}
+
+.disclaimer-tooltip-visible {
+    opacity: 1;
+    animation: disclaimer-tooltip-fade-in 0.16s ease;
+}
+
+@keyframes disclaimer-tooltip-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
 .expandable-chat-container {
     position: absolute;
     bottom: 1rem;
     left: 20.5rem;
     /* Relative to blocks workspace now */
-    z-index: 500;
+    z-index: $z-index-chat;
 
     /* Collapsed state */
     width: 3.5rem;
@@ -372,6 +590,7 @@
 
 .expandable-chat-container.expanded {
     width: 400px;
+    max-width: 480px;
     height: 500px;
     background: white;
     border-radius: 10px;
