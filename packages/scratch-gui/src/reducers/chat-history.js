@@ -4,13 +4,15 @@ const SET_HAS_CONSENTED = 'scratch-gui/chat-history/SET_HAS_CONSENTED';
 const SET_HAS_GLOBAL_CONSENTED = 'scratch-gui/chat-history/SET_HAS_GLOBAL_CONSENTED';
 const SET_IS_LOADING = 'scratch-gui/chat-history/SET_IS_LOADING';
 const SET_PENDING_REQUEST_ID = 'scratch-gui/chat-history/SET_PENDING_REQUEST_ID';
+const SET_EXPLANATION_LENGTH = 'scratch-gui/chat-history/SET_EXPLANATION_LENGTH';
 
 const initialState = {
     messages: [],
     hasConsented: false,
     hasGlobalConsented: false,
     isLoading: false,
-    pendingRequestId: null
+    pendingRequestId: null,
+    explanationLength: 'normal'
 };
 
 const reducer = function (state, action) {
@@ -47,6 +49,11 @@ const reducer = function (state, action) {
                 ...state,
                 pendingRequestId: action.pendingRequestId
             };
+        case SET_EXPLANATION_LENGTH:
+            return {
+                ...state,
+                explanationLength: action.explanationLength
+            };
         default:
             return state;
     }
@@ -81,6 +88,11 @@ const setPendingRequestId = pendingRequestId => ({
     pendingRequestId
 });
 
+const setExplanationLength = explanationLength => ({
+    type: SET_EXPLANATION_LENGTH,
+    explanationLength
+});
+
 export {
     reducer as default,
     initialState as chatHistoryInitialState,
@@ -89,5 +101,6 @@ export {
     setHasConsented,
     setHasGlobalConsented,
     setIsLoading,
-    setPendingRequestId
+    setPendingRequestId,
+    setExplanationLength
 };

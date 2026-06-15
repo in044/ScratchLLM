@@ -3,6 +3,7 @@ const CLOSE_MENU = 'scratch-gui/menus/CLOSE_MENU';
 
 const MENU_ABOUT = 'aboutMenu';
 const MENU_ACCOUNT = 'accountMenu';
+const MENU_AI = 'aiMenu';
 const MENU_EDIT = 'editMenu';
 const MENU_FILE = 'fileMenu';
 const MENU_LANGUAGE = 'languageMenu';
@@ -55,6 +56,7 @@ const rootMenu = new Menu('root')
     )
     .addChild(new Menu(MENU_FILE))
     .addChild(new Menu(MENU_EDIT))
+    .addChild(new Menu(MENU_AI))
     .addChild(new Menu(MENU_MODE))
     .addChild(new Menu(MENU_SETTINGS))
     .addChild(new Menu(MENU_LOGIN))
@@ -64,6 +66,7 @@ const rootMenu = new Menu('root')
 const initialState = {
     [MENU_ABOUT]: false,
     [MENU_ACCOUNT]: false,
+    [MENU_AI]: false,
     [MENU_EDIT]: false,
     [MENU_FILE]: false,
     [MENU_LANGUAGE]: false,
@@ -118,6 +121,10 @@ const openAccountMenu = () => openMenu(MENU_ACCOUNT);
 const closeAccountMenu = () => closeMenu(MENU_ACCOUNT);
 const accountMenuOpen = state => state.scratchGui.menus[MENU_ACCOUNT];
 
+const openAiMenu = () => openMenu(MENU_AI);
+const closeAiMenu = () => closeMenu(MENU_AI);
+const aiMenuOpen = state => state.scratchGui.menus[MENU_AI];
+
 const openEditMenu = () => openMenu(MENU_EDIT);
 const closeEditMenu = () => closeMenu(MENU_EDIT);
 const editMenuOpen = state => state.scratchGui.menus[MENU_EDIT];
@@ -155,6 +162,9 @@ export {
     openAccountMenu,
     closeAccountMenu,
     accountMenuOpen,
+    openAiMenu,
+    closeAiMenu,
+    aiMenuOpen,
     openEditMenu,
     closeEditMenu,
     editMenuOpen,

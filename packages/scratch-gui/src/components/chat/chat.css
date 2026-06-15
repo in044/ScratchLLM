@@ -305,9 +305,7 @@
 }
 
 .send-button img {
-    position: relative;
-    left: -1px;
-    top: 1px;
+    display: block;
 }
 
 .clearButton {

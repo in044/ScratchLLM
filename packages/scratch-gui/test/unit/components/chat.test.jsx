@@ -3,6 +3,8 @@ import {shallow} from 'enzyme';
 
 import ScratchBlockRenderer from '../../../src/components/chat/scratch-block-renderer.jsx';
 import {
+    EXPLANATION_LENGTH_PROMPTS,
+    getSystemPrompt,
     markdownToSafeHtml,
     renderMessageContent
 } from '../../../src/components/chat/chat.jsx';
@@ -25,5 +27,17 @@ describe('Chat message rendering', () => {
         );
 
         expect(component.find(ScratchBlockRenderer)).toHaveLength(1);
+    });
+});
+
+describe('Chat explanation length prompts', () => {
+    ['long', 'normal', 'short'].forEach(length => {
+        test(`adds the ${length} instruction to the system prompt`, () => {
+            expect(getSystemPrompt(length)).toContain(EXPLANATION_LENGTH_PROMPTS[length]);
+        });
+    });
+
+    test('falls back to the normal instruction', () => {
+        expect(getSystemPrompt('unknown')).toContain(EXPLANATION_LENGTH_PROMPTS.normal);
     });
 });

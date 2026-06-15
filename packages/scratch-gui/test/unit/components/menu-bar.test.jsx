@@ -31,6 +31,9 @@ describe('MenuBar Component', () => {
             vm: new VM(),
             platform: {
                 platform: PLATFORM.WEB
+            },
+            chatHistory: {
+                explanationLength: 'normal'
             }
         }
     });

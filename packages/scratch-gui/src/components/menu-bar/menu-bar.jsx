@@ -18,7 +18,7 @@ import Divider from '../divider/divider.jsx';
 import SaveStatus from './save-status.jsx';
 import ProjectWatcher from '../../containers/project-watcher.jsx';
 import MenuBarMenu from './menu-bar-menu.jsx';
-import { MenuItem, MenuSection } from '../menu/menu.jsx';
+import { MenuItem, MenuSection, Submenu } from '../menu/menu.jsx';
 import ProjectTitleInput from './project-title-input.jsx';
 import AuthorInfo from './author-info.jsx';
 import AccountNav from '../../components/menu-bar/account-nav.jsx';
@@ -31,6 +31,7 @@ import SettingsMenu from './settings-menu.jsx';
 
 import { openTipsLibrary, openDebugModal } from '../../reducers/modals';
 import { setPlayer } from '../../reducers/mode';
+import {setExplanationLength} from '../../reducers/chat-history';
 import {
     isTimeTravel220022BC,
     isTimeTravel1920,
@@ -55,6 +56,9 @@ import {
     openAccountMenu,
     closeAccountMenu,
     accountMenuOpen,
+    openAiMenu,
+    closeAiMenu,
+    aiMenuOpen,
     openFileMenu,
     closeFileMenu,
     fileMenuOpen,
@@ -76,6 +80,7 @@ import collectMetadata from '../../lib/collect-metadata';
 import { PLATFORM } from '../../lib/platform';
 
 import styles from './menu-bar.css';
+import settingsMenuStyles from './settings-menu.css';
 
 import helpIcon from '../../lib/assets/icon--tutorials.svg';
 import mystuffIcon from './icon--mystuff.png';
@@ -86,6 +91,12 @@ import aboutIcon from './icon--about.svg';
 import fileIcon from './icon--file.svg';
 import editIcon from './icon--edit.svg';
 import debugIcon from '../debug-modal/icons/icon--debug.svg';
+import explanationLongIcon from './icon--explanation-long.svg';
+import explanationNormalIcon from './icon--explanation-normal.svg';
+import explanationShortIcon from './icon--explanation-short.svg';
+import aiMenuIcon from './icon--ai-menu.svg';
+import explanationLengthIcon from './icon--explanation-length.svg';
+import check from './check.svg';
 
 import scratchLogo from './scratch-logo.svg';
 import scratchLogoAndroid from './scratch-logo-android.svg';
@@ -628,6 +639,64 @@ class MenuBar extends React.Component {
                                 </MenuBarMenu>
                             </div>
                         )}
+                        <div
+                            className={classNames(styles.menuBarItem, styles.hoverable, {
+                                [styles.active]: this.props.aiMenuOpen
+                            })}
+                            onMouseUp={this.props.onClickAiMenu}
+                        >
+                            <img src={aiMenuIcon} />
+                            <span className={styles.collapsibleLabel}>{'AIメニュー'}</span>
+                            <img src={dropdownCaret} />
+                            <MenuBarMenu
+                                className={classNames(styles.menuBarMenu)}
+                                open={this.props.aiMenuOpen}
+                                place={this.props.isRtl ? 'left' : 'right'}
+                                onRequestClose={this.props.onRequestCloseAiMenu}
+                            >
+                                <MenuSection>
+                                    <MenuItem>
+                                        <span className={settingsMenuStyles.option}>
+                                            <img
+                                                className={settingsMenuStyles.icon}
+                                                src={explanationLengthIcon}
+                                            />
+                                            <span>{'説明の長さ'}</span>
+                                            <span className={settingsMenuStyles.submenuLabel} />
+                                            <img
+                                                className={settingsMenuStyles.expandCaret}
+                                                src={dropdownCaret}
+                                            />
+                                        </span>
+                                        <Submenu place={this.props.isRtl ? 'left' : 'right'}>
+                                            {[
+                                                {value: 'long', label: '長い', icon: explanationLongIcon},
+                                                {value: 'normal', label: '普通', icon: explanationNormalIcon},
+                                                {value: 'short', label: '短い', icon: explanationShortIcon}
+                                            ].map(option => (
+                                                <MenuItem
+                                                    key={option.value}
+                                                    onClick={() => this.props.onSetExplanationLength(option.value)}
+                                                >
+                                                    <img
+                                                        className={classNames(settingsMenuStyles.check, {
+                                                            [settingsMenuStyles.selected]:
+                                                                this.props.explanationLength === option.value
+                                                        })}
+                                                        src={check}
+                                                    />
+                                                    <img
+                                                        className={styles.aiExplanationIcon}
+                                                        src={option.icon}
+                                                    />
+                                                    {option.label}
+                                                </MenuItem>
+                                            ))}
+                                        </Submenu>
+                                    </MenuItem>
+                                </MenuSection>
+                            </MenuBarMenu>
+                        </div>
                     </div>
                 </div>
 
@@ -655,6 +724,7 @@ class MenuBar extends React.Component {
 MenuBar.propTypes = {
     aboutMenuOpen: PropTypes.bool,
     accountMenuOpen: PropTypes.bool,
+    aiMenuOpen: PropTypes.bool,
     authorId: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
     authorThumbnailUrl: PropTypes.string,
     authorUsername: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
@@ -701,6 +771,7 @@ MenuBar.propTypes = {
         )
     ]),
     onClickAccount: PropTypes.func,
+    onClickAiMenu: PropTypes.func,
     onClickEdit: PropTypes.func,
     onClickFile: PropTypes.func,
     onClickLogin: PropTypes.func,
@@ -719,6 +790,7 @@ MenuBar.propTypes = {
     onProjectTelemetryEvent: PropTypes.func,
     onRequestCloseAbout: PropTypes.func,
     onRequestCloseAccount: PropTypes.func,
+    onRequestCloseAiMenu: PropTypes.func,
     onRequestCloseEdit: PropTypes.func,
     onRequestCloseFile: PropTypes.func,
     onRequestCloseLogin: PropTypes.func,
@@ -727,6 +799,7 @@ MenuBar.propTypes = {
     onRequestOpenAbout: PropTypes.func,
     onSeeCommunity: PropTypes.func,
     onSetTimeTravelMode: PropTypes.func,
+    onSetExplanationLength: PropTypes.func,
     onShare: PropTypes.func,
     onStartSelectingFileUpload: PropTypes.func,
     onToggleLoginOpen: PropTypes.func,
@@ -737,6 +810,7 @@ MenuBar.propTypes = {
     shouldSaveBeforeTransition: PropTypes.func,
     showComingSoon: PropTypes.bool,
     username: PropTypes.string,
+    explanationLength: PropTypes.oneOf(['long', 'normal', 'short']),
     userOwnsProject: PropTypes.bool,
 
     accountMenuOptions: AccountMenuOptionsPropTypes,
@@ -758,9 +832,11 @@ const mapStateToProps = (state, ownProps) => {
     return {
         aboutMenuOpen: aboutMenuOpen(state),
         accountMenuOpen: accountMenuOpen(state),
+        aiMenuOpen: aiMenuOpen(state),
         currentLocale: state.locales.locale,
         fileMenuOpen: fileMenuOpen(state),
         editMenuOpen: editMenuOpen(state),
+        explanationLength: state.scratchGui.chatHistory.explanationLength,
         isRtl: state.locales.isRtl,
         isUpdating: getIsUpdating(loadingState),
         isShowingProject: getIsShowingProject(loadingState),
@@ -807,6 +883,8 @@ const mapDispatchToProps = (dispatch, ownProps) => ({
     onOpenDebugModal: () => dispatch(openDebugModal()),
     onClickAccount: () => dispatch(openAccountMenu()),
     onRequestCloseAccount: () => dispatch(closeAccountMenu()),
+    onClickAiMenu: () => dispatch(openAiMenu()),
+    onRequestCloseAiMenu: () => dispatch(closeAiMenu()),
     onClickFile: () => dispatch(openFileMenu()),
     onRequestCloseFile: () => dispatch(closeFileMenu()),
     onClickEdit: () => dispatch(openEditMenu()),
@@ -824,7 +902,8 @@ const mapDispatchToProps = (dispatch, ownProps) => ({
     onClickSave: () => dispatch(manualUpdateProject()),
     onClickSaveAsCopy: () => dispatch(saveProjectAsCopy()),
     onSeeCommunity: ownProps.onSeeCommunity ?? (() => dispatch(setPlayer(true))),
-    onSetTimeTravelMode: mode => dispatch(setTimeTravel(mode))
+    onSetTimeTravelMode: mode => dispatch(setTimeTravel(mode)),
+    onSetExplanationLength: explanationLength => dispatch(setExplanationLength(explanationLength))
 });
 
 export default compose(

@@ -5,7 +5,7 @@ import { connect } from 'react-redux';
 import { FormattedMessage } from 'react-intl';
 import classNames from 'classnames';
 import DOMPurify from 'dompurify';
-import {marked} from 'marked';
+import { marked } from 'marked';
 import styles from './chat.css';
 import sendIcon from './icon--send.svg';
 import trashIcon from './icon--trash.svg';
@@ -16,6 +16,7 @@ import {
 import {
     addMessage,
     clearHistory,
+    setExplanationLength,
     setHasConsented,
     setIsLoading,
     setPendingRequestId
@@ -63,7 +64,7 @@ export const renderMessageContent = text => {
             <div
                 key={index}
                 className={styles.markdownContent}
-                dangerouslySetInnerHTML={{__html: markdownToSafeHtml(part)}}
+                dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(part) }}
             />
         );
     });
@@ -74,6 +75,33 @@ export const renderMessageContent = text => {
 // Create a .env file in packages/scratch-gui/ with:
 //   REACT_APP_API_BASE_URL=https://your-domain.example.com
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
+
+export const EXPLANATION_LENGTH_PROMPTS = {
+    long: `## 説明の長さ: 長い
+説明は、コードを初めて学ぶ中学生が、完成後の動きだけでなく「なぜこの作り方にしたのか」まで理解できる詳しさにしてください。
+最初に変更内容の全体像を示し、その後、初期化、入力、条件分岐、繰り返し、値の更新、画面上の結果などを、実行される順番に沿って丁寧に説明してください。
+追加・変更した重要なブロックについては、その役割、前後のブロックとのつながり、その順番に置く理由を説明してください。
+変数や条件式を使う場合は、代表的な値を使った具体例を添えて、実行中に値や動きがどう変化するか説明してください。
+専門用語を使う場合は、初めて出てきた箇所で短く意味を説明してください。
+理解に役立つ場合は、完成コードに実在する小さなScratchBlocks断片を複数示してください。
+同じ内容の言い換えで文章量を増やさず、各段落に新しい情報を含めてください。`,
+    normal: `## 説明の長さ: 普通
+説明は、中学生が変更内容とプログラムの動きを無理なく理解できる標準的な詳しさにしてください。
+最初に何を変更したかを簡潔に示し、その後、重要な処理を実行される順番に沿って説明してください。
+条件分岐、繰り返し、変数など、動きを理解するために重要な仕組みは、その役割と結果が分かるように説明してください。
+細かなブロックを一行ずつ説明する必要はありませんが、なぜその処理が必要なのかは重要な箇所で示してください。
+説明用のScratchBlocks断片は、処理の理解に役立つ重要部分だけに絞ってください。
+重複した説明や、依頼と関係のない一般論は避けてください。`,
+    short: `## 説明の長さ: 短い
+説明は、結果をすばやく確認したいユーザー向けに、必要最小限の長さにしてください。
+変更した内容と、完成したプログラムがどの順番で動くかを、短い段落または少数の箇条書きで説明してください。
+理由の説明は、理解しないと使い方を誤る重要な点だけに限定してください。
+ブロックを一行ずつ説明したり、専門用語の詳しい解説、具体例、同じ内容の言い換えを追加したりしないでください。
+説明用のScratchBlocks断片は原則として使わず、文章だけでは重要な処理を説明できない場合に限って1個だけ使用してください。`
+};
+
+export const getSystemPrompt = explanationLength =>
+    `${SYSTEM_PROMPT}\n${EXPLANATION_LENGTH_PROMPTS[explanationLength] || EXPLANATION_LENGTH_PROMPTS.normal}`;
 
 /* eslint-disable max-len */
 const SYSTEM_PROMPT = `
@@ -352,10 +380,10 @@ export class ChatComponent extends React.Component {
     }
 
     handleHideDisclaimerTooltip() {
-        this.setState({disclaimerTooltipVisible: false});
+        this.setState({ disclaimerTooltipVisible: false });
         clearTimeout(this.disclaimerTooltipTimer);
         this.disclaimerTooltipTimer = setTimeout(() => {
-            if (this._isMounted) this.setState({disclaimerTooltip: null});
+            if (this._isMounted) this.setState({ disclaimerTooltip: null });
         }, 160);
     }
 
@@ -430,7 +458,7 @@ ${inputValue}
                 // model: 'gpt-4o', // Delegate model selection to server
                 userInput: inputValue,
                 messages: [
-                    { role: 'system', content: SYSTEM_PROMPT },
+                    { role: 'system', content: getSystemPrompt(this.props.explanationLength) },
                     ...history,
                     { role: 'user', content: prompt }
                 ]
@@ -594,12 +622,12 @@ ${inputValue}
 
     render() {
         const { inputValue, disclaimerTooltip, disclaimerTooltipVisible } = this.state;
-        const { messages, isLoading, hasConsented, pendingRequestId } = this.props;
+        const { messages, isLoading, hasConsented, pendingRequestId, explanationLength } = this.props;
 
         if (!hasConsented) {
             return (
                 <div className={styles.container}>
-                    <div 
+                    <div
                         className={styles.header}
                         onMouseDown={this.props.onDragHeader}
                         style={{ cursor: 'move' }}
@@ -679,7 +707,7 @@ ${inputValue}
                         <img
                             alt="Clear History"
                             src={trashIcon}
-                            style={{ width: '20px', height: '20px' }}
+                            style={{width: '20px', height: '20px'}}
                         />
                     </button>
                 </div>
@@ -749,11 +777,13 @@ ${inputValue}
 
 ChatComponent.propTypes = {
     hasConsented: PropTypes.bool,
+    explanationLength: PropTypes.oneOf(['long', 'normal', 'short']),
     isLoading: PropTypes.bool,
     pendingRequestId: PropTypes.string,
     onSetHasConsented: PropTypes.func.isRequired,
     onSetIsLoading: PropTypes.func.isRequired,
     onSetPendingRequestId: PropTypes.func.isRequired,
+    onSetExplanationLength: PropTypes.func.isRequired,
     messages: PropTypes.arrayOf(PropTypes.shape({
         text: PropTypes.string,
         sender: PropTypes.string
@@ -778,7 +808,8 @@ const mapStateToProps = state => ({
     messages: state.scratchGui.chatHistory.messages,
     hasConsented: state.scratchGui.chatHistory.hasConsented,
     isLoading: state.scratchGui.chatHistory.isLoading,
-    pendingRequestId: state.scratchGui.chatHistory.pendingRequestId
+    pendingRequestId: state.scratchGui.chatHistory.pendingRequestId,
+    explanationLength: state.scratchGui.chatHistory.explanationLength
 });
 
 const mapDispatchToProps = (dispatch, ownProps) => ({
@@ -787,7 +818,8 @@ const mapDispatchToProps = (dispatch, ownProps) => ({
     onClearHistory: () => dispatch(clearHistory()),
     onSetHasConsented: hasConsented => dispatch(setHasConsented(hasConsented)),
     onSetIsLoading: isLoading => dispatch(setIsLoading(isLoading)),
-    onSetPendingRequestId: id => dispatch(setPendingRequestId(id))
+    onSetPendingRequestId: id => dispatch(setPendingRequestId(id)),
+    onSetExplanationLength: explanationLength => dispatch(setExplanationLength(explanationLength))
 });
 
 export default connect(mapStateToProps, mapDispatchToProps)(ChatComponent);
