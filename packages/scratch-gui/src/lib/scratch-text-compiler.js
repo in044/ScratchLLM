@@ -875,6 +875,132 @@ const specsByOpcode = blockSpecs.reduce((acc, spec) => {
     return acc;
 }, {});
 
+const fuzzyInputMarkers = {
+    '(': 'FUZZYROUNDINPUT',
+    '[': 'FUZZYSTRINGINPUT',
+    '<': 'FUZZYBOOLEANINPUT'
+};
+const fuzzyInputMarkerPattern = /FUZZY(?:ROUND|STRING|BOOLEAN)INPUT/gu;
+const fuzzyMaximumDistance = 3;
+const fuzzyMaximumDistanceRatio = 0.12;
+const fuzzyMinimumCandidateMargin = 2;
+
+const editDistance = (left, right) => {
+    const previous = Array.from({length: right.length + 1}, (_, index) => index);
+    for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
+        const current = [leftIndex];
+        for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
+            current[rightIndex] = Math.min(
+                current[rightIndex - 1] + 1,
+                previous[rightIndex] + 1,
+                previous[rightIndex - 1] + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1)
+            );
+        }
+        previous.splice(0, previous.length, ...current);
+    }
+    return previous[right.length];
+};
+
+const maskFuzzyInputs = line => {
+    const inputs = [];
+    let signature = '';
+    let index = 0;
+    const closingBrackets = {'(': ')', '[': ']', '<': '>'};
+
+    while (index < line.length) {
+        const closing = closingBrackets[line[index]];
+        if (!closing) {
+            signature += line[index++];
+            continue;
+        }
+
+        const opening = line[index];
+        let depth = 1;
+        let end = index + 1;
+        while (end < line.length && depth > 0) {
+            if (line[end] === opening) depth++;
+            if (line[end] === closing) depth--;
+            end++;
+        }
+        if (depth !== 0) {
+            signature += line[index++];
+            continue;
+        }
+
+        inputs.push(line.slice(index, end));
+        signature += fuzzyInputMarkers[opening];
+        index = end;
+    }
+
+    return {signature: normalize(signature), inputs};
+};
+
+let fuzzyTemplatesCache = null;
+const getFuzzyTemplates = () => {
+    if (fuzzyTemplatesCache) return fuzzyTemplatesCache;
+    fuzzyTemplatesCache = blockSpecs.reduce((templates, spec) => {
+        if (!spec.toText) return templates;
+        const fields = new Proxy({}, {
+            get: () => ['FUZZYSTRINGINPUT', null]
+        });
+        const template = normalize(spec.toText(
+            {opcode: spec.opcode, fields, inputs: {}},
+            () => 'FUZZYROUNDINPUT'
+        ));
+        const masked = maskFuzzyInputs(template);
+        const inputCount = masked.inputs.length;
+        const key = `${masked.signature}:${inputCount}`;
+        if (!templates.some(candidate => candidate.key === key)) {
+            templates.push({key, opcode: spec.opcode, template, signature: masked.signature, inputCount});
+        }
+        return templates;
+    }, []);
+    return fuzzyTemplatesCache;
+};
+
+const restoreFuzzyInputs = (template, inputs) => {
+    let inputIndex = 0;
+    return template.replace(fuzzyInputMarkerPattern, () => unwrap(inputs[inputIndex++]));
+};
+
+const repairFuzzyLine = line => {
+    const normalizedLine = normalizeLine(line);
+    if (!normalizedLine) return normalizedLine;
+
+    const masked = maskFuzzyInputs(normalizedLine);
+    const directlyMatchedOpcodes = blockSpecs
+        .filter(spec => spec.patterns.some(pattern => normalizedLine.match(pattern)))
+        .map(spec => spec.opcode);
+    const candidates = getFuzzyTemplates()
+        .filter(candidate => candidate.inputCount === masked.inputs.length)
+        .map(candidate => ({
+            ...candidate,
+            distance: editDistance(masked.signature, candidate.signature)
+        }))
+        .sort((left, right) => left.distance - right.distance);
+    const best = candidates[0];
+    const second = candidates[1];
+    const directDistance = candidates
+        .filter(candidate => directlyMatchedOpcodes.includes(candidate.opcode))
+        .reduce((distance, candidate) => Math.min(distance, candidate.distance), Infinity);
+    if (!best ||
+        best.distance > fuzzyMaximumDistance ||
+        best.distance / Math.max(masked.signature.length, best.signature.length) > fuzzyMaximumDistanceRatio ||
+        (second && second.distance - best.distance < fuzzyMinimumCandidateMargin) ||
+        (!directlyMatchedOpcodes.includes(best.opcode) &&
+            directDistance <= best.distance + fuzzyMinimumCandidateMargin)) {
+        return normalizedLine;
+    }
+    return restoreFuzzyInputs(best.template, masked.inputs);
+};
+
+const repairFuzzyCode = code => code.split('\n')
+    .map(line => {
+        const repaired = repairFuzzyLine(line);
+        return repaired === normalizeLine(line) ? line : repaired;
+    })
+    .join('\n');
+
 const officialIdOpcodeOverrides = {
     'LOOKS_NEXTBACKDROP_BLOCK': 'looks_nextbackdrop',
     'SOUND_SETEFFECTO': 'sound_seteffectto',
@@ -902,15 +1028,16 @@ const officialIdToOpcode = id => (
         id.toLowerCase().replace(/^operators_/u, 'operator_')
 );
 
-const checkOfficialBlocks = (code, blocks) => {
-    const analysis = analyzeScratchBlocks(code);
+const checkOfficialBlocks = (code, blocks, useFuzzyRepair = true) => {
+    const repairedCode = useFuzzyRepair ? repairFuzzyCode(code) : code;
+    const analysis = analyzeScratchBlocks(repairedCode);
     const expectedCounts = analysis.knownBlockIds.reduce((counts, id) => {
         const opcode = officialIdToOpcode(id);
         if (!opcode) return counts;
         counts[opcode] = (counts[opcode] || 0) + 1;
         return counts;
     }, {});
-    code.split('\n').forEach(line => {
+    repairedCode.split('\n').forEach(line => {
         const normalizedLine = normalize(line);
         const variableAssignment = normalizedLine.match(/^\[(.+?)\] を (.+?) にする$/u);
         const coordinateAssignment = normalizedLine.match(/^(x座標|y座標)を (.+?) にする$/u);
@@ -959,10 +1086,12 @@ const checkOfficialBlocks = (code, blocks) => {
     };
 };
 
-const hasEveryOfficialBlock = (code, blocks) => checkOfficialBlocks(code, blocks).valid;
+const hasEveryOfficialBlock = (code, blocks, useFuzzyRepair = true) => (
+    checkOfficialBlocks(code, blocks, useFuzzyRepair).valid
+);
 
-const completenessDiagnostic = (prefix, code, blocks) => {
-    const result = checkOfficialBlocks(code, blocks);
+const completenessDiagnostic = (prefix, code, blocks, useFuzzyRepair = true) => {
+    const result = checkOfficialBlocks(code, blocks, useFuzzyRepair);
     const details = [];
     if (result.unknownBlocks.length > 0) {
         details.push(`未知の記法: ${result.unknownBlocks.slice(0, 3).join(' / ')}`);
@@ -1248,12 +1377,13 @@ class ScratchTextCompiler {
             .trim() : '';
     }
 
-    compile (text, baseProject = null, targetId = null) {
+    compile (text, baseProject = null, targetId = null, options = {}) {
         this.diagnostics = [];
+        const useFuzzyRepair = options.useFuzzyRepair !== false;
         if (baseProject && this.hasTargetHeaders(text)) {
-            return this.compileProject(text, baseProject);
+            return this.compileProject(text, baseProject, useFuzzyRepair);
         }
-        const target = this.compileTarget(text);
+        const target = this.compileTarget(text, useFuzzyRepair);
         if (!baseProject) {
             return {
                 targets: [target],
@@ -1262,8 +1392,8 @@ class ScratchTextCompiler {
             };
         }
         const hasCompiledScripts = Object.values(target.blocks).some(block => block.topLevel);
-        if ((!hasCompiledScripts || !hasEveryOfficialBlock(text, target.blocks)) && text.trim()) {
-            this.diagnostics.push(completenessDiagnostic('現在のスプライト', text, target.blocks));
+        if ((!hasCompiledScripts || !hasEveryOfficialBlock(text, target.blocks, useFuzzyRepair)) && text.trim()) {
+            this.diagnostics.push(completenessDiagnostic('現在のスプライト', text, target.blocks, useFuzzyRepair));
             return typeof baseProject === 'string' ?
                 JSON.parse(baseProject) :
                 JSON.parse(JSON.stringify(baseProject));
@@ -1293,7 +1423,7 @@ class ScratchTextCompiler {
             .map(section => ({...section, code: section.code.join('\n').trim()}));
     }
 
-    compileProject (text, baseProject) {
+    compileProject (text, baseProject, useFuzzyRepair = true) {
         const project = typeof baseProject === 'string' ?
             JSON.parse(baseProject) :
             JSON.parse(JSON.stringify(baseProject));
@@ -1313,7 +1443,7 @@ class ScratchTextCompiler {
                 this.diagnostics.push(`${section.name}: 対応するターゲットが見つからないため変更しませんでした。`);
                 return;
             }
-            const compiledTarget = this.compileTarget(section.code);
+            const compiledTarget = this.compileTarget(section.code, useFuzzyRepair);
             const sectionLines = section.code.split('\n')
                 .map(line => line.trim())
                 .filter(Boolean);
@@ -1328,9 +1458,14 @@ class ScratchTextCompiler {
                 .some(block => block.topLevel);
             if (!explicitlyEmpty && (
                 !hasCompiledScripts ||
-                !hasEveryOfficialBlock(section.code, compiledTarget.blocks)
+                !hasEveryOfficialBlock(section.code, compiledTarget.blocks, useFuzzyRepair)
             )) {
-                this.diagnostics.push(completenessDiagnostic(section.name, section.code, compiledTarget.blocks));
+                this.diagnostics.push(completenessDiagnostic(
+                    section.name,
+                    section.code,
+                    compiledTarget.blocks,
+                    useFuzzyRepair
+                ));
                 return;
             }
             mergeCompiledProgram(target, compiledTarget);
@@ -1343,7 +1478,7 @@ class ScratchTextCompiler {
         return this.diagnostics.slice();
     }
 
-    compileTarget (text) {
+    compileTarget (text, useFuzzyRepair = true) {
         const blocks = {};
         const variables = {};
         const lists = {};
@@ -1382,7 +1517,7 @@ class ScratchTextCompiler {
 
         const stack = [{parentId: null, inputName: null, lastId: null}];
         const lines = text.split('\n')
-            .map(line => normalizeLine(line))
+            .map(line => (useFuzzyRepair ? repairFuzzyLine(line) : normalizeLine(line)))
             .filter(line => line && !/^#/.test(line) && !/^\/\//.test(line));
 
         lines.forEach(line => {
@@ -1399,7 +1534,7 @@ class ScratchTextCompiler {
                 return;
             }
 
-            const specMatch = this.matchLine(line);
+            const specMatch = this.matchLine(line, useFuzzyRepair);
             if (!specMatch) return;
 
             const {spec, match} = specMatch;
@@ -1476,8 +1611,8 @@ class ScratchTextCompiler {
         return project;
     }
 
-    matchLine (line) {
-        const normalizedLine = normalize(line);
+    matchLine (line, useFuzzyRepair = true) {
+        const normalizedLine = useFuzzyRepair ? repairFuzzyLine(line) : normalize(line);
         for (const spec of blockSpecs) {
             for (const pattern of spec.patterns) {
                 const match = normalizedLine.match(pattern);

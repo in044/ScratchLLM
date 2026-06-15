@@ -30,6 +30,9 @@ app_state = {
     # "approval_mode": not args.no_approval,
     "approval_mode": False,
     "ai_enabled": True,
+    "syntax_repair_enabled": os.environ.get(
+        'SCRATCH_SYNTAX_REPAIR_ENABLED', 'true'
+    ).lower() in ('1', 'true', 'yes', 'on'),
 }
 
 # id -> {
@@ -159,6 +162,18 @@ def toggle_ai():
 
 
 # ─────────────────────────────────────────────
+# Scratch構文修正 on/off トグル
+# ─────────────────────────────────────────────
+@app.route('/api/admin/toggle-syntax-repair', methods=['POST'])
+def toggle_syntax_repair():
+    with state_lock:
+        app_state['syntax_repair_enabled'] = not app_state['syntax_repair_enabled']
+        new_val = app_state['syntax_repair_enabled']
+    notify_admin('state_changed', {'syntax_repair_enabled': new_val})
+    return jsonify({'syntax_repair_enabled': new_val})
+
+
+# ─────────────────────────────────────────────
 # 承認
 # ─────────────────────────────────────────────
 @app.route('/api/admin/approve/<request_id>', methods=['POST'])
@@ -251,6 +266,64 @@ def call_openai_async(request_id: str, messages: list, model: str):
             msg = f"event: rejected\ndata: {json.dumps({'reason': f'AIとの通信でエラーが発生しました: {str(e)}'}, ensure_ascii=False)}\n\n"
             entry['student_queue'].put_nowait(msg)
             notify_admin('removed', {'id': request_id})
+
+
+# ─────────────────────────────────────────────
+# ScratchBlocks構文修正
+# ─────────────────────────────────────────────
+@app.route('/api/repair-scratch', methods=['POST'])
+def repair_scratch():
+    try:
+        with state_lock:
+            enabled = app_state['syntax_repair_enabled']
+            ai_enabled = app_state['ai_enabled']
+        data = request.json or {}
+        code = data.get('code') or ''
+        diagnostics = data.get('diagnostics') or []
+        syntax_reference = data.get('syntaxReference') or ''
+
+        if not enabled or not ai_enabled or not code or not diagnostics:
+            return jsonify({'enabled': enabled, 'repaired': False, 'code': code})
+
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            return jsonify({'error': 'OpenAI API key is not set.'}), 500
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        prompt = f"""次のScratchBlocksプログラムには、コンパイラが認識できない構文があります。
+機能、ターゲット、行順、数値、文字列、変数名、リスト名、素材名を変更せず、構文だけを修正してください。
+未知行を削除したり、新しい処理を追加したりしないでください。
+修正できない行は元のまま残してください。
+出力は修正後のプログラム本文だけにし、説明、Markdown、コードフェンスを含めないでください。
+
+診断:
+{chr(10).join(str(item) for item in diagnostics)}
+
+使用可能な構文の参考:
+{syntax_reference}
+
+プログラム:
+{code}"""
+        response = client.chat.completions.create(
+            model='gpt-5.4-mini',
+            messages=[
+                {
+                    'role': 'system',
+                    'content': 'あなたはScratchBlocks構文だけを保守的に修正するコンパイラ補助です。'
+                },
+                {'role': 'user', 'content': prompt}
+            ]
+        )
+        repaired_code = (response.choices[0].message.content or '').strip()
+        return jsonify({
+            'enabled': True,
+            'repaired': bool(repaired_code and repaired_code != code),
+            'code': repaired_code or code
+        })
+    except Exception as e:
+        print(f"Error repairing ScratchBlocks syntax: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # ─────────────────────────────────────────────

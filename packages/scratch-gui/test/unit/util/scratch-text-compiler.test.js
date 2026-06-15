@@ -274,6 +274,58 @@ test('normalizes common ScratchBlocks formatting mistakes', () => {
     expect(getBlocksByOpcode(project, 'motion_movesteps')).toHaveLength(1);
 });
 
+test('repairs a close ScratchBlocks phrase using edit distance while preserving inputs', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[keep] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+    const project = ScratchTextCompiler.compile([
+        '# Sprite1',
+        '⚑ が押されたとき',
+        'x座標を (0) にし、y座標を (-120) にする'
+    ].join('\n'), baseProject);
+    const scratchBlocks = ScratchTextCompiler.projectToScratchBlocks(project);
+
+    expect(getBlocksByOpcode(project, 'motion_gotoxy')).toHaveLength(1);
+    expect(scratchBlocks).toContain('x座標を (0)、y座標を (-120) にする');
+    expect(scratchBlocks).not.toContain('[keep] と言う');
+    expect(ScratchTextCompiler.getDiagnostics()).toEqual([]);
+});
+
+test('can disable edit-distance repair before an external syntax repair attempt', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[keep] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+    const project = ScratchTextCompiler.compile([
+        '# Sprite1',
+        '⚑ が押されたとき',
+        'x座標を (0) にし、y座標を (-120) にする'
+    ].join('\n'), baseProject, null, {useFuzzyRepair: false});
+
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+    expect(ScratchTextCompiler.getDiagnostics().join('\n'))
+        .toContain('x座標を (0) にし、y座標を (-120) にする');
+});
+
+test('does not repair an ambiguous phrase to the nearest semantic block', () => {
+    const baseProject = {
+        targets: [
+            {...ScratchTextCompiler.compileTarget('⚑ が押されたとき\n[keep] と言う'), isStage: false, name: 'Sprite1'}
+        ]
+    };
+    const project = ScratchTextCompiler.compile([
+        '# Sprite1',
+        '⚑ が押されたとき',
+        'x座標を (10) 変える'
+    ].join('\n'), baseProject);
+
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('[keep] と言う');
+    expect(ScratchTextCompiler.getDiagnostics().join('\n')).toContain('x座標を (10) 変える');
+});
+
 test('keeps multiple hat scripts as separate top-level stacks', () => {
     const project = ScratchTextCompiler.compile([
         '⚑ が押されたとき',

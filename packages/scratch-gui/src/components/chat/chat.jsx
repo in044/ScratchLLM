@@ -75,6 +75,7 @@ export const renderMessageContent = text => {
 // Create a .env file in packages/scratch-gui/ with:
 //   REACT_APP_API_BASE_URL=https://your-domain.example.com
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
+const SYNTAX_REPAIR_URL = `${process.env.REACT_APP_API_BASE_URL}/api/repair-scratch`;
 
 export const EXPLANATION_LENGTH_PROMPTS = {
     long: `## 説明の長さ: 長い
@@ -542,7 +543,43 @@ ${inputValue}
             });
     }
 
-    _handleScratchBlocksResponse(fullResponse, projectJson, shouldStopLoading) {
+    async _repairScratchCode(scratchCode, diagnostics) {
+        try {
+            const referenceStart = SYSTEM_PROMPT.indexOf('## Scratch 3.0ブロック・リファレンス');
+            const response = await fetch(SYNTAX_REPAIR_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    code: scratchCode,
+                    diagnostics,
+                    syntaxReference: referenceStart >= 0 ? SYSTEM_PROMPT.slice(referenceStart) : ''
+                })
+            });
+            if (!response.ok) throw new Error(`Syntax repair returned ${response.status}.`);
+            const data = await response.json();
+            return data.repaired && data.code ? data.code : null;
+        } catch (error) {
+            console.warn('ScratchBlocks syntax repair was unavailable:', error);
+            return null;
+        }
+    }
+
+    _compileScratchCode(scratchCode, currentProject, useFuzzyRepair) {
+        const project = ScratchTextCompiler.compile(
+            scratchCode,
+            currentProject,
+            this.props.vm.editingTarget && this.props.vm.editingTarget.id,
+            {useFuzzyRepair}
+        );
+        return {
+            project,
+            diagnostics: ScratchTextCompiler.getDiagnostics()
+        };
+    }
+
+    async _handleScratchBlocksResponse(fullResponse, projectJson, shouldStopLoading) {
         const scratchCode = ScratchTextCompiler.extractScratchBlocks(fullResponse);
         const displayResponse = fullResponse
             .replace(/```scratch-project\s*[\s\S]*?```/giu, '')
@@ -566,12 +603,22 @@ ${inputValue}
             const currentProject = typeof projectJson === 'string' ?
                 JSON.parse(projectJson) :
                 projectJson;
-            newProjectJson = ScratchTextCompiler.compile(
-                scratchCode,
-                currentProject,
-                this.props.vm.editingTarget && this.props.vm.editingTarget.id
-            );
-            compilerDiagnostics = ScratchTextCompiler.getDiagnostics();
+            const initial = this._compileScratchCode(scratchCode, currentProject, false);
+            let compiled = initial;
+            if (initial.diagnostics.length > 0) {
+                const repairedCode = await this._repairScratchCode(scratchCode, initial.diagnostics);
+                const originalFuzzy = this._compileScratchCode(scratchCode, currentProject, true);
+                if (repairedCode) {
+                    const repairedFuzzy = this._compileScratchCode(repairedCode, currentProject, true);
+                    compiled = repairedFuzzy.diagnostics.length <= originalFuzzy.diagnostics.length ?
+                        repairedFuzzy :
+                        originalFuzzy;
+                } else {
+                    compiled = originalFuzzy;
+                }
+            }
+            newProjectJson = compiled.project;
+            compilerDiagnostics = compiled.diagnostics;
             const hadVisibleScripts = currentProject.targets.some(target => (
                 Object.values(target.blocks || {}).some(block => block.topLevel)
             ));
@@ -595,24 +642,23 @@ ${inputValue}
             return;
         }
 
-        this.props.vm.loadProject(newProjectJson)
-            .then(() => {
-                if (!this._isMounted) return;
-                this.props.vm.refreshWorkspace();
-                if (compilerDiagnostics.length > 0) {
-                    this.props.onAddMessage({
-                        text: `一部のコードは安全のため変更しませんでした。\n${compilerDiagnostics.join('\n')}`,
-                        sender: 'bot'
-                    });
-                }
-                if (shouldStopLoading) this.props.onSetIsLoading(false);
-            })
-            .catch(e => {
-                if (!this._isMounted) return;
-                console.error('Error loading ScratchBlocks project:', e);
-                this.props.onAddMessage({ text: 'プロジェクトの読み込みに失敗しました。', sender: 'bot' });
-                if (shouldStopLoading) this.props.onSetIsLoading(false);
-            });
+        try {
+            await this.props.vm.loadProject(newProjectJson);
+            if (!this._isMounted) return;
+            this.props.vm.refreshWorkspace();
+            if (compilerDiagnostics.length > 0) {
+                this.props.onAddMessage({
+                    text: `一部のコードは安全のため変更しませんでした。\n${compilerDiagnostics.join('\n')}`,
+                    sender: 'bot'
+                });
+            }
+            if (shouldStopLoading) this.props.onSetIsLoading(false);
+        } catch (e) {
+            if (!this._isMounted) return;
+            console.error('Error loading ScratchBlocks project:', e);
+            this.props.onAddMessage({ text: 'プロジェクトの読み込みに失敗しました。', sender: 'bot' });
+            if (shouldStopLoading) this.props.onSetIsLoading(false);
+        }
     }
 
     // 管理者に承認されたレスポンスを処理するメソッド

@@ -444,6 +444,13 @@
                     class="toggle-slider"></span></label>
             <span class="toggle-value on" id="approval-val">ON</span>
         </div>
+
+        <div class="toggle-group">
+            <span class="toggle-label">構文AI修正</span>
+            <label class="toggle"><input type="checkbox" id="syntax-repair-toggle" checked /><span
+                    class="toggle-slider"></span></label>
+            <span class="toggle-value on" id="syntax-repair-val">ON</span>
+        </div>
     </header>
 
     <main>
@@ -474,6 +481,7 @@
                 const data = JSON.parse(e.data);
                 setAiEnabled(data.ai_enabled);
                 setApprovalMode(data.approval_mode);
+                setSyntaxRepairEnabled(data.syntax_repair_enabled);
                 (data.pending || []).forEach(item => addCard(item.id, item.input, item.output, item.status));
                 setBadge(true);
             });
@@ -482,6 +490,7 @@
                 const d = JSON.parse(e.data);
                 if (d.ai_enabled !== undefined) setAiEnabled(d.ai_enabled);
                 if (d.approval_mode !== undefined) setApprovalMode(d.approval_mode);
+                if (d.syntax_repair_enabled !== undefined) setSyntaxRepairEnabled(d.syntax_repair_enabled);
             });
 
             // フェーズ①: 入力が来た（AIはまだ処理中）
@@ -523,6 +532,12 @@
             v.textContent = val ? 'ON' : 'OFF';
             v.className = 'toggle-value ' + (val ? 'on' : 'off');
         }
+        function setSyntaxRepairEnabled(val) {
+            document.getElementById('syntax-repair-toggle').checked = val;
+            const v = document.getElementById('syntax-repair-val');
+            v.textContent = val ? 'ON' : 'OFF';
+            v.className = 'toggle-value ' + (val ? 'on' : 'off');
+        }
 
         // ── トグル操作 ──
         document.getElementById('ai-toggle').addEventListener('change', async () => {
@@ -532,6 +547,10 @@
         document.getElementById('approval-toggle').addEventListener('change', async () => {
             const res = await fetch(`${SERVER}/api/admin/toggle-approval`, { method: 'POST' });
             const d = await res.json(); setApprovalMode(d.approval_mode);
+        });
+        document.getElementById('syntax-repair-toggle').addEventListener('change', async () => {
+            const res = await fetch(`${SERVER}/api/admin/toggle-syntax-repair`, { method: 'POST' });
+            const d = await res.json(); setSyntaxRepairEnabled(d.syntax_repair_enabled);
         });
 
         // ── カード管理 ──
