@@ -40,4 +40,12 @@ describe('Chat explanation length prompts', () => {
     test('falls back to the normal instruction', () => {
         expect(getSystemPrompt('unknown')).toContain(EXPLANATION_LENGTH_PROMPTS.normal);
     });
+
+    test('allows custom block definitions and calls', () => {
+        const prompt = getSystemPrompt('normal');
+
+        expect(prompt).toContain('定義 初期化 (x) (y)');
+        expect(prompt).toContain('初期化 (10) (30)');
+        expect(prompt).not.toContain('独自ブロックは生成しないでください');
+    });
 });

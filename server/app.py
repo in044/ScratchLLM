@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify, Response, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 from threading import Lock
+from werkzeug.exceptions import BadRequest
 
 load_dotenv()
 
@@ -46,6 +47,31 @@ pending_lock = Lock()
 
 admin_queues = []
 admin_queues_lock = Lock()
+
+
+def parse_json_request():
+    """Parse JSON as UTF-8, with CP932 fallback for Japanese legacy clients."""
+    raw_body = request.get_data(cache=True)
+    if not raw_body:
+        return {}
+
+    decode_errors = []
+    for encoding in ('utf-8-sig', 'cp932'):
+        try:
+            text = raw_body.decode(encoding)
+            data = json.loads(text)
+            if not isinstance(data, dict):
+                raise BadRequest('JSON request body must be an object.')
+            return data
+        except UnicodeDecodeError as error:
+            decode_errors.append(f'{encoding}: {error}')
+        except json.JSONDecodeError as error:
+            raise BadRequest(f'Failed to decode JSON object: {error}') from error
+
+    raise BadRequest(
+        'Failed to decode JSON object as UTF-8 or CP932: '
+        f'{"; ".join(decode_errors)}'
+    )
 
 
 # ─────────────────────────────────────────────
@@ -207,7 +233,7 @@ def approve_response(request_id):
 # ─────────────────────────────────────────────
 @app.route('/api/admin/reject/<request_id>', methods=['POST'])
 def reject_response(request_id):
-    data = request.json or {}
+    data = parse_json_request()
     reason = data.get('reason', '先生がこの回答の表示を許可しませんでした。別の質問をしてみてください。')
 
     with pending_lock:
@@ -288,7 +314,7 @@ def repair_scratch():
         with state_lock:
             enabled = app_state['syntax_repair_enabled']
             ai_enabled = app_state['ai_enabled']
-        data = request.json or {}
+        data = parse_json_request()
         code = data.get('code') or ''
         diagnostics = data.get('diagnostics') or []
         syntax_reference = data.get('syntaxReference') or ''
@@ -332,6 +358,8 @@ def repair_scratch():
             'repaired': bool(repaired_code and repaired_code != code),
             'code': repaired_code or code
         })
+    except BadRequest as e:
+        return jsonify({'error': e.description}), 400
     except Exception as e:
         print(f"Error repairing ScratchBlocks syntax: {e}")
         return jsonify({'error': str(e)}), 500
@@ -350,7 +378,7 @@ def llm_proxy():
         if not ai_enabled:
             return jsonify({"error": "AI機能は現在オフになっています。", "disabled": True}), 503
 
-        data = request.json
+        data = parse_json_request()
         messages = data.get('messages')
         model = data.get('model', 'gpt-5.4')
         # フロントから送られた生のユーザー入力（JSONを含まない）
@@ -425,6 +453,9 @@ def llm_proxy():
 
         return jsonify(response.model_dump())
 
+    except BadRequest as e:
+        print(f"Bad request in llm_proxy: {e.description}")
+        return jsonify({"error": e.description}), 400
     except Exception as e:
         print(f"Error in llm_proxy: {e}")
         return jsonify({"error": str(e)}), 500

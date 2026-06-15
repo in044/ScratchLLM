@@ -162,7 +162,7 @@ const SYSTEM_PROMPT = `
 
 ## 不明なブロック
 * 現在コードに \`:: grey\` の行があるターゲットは、このコンパイラでは安全に編集できません。そのターゲット全体を現在コードのまま保持し、内容を推測・翻訳・置換・削除しないでください。
-* リファレンスにない新しいブロックや独自ブロックは生成しないでください。
+* リファレンスにない新しいブロックは生成しないでください。独自ブロックは下記「ブロック定義」の記法だけを使用してください。
 
 ## 出力前の内部検査
 回答前に以下を順番に検査し、違反が1つでもあれば修正してから出力してください。検査結果は回答に書きません。
@@ -319,6 +319,13 @@ end
 * \`<[リスト名 v] に [項目] が含まれる>\`: 項目が含まれるか返す。
 * \`リスト [リスト名 v] を表示する\` / \`リスト [リスト名 v] を隠す\`: リストモニターを表示・非表示にする。
 
+### ブロック定義
+* \`定義 初期化 (x) (y)\`: 丸型引数を持つ独自ブロックを定義する。定義の下に処理をつなげる。
+* \`定義 確認 <条件>\`: 真偽型引数を持つ独自ブロックを定義する。
+* \`初期化 (10) (30)\` / \`確認 <マウスが押された>\`: 定義と同じ文字・順番・型で引数を渡して呼び出す。
+* 丸型引数は定義本体で \`(引数名)\`、真偽型引数は \`<引数名>\` として使用してください。
+* 同じターゲット内で、呼び出す独自ブロックの定義も完成コードに必ず含めてください。
+
 `;
 
 export class ChatComponent extends React.Component {
@@ -453,7 +460,7 @@ ${inputValue}
         fetch(API_URL, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json; charset=UTF-8'
             },
             body: JSON.stringify({
                 // model: 'gpt-4o', // Delegate model selection to server
@@ -549,7 +556,7 @@ ${inputValue}
             const response = await fetch(SYNTAX_REPAIR_URL, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json; charset=UTF-8'
                 },
                 body: JSON.stringify({
                     code: scratchCode,

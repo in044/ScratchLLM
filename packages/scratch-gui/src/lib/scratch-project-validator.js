@@ -13,7 +13,8 @@ const booleanOpcodes = new Set([
     'sensing_keypressed',
     'sensing_mousedown',
     'sensing_loud',
-    'data_listcontainsitem'
+    'data_listcontainsitem',
+    'argument_reporter_boolean'
 ]);
 
 const booleanInputs = {

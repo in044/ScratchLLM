@@ -43,6 +43,50 @@ const booleanText = value => {
     return text.startsWith('<') && text.endsWith('>') ? text : `<${text}>`;
 };
 
+const parseCustomBlock = (line, definition = false) => {
+    const normalizedLine = normalizeLine(line);
+    const source = definition ? normalizedLine.replace(/^定義\s+/u, '') : normalizedLine;
+    if (definition && source === normalizedLine) return null;
+    const inputs = [];
+    const codeParts = [];
+    let literal = '';
+    let index = 0;
+    while (index < source.length) {
+        const opening = source[index];
+        const closing = opening === '(' ? ')' : opening === '<' ? '>' : opening === '[' ? ']' : null;
+        if (!closing) {
+            literal += source[index++];
+            continue;
+        }
+        if (literal.trim()) codeParts.push(literal.trim());
+        literal = '';
+        let depth = 1;
+        let end = index + 1;
+        while (end < source.length && depth > 0) {
+            if (source[end] === opening) depth++;
+            if (source[end] === closing) depth--;
+            end++;
+        }
+        if (depth !== 0) return null;
+        inputs.push({
+            type: opening === '<' ? 'boolean' : 'string',
+            value: source.slice(index + 1, end - 1).trim()
+        });
+        codeParts.push(opening === '<' ? '%b' : '%s');
+        index = end;
+    }
+    if (literal.trim()) codeParts.push(literal.trim());
+    if (codeParts.length === 0) return null;
+    return {
+        code: codeParts.join(' '),
+        inputs
+    };
+};
+
+const parseCustomDefinition = line => parseCustomBlock(line, true);
+const parseCustomCall = line => parseCustomBlock(line, false);
+const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
 const menuValueMap = {
     どこかの場所: '_random_',
     マウスのポインター: '_mouse_',
@@ -188,7 +232,7 @@ const blockSpecs = [
     },
     {
         opcode: 'motion_setx',
-        patterns: [/^x座標を (.+?) にする$/u],
+        patterns: [/^x座標を\s*(.+?)\s*にする$/u],
         build: (m, ctx) => {
             const incrementInput = selfUpdateValueInput('x座標', m[1], ctx);
             return incrementInput ? {
@@ -206,7 +250,7 @@ const blockSpecs = [
     },
     {
         opcode: 'motion_sety',
-        patterns: [/^y座標を (.+?) にする$/u],
+        patterns: [/^y座標を\s*(.+?)\s*にする$/u],
         build: (m, ctx) => {
             const incrementInput = selfUpdateValueInput('y座標', m[1], ctx);
             return incrementInput ? {
@@ -1030,13 +1074,64 @@ const officialIdToOpcode = id => (
 
 const checkOfficialBlocks = (code, blocks, useFuzzyRepair = true) => {
     const repairedCode = useFuzzyRepair ? repairFuzzyCode(code) : code;
-    const analysis = analyzeScratchBlocks(repairedCode);
+    const customDefinitions = repairedCode.split('\n')
+        .map(parseCustomDefinition)
+        .filter(Boolean);
+    const customCalls = repairedCode.split('\n')
+        .map(parseCustomCall)
+        .filter(call => call && customDefinitions.some(definition => definition.code === call.code));
+    const booleanArgumentNames = customDefinitions.reduce((names, definition) => (
+        names.concat(definition.inputs.filter(input => input.type === 'boolean').map(input => input.value))
+    ), []);
+    const stringArgumentNames = customDefinitions.reduce((names, definition) => (
+        names.concat(definition.inputs.filter(input => input.type === 'string').map(input => input.value))
+    ), []);
+    let booleanArgumentUses = 0;
+    let stringArgumentUses = 0;
+    const analysisCode = repairedCode.split('\n')
+        .map(line => {
+            if (parseCustomDefinition(line)) return '⚑ が押されたとき';
+            const customCall = parseCustomCall(line);
+            if (customCall && customDefinitions.some(definition => definition.code === customCall.code)) {
+                return 'タイマーをリセット';
+            }
+            const withBooleanArguments = booleanArgumentNames.reduce((result, name) => (
+                result.replace(new RegExp(`<${escapeRegExp(name)}>`, 'gu'), () => {
+                    booleanArgumentUses++;
+                    return '<マウスが押された>';
+                })
+            ), line);
+            stringArgumentNames.forEach(name => {
+                stringArgumentUses += (withBooleanArguments.match(
+                    new RegExp(`\\(${escapeRegExp(name)}\\)`, 'gu')
+                ) || []).length;
+            });
+            return withBooleanArguments;
+        })
+        .join('\n');
+    const analysis = analyzeScratchBlocks(analysisCode);
     const expectedCounts = analysis.knownBlockIds.reduce((counts, id) => {
         const opcode = officialIdToOpcode(id);
         if (!opcode) return counts;
         counts[opcode] = (counts[opcode] || 0) + 1;
         return counts;
     }, {});
+    expectedCounts.event_whenflagclicked = Math.max(
+        0,
+        (expectedCounts.event_whenflagclicked || 0) - customDefinitions.length
+    );
+    expectedCounts.sensing_resettimer = Math.max(
+        0,
+        (expectedCounts.sensing_resettimer || 0) - customCalls.length
+    );
+    expectedCounts.sensing_mousedown = Math.max(
+        0,
+        (expectedCounts.sensing_mousedown || 0) - booleanArgumentUses
+    );
+    expectedCounts.data_variable = Math.max(
+        0,
+        (expectedCounts.data_variable || 0) - stringArgumentUses
+    );
     repairedCode.split('\n').forEach(line => {
         const normalizedLine = normalize(line);
         const variableAssignment = normalizedLine.match(/^\[(.+?)\] を (.+?) にする$/u);
@@ -1139,6 +1234,12 @@ function blockInputFromText (value, ctx, acceptSpec = () => true) {
 }
 
 function booleanBlockInput (value, ctx) {
+    const argument = ctx.argument && ctx.argument(unwrap(value), 'boolean');
+    if (argument) {
+        return addReporterBlock(ctx, 'argument_reporter_boolean', {}, {
+            VALUE: [argument.name, null]
+        });
+    }
     const input = blockInputFromText(value, ctx, spec => spec.boolean);
     if (input) return input;
 
@@ -1315,6 +1416,13 @@ function valueBlockInput (value, ctx, preferNumber = false, inferVariable = fals
     const unwrapped = unwrap(text);
     if (/^-?(?:\d+(?:\.\d+)?|\.\d+)$/u.test(unwrapped)) return primitiveNumber(unwrapped);
 
+    const argument = ctx.argument && ctx.argument(unwrapped, 'string');
+    if (argument) {
+        return addReporterBlock(ctx, 'argument_reporter_string_number', {}, {
+            VALUE: [argument.name, null]
+        });
+    }
+
     const expression = findBinaryExpression(text);
     if (expression) {
         return addReporterBlock(ctx, expression.opcode, {
@@ -1482,9 +1590,27 @@ class ScratchTextCompiler {
         const blocks = {};
         const variables = {};
         const lists = {};
+        const procedures = text.split('\n')
+            .map(parseCustomDefinition)
+            .filter(Boolean)
+            .map(procedure => ({
+                ...procedure,
+                inputs: procedure.inputs.map(input => ({
+                    ...input,
+                    id: this.uid()
+                }))
+            }));
         const state = {
             blocks,
             variables,
+            procedures,
+            argument: (name, type) => {
+                for (const procedure of procedures) {
+                    const argument = procedure.inputs.find(input => input.value === name && input.type === type);
+                    if (argument) return {name: argument.value, id: argument.id};
+                }
+                return null;
+            },
             variable: name => {
                 const existingId = Object.keys(variables).find(id => variables[id][0] === name);
                 if (existingId) return {id: existingId, name};
@@ -1531,6 +1657,89 @@ class ScratchTextCompiler {
                 if (!parent || parent.opcode !== 'control_if') return;
                 parent.opcode = 'control_if_else';
                 stack[stack.length - 1] = {parentId: current.parentId, inputName: 'SUBSTACK2', lastId: null};
+                return;
+            }
+
+            const customDefinition = parseCustomDefinition(line);
+            const possibleCustomCall = parseCustomCall(line);
+            const customCall = possibleCustomCall && procedures.some(procedure => procedure.code === possibleCustomCall.code) ?
+                possibleCustomCall :
+                null;
+            if (customDefinition || customCall) {
+                const source = customDefinition || customCall;
+                const procedure = procedures.find(candidate => (
+                    candidate.code === source.code &&
+                    candidate.inputs.length === source.inputs.length &&
+                    candidate.inputs.every((input, index) => input.type === source.inputs[index].type)
+                ));
+                if (!procedure) return;
+
+                const id = this.uid();
+                const current = stack[stack.length - 1];
+                if (customDefinition && stack.length === 1) current.lastId = null;
+                const block = {
+                    opcode: customDefinition ? 'procedures_definition' : 'procedures_call',
+                    next: null,
+                    parent: null,
+                    inputs: {},
+                    fields: {},
+                    shadow: false,
+                    topLevel: Boolean(customDefinition || (!current.parentId && !current.lastId))
+                };
+                if (customDefinition) {
+                    const prototypeId = this.uid();
+                    block.inputs.custom_block = [1, prototypeId];
+                    block.x = 0;
+                    block.y = Object.keys(blocks).filter(key => blocks[key].topLevel).length * 120;
+                    blocks[prototypeId] = {
+                        opcode: 'procedures_prototype',
+                        next: null,
+                        parent: id,
+                        inputs: {},
+                        fields: {},
+                        shadow: true,
+                        topLevel: false,
+                        mutation: {
+                            tagName: 'mutation',
+                            children: [],
+                            proccode: procedure.code,
+                            argumentids: JSON.stringify(procedure.inputs.map(input => input.id)),
+                            argumentnames: JSON.stringify(procedure.inputs.map(input => input.value)),
+                            argumentdefaults: JSON.stringify(procedure.inputs.map(input => (
+                                input.type === 'boolean' ? false : ''
+                            ))),
+                            warp: 'false'
+                        }
+                    };
+                } else {
+                    block.mutation = {
+                        tagName: 'mutation',
+                        children: [],
+                        proccode: procedure.code,
+                        argumentids: JSON.stringify(procedure.inputs.map(input => input.id))
+                    };
+                    procedure.inputs.forEach((input, index) => {
+                        const supplied = source.inputs[index];
+                        block.inputs[input.id] = input.type === 'boolean' ?
+                            booleanBlockInput(`<${supplied.value}>`, state) :
+                            valueBlockInput(`(${supplied.value})`, state);
+                    });
+                }
+                if (!block.topLevel && current.lastId) {
+                    blocks[current.lastId].next = id;
+                    block.parent = current.lastId;
+                } else if (!block.topLevel && current.parentId) {
+                    blocks[current.parentId].inputs[current.inputName || 'SUBSTACK'] = [2, id];
+                    block.parent = current.parentId;
+                }
+                blocks[id] = block;
+                Object.values(block.inputs).forEach(input => {
+                    const childId = Array.isArray(input) && typeof input[1] === 'string' ? input[1] : null;
+                    if (childId && blocks[childId] && childId !== block.inputs.custom_block) {
+                        blocks[childId].parent = id;
+                    }
+                });
+                current.lastId = id;
                 return;
             }
 
@@ -1656,6 +1865,15 @@ class ScratchTextCompiler {
     }
 
     stringifyBlock (blocks, block) {
+        if (block.opcode === 'procedures_definition') {
+            const prototypeInput = block.inputs && block.inputs.custom_block;
+            const prototypeId = Array.isArray(prototypeInput) ? prototypeInput[1] : null;
+            const prototype = prototypeId && blocks[prototypeId];
+            return prototype ? this.stringifyProcedureDefinition(prototype) : 'procedures_definition :: grey';
+        }
+        if (block.opcode === 'procedures_call') {
+            return this.stringifyProcedureCall(blocks, block);
+        }
         const spec = specsByOpcode[block.opcode];
         const readInput = (sourceBlock, name, fallback) => this.readInput(blocks, sourceBlock, name, fallback);
         if (!spec || !spec.toText) {
@@ -1671,6 +1889,49 @@ class ScratchTextCompiler {
             return `${head}\n${body}\nでなければ\n${elseBody}\nend`;
         }
         return `${head}\n${body}\nend`;
+    }
+
+    procedureMetadata (mutation = {}) {
+        try {
+            const code = String(mutation.proccode || '').trim();
+            const names = JSON.parse(mutation.argumentnames || '[]');
+            const ids = JSON.parse(mutation.argumentids || '[]');
+            const placeholders = code.match(/%[snb]/gu) || [];
+            return {
+                code,
+                inputs: ids.map((id, index) => ({
+                    id,
+                    name: names[index] || `引数${index + 1}`,
+                    type: placeholders[index] === '%b' ? 'boolean' : 'string'
+                }))
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+
+    stringifyProcedureDefinition (prototype) {
+        const procedure = this.procedureMetadata(prototype.mutation);
+        if (!procedure) return 'procedures_definition :: grey';
+        const inputs = procedure.inputs.map(input => (
+            input.type === 'boolean' ? `<${input.name}>` : `(${input.name})`
+        ));
+        return `定義 ${this.stringifyProcedureSyntax(procedure.code, inputs)}`.trimEnd();
+    }
+
+    stringifyProcedureCall (blocks, block) {
+        const procedure = this.procedureMetadata(block.mutation);
+        if (!procedure) return 'procedures_call :: grey';
+        const inputs = procedure.inputs.map(input => {
+            const value = this.readInput(blocks, block, input.id, input.type === 'boolean' ? '' : '0');
+            return input.type === 'boolean' ? booleanText(value) : roundInput(value);
+        });
+        return this.stringifyProcedureSyntax(procedure.code, inputs);
+    }
+
+    stringifyProcedureSyntax (code, inputs) {
+        let inputIndex = 0;
+        return code.replace(/%[snb]/gu, () => inputs[inputIndex++] || '').trim();
     }
 
     stringifySubstack (blocks, block, inputName) {
@@ -1689,6 +1950,12 @@ class ScratchTextCompiler {
         const childId = input.find(item => typeof item === 'string');
         if (childId && blocks[childId]) {
             const child = blocks[childId];
+            if (child.opcode === 'argument_reporter_string_number') {
+                return `(${fieldValue(child, 'VALUE')})`;
+            }
+            if (child.opcode === 'argument_reporter_boolean') {
+                return `<${fieldValue(child, 'VALUE')}>`;
+            }
             const spec = specsByOpcode[child.opcode];
             if (!child.shadow && spec && spec.toText) {
                 return spec.toText(child, (sourceBlock, inputName, childFallback) => (

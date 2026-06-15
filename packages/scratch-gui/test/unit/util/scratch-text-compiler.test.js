@@ -635,6 +635,95 @@ test('round-trips representative blocks from every core category', () => {
     expect(second.targets[0].lists['list_my list']).toEqual(['my list', []]);
 });
 
+test('compiles and round-trips custom block definitions and calls', () => {
+    const source = [
+        '定義 移動して確認 (歩数) <確認する>',
+        '(歩数) 歩動かす',
+        'もし <確認する> なら',
+        '[完了] と言う',
+        'end',
+        '',
+        '⚑ が押されたとき',
+        '移動して確認 (10) <マウスが押された>'
+    ].join('\n');
+
+    const project = ScratchTextCompiler.compile(source);
+    const blocks = project.targets[0].blocks;
+    const opcodes = Object.values(blocks).map(block => block.opcode);
+    const definition = Object.values(blocks).find(block => block.opcode === 'procedures_definition');
+    const prototype = blocks[definition.inputs.custom_block[1]];
+    const call = Object.values(blocks).find(block => block.opcode === 'procedures_call');
+    const argumentIds = JSON.parse(prototype.mutation.argumentids);
+
+    expect(opcodes).toEqual(expect.arrayContaining([
+        'procedures_definition',
+        'procedures_prototype',
+        'procedures_call',
+        'argument_reporter_string_number',
+        'argument_reporter_boolean'
+    ]));
+    expect(prototype.mutation.proccode).toBe('移動して確認 %s %b');
+    expect(Object.keys(call.inputs)).toEqual(argumentIds);
+
+    const serialized = ScratchTextCompiler.projectToScratchBlocks(project);
+    expect(serialized).toContain('定義 移動して確認 (歩数) <確認する>');
+    expect(serialized).toContain('移動して確認 (10) <マウスが押された>');
+
+    const roundTripped = ScratchTextCompiler.compile(serialized);
+    expect(Object.values(roundTripped.targets[0].blocks).map(block => block.opcode))
+        .toEqual(expect.arrayContaining(['procedures_definition', 'procedures_call']));
+});
+
+test('compiles standard ScratchBlocks custom block notation without spaces', () => {
+    const project = ScratchTextCompiler.compile([
+        '定義 初期化 (x)(y)',
+        'x座標を(x)にする',
+        'y座標を(y)にする',
+        '',
+        '初期化(10)(30)'
+    ].join('\n'));
+    const opcodes = Object.values(project.targets[0].blocks).map(block => block.opcode);
+
+    expect(opcodes).toEqual(expect.arrayContaining([
+        'procedures_definition',
+        'procedures_call',
+        'motion_setx',
+        'motion_sety',
+        'argument_reporter_string_number'
+    ]));
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('定義 初期化 (x) (y)');
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain('初期化 (10) (30)');
+});
+
+test('preserves custom block argument positions between label text', () => {
+    const source = [
+        '定義 move (steps) steps',
+        '(steps) 歩動かす',
+        '',
+        '⚑ が押されたとき',
+        'move (10) steps'
+    ].join('\n');
+
+    const project = ScratchTextCompiler.compile(source);
+    const serialized = ScratchTextCompiler.projectToScratchBlocks(project);
+
+    expect(serialized).toContain('定義 move (steps) steps');
+    expect(serialized).toContain('move (10) steps');
+});
+
+test('removes trailing spaces from custom block definition names', () => {
+    const project = ScratchTextCompiler.compile('定義 重力');
+    const blocks = project.targets[0].blocks;
+    const prototype = Object.values(blocks).find(block => block.opcode === 'procedures_prototype');
+    prototype.mutation.proccode = '重力 ';
+
+    const serialized = ScratchTextCompiler.projectToScratchBlocks(project);
+    const definition = serialized.split('\n').find(line => line.startsWith('定義 '));
+
+    expect(definition).toBe('定義 重力');
+    expect(definition.endsWith(' ')).toBe(false);
+});
+
 test('compiles list contains as a Boolean reporter', () => {
     const project = ScratchTextCompiler.compile('もし <[my list v] に [thing] が含まれる> なら\nend');
 

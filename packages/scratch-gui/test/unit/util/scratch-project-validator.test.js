@@ -1,6 +1,20 @@
 import validateScratchProject from '../../../src/lib/scratch-project-validator';
 import ScratchTextCompiler from '../../../src/lib/scratch-text-compiler';
 
+test('accepts Boolean custom block arguments in conditions', () => {
+    const project = ScratchTextCompiler.compile([
+        '定義 確認 <条件>',
+        'もし <条件> なら',
+        '[ok] と言う',
+        'end',
+        '',
+        '⚑ が押されたとき',
+        '確認 <マウスが押された>'
+    ].join('\n'));
+
+    expect(validateScratchProject(project)).toEqual({valid: true, errors: []});
+});
+
 test('accepts a structurally valid compiled project', () => {
     const project = ScratchTextCompiler.compile([
         '⚑ が押されたとき',
