@@ -1,10 +1,13 @@
 import React from 'react';
 import {shallow} from 'enzyme';
 
-import ScratchBlockRenderer from '../../../src/components/chat/scratch-block-renderer.jsx';
+import ScratchBlockRenderer, {
+    applyCustomArgumentColors,
+    applyCustomBlockOverrides,
+    extractCustomBlockSignatures
+} from '../../../src/components/chat/scratch-block-renderer.jsx';
 import {
-    EXPLANATION_LENGTH_PROMPTS,
-    getSystemPrompt,
+    buildLlmRequestPayload,
     markdownToSafeHtml,
     renderMessageContent
 } from '../../../src/components/chat/chat.jsx';
@@ -28,24 +31,48 @@ describe('Chat message rendering', () => {
 
         expect(component.find(ScratchBlockRenderer)).toHaveLength(1);
     });
+
+    test('applies Scratch custom block colors to argument reporters', () => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const argument = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        argument.setAttribute('class', 'sb3-custom-arg');
+        svg.appendChild(argument);
+
+        applyCustomArgumentColors(svg);
+
+        expect(argument.style.fill).toBe('#ff6680');
+        expect(argument.style.stroke).toBe('#ff3355');
+    });
+
+    test('marks custom block calls defined in another explanatory Scratch fence', () => {
+        const signatures = extractCustomBlockSignatures(
+            '```scratch\n重力を設定する (10)\n```\n```scratch\n定義 重力を設定する (重力)\n```'
+        );
+
+        expect(applyCustomBlockOverrides('⚑ が押されたとき\n重力を設定する (10)', signatures))
+            .toBe('⚑ が押されたとき\n重力を設定する (10) :: custom');
+        expect(applyCustomBlockOverrides('定義 重力を設定する (重力)', signatures))
+            .toBe('定義 重力を設定する (重力)');
+    });
 });
 
-describe('Chat explanation length prompts', () => {
-    ['long', 'normal', 'short'].forEach(length => {
-        test(`adds the ${length} instruction to the system prompt`, () => {
-            expect(getSystemPrompt(length)).toContain(EXPLANATION_LENGTH_PROMPTS[length]);
+describe('LLM request payload', () => {
+    test('sends data inputs without protected prompts or model settings', () => {
+        const payload = buildLlmRequestPayload({
+            userInput: '初期化を追加して',
+            currentProgram: '# Stage\n# ブロックなし',
+            history: [{role: 'user', content: '前の依頼'}],
+            explanationLength: 'short'
         });
-    });
 
-    test('falls back to the normal instruction', () => {
-        expect(getSystemPrompt('unknown')).toContain(EXPLANATION_LENGTH_PROMPTS.normal);
-    });
-
-    test('allows custom block definitions and calls', () => {
-        const prompt = getSystemPrompt('normal');
-
-        expect(prompt).toContain('定義 初期化 (x) (y)');
-        expect(prompt).toContain('初期化 (10) (30)');
-        expect(prompt).not.toContain('独自ブロックは生成しないでください');
+        expect(payload).toEqual({
+            userInput: '初期化を追加して',
+            currentProgram: '# Stage\n# ブロックなし',
+            history: [{role: 'user', content: '前の依頼'}],
+            explanationLength: 'short'
+        });
+        expect(payload.messages).toBeUndefined();
+        expect(payload.model).toBeUndefined();
+        expect(payload.systemPrompt).toBeUndefined();
     });
 });

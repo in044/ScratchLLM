@@ -22,7 +22,7 @@ load_dotenv()
 # )
 # args = parser.parse_args()
 
-app = Flask(__name__, static_folder='.')
+app = Flask(__name__, static_folder=None)
 CORS(app)
 
 # --- Global State ---
@@ -47,6 +47,101 @@ pending_lock = Lock()
 
 admin_queues = []
 admin_queues_lock = Lock()
+
+LLM_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-5.4')
+SYNTAX_REPAIR_MODEL = os.environ.get('OPENAI_SYNTAX_REPAIR_MODEL', 'gpt-5.4-mini')
+PROMPT_PATH = os.path.join(os.path.dirname(__file__), 'scratch_system_prompt.txt')
+with open(PROMPT_PATH, encoding='utf-8') as prompt_file:
+    # Recreate the leading and trailing newlines from the original JS template literal.
+    prompt_text = prompt_file.read().replace('\\`', '`').strip()
+    SYSTEM_PROMPT = f'\n{prompt_text}\n'
+
+EXPLANATION_LENGTH_PROMPTS = {
+    'long': """## 説明の長さ: 長い
+説明は、コードを初めて学ぶ中学生が、完成後の動きだけでなく「なぜこの作り方にしたのか」まで理解できる詳しさにしてください。
+最初に変更内容の全体像を示し、その後、初期化、入力、条件分岐、繰り返し、値の更新、画面上の結果などを、実行される順番に沿って丁寧に説明してください。
+追加・変更した重要なブロックについては、その役割、前後のブロックとのつながり、その順番に置く理由を説明してください。
+変数や条件式を使う場合は、代表的な値を使った具体例を添えて、実行中に値や動きがどう変化するか説明してください。
+専門用語を使う場合は、初めて出てきた箇所で短く意味を説明してください。
+理解に役立つ場合は、完成コードに実在する小さなScratchBlocks断片を複数示してください。
+同じ内容の言い換えで文章量を増やさず、各段落に新しい情報を含めてください。""",
+    'normal': """## 説明の長さ: 普通
+説明は、中学生が変更内容とプログラムの動きを無理なく理解できる標準的な詳しさにしてください。
+最初に何を変更したかを簡潔に示し、その後、重要な処理を実行される順番に沿って説明してください。
+条件分岐、繰り返し、変数など、動きを理解するために重要な仕組みは、その役割と結果が分かるように説明してください。
+細かなブロックを一行ずつ説明する必要はありませんが、なぜその処理が必要なのかは重要な箇所で示してください。
+説明用のScratchBlocks断片は、処理の理解に役立つ重要部分だけに絞ってください。
+重複した説明や、依頼と関係のない一般論は避けてください。""",
+    'short': """## 説明の長さ: 短い
+説明は、結果をすばやく確認したいユーザー向けに、必要最小限の長さにしてください。
+変更した内容と、完成したプログラムがどの順番で動くかを、短い段落または少数の箇条書きで説明してください。
+理由の説明は、理解しないと使い方を誤る重要な点だけに限定してください。
+ブロックを一行ずつ説明したり、専門用語の詳しい解説、具体例、同じ内容の言い換えを追加したりしないでください。
+説明用のScratchBlocks断片は原則として使わず、文章だけでは重要な処理を説明できない場合に限って1個だけ使用してください。"""
+}
+
+
+def require_string(data, name, max_length):
+    value = data.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise BadRequest(f'{name} must be a non-empty string.')
+    if len(value) > max_length:
+        raise BadRequest(f'{name} is too long.')
+    return value
+
+
+def sanitize_history(value):
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise BadRequest('history must be an array.')
+
+    history = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        role = item.get('role')
+        content = item.get('content')
+        if role not in ('user', 'assistant') or not isinstance(content, str):
+            continue
+        history.append({'role': role, 'content': content})
+    return history
+
+
+def build_llm_messages(data):
+    user_input = require_string(data, 'userInput', 10000)
+    current_program = require_string(data, 'currentProgram', 200000)
+    explanation_length = data.get('explanationLength', 'normal')
+    if explanation_length not in EXPLANATION_LENGTH_PROMPTS:
+        explanation_length = 'normal'
+
+    system_prompt = f'{SYSTEM_PROMPT}\n{EXPLANATION_LENGTH_PROMPTS[explanation_length]}'
+    task_prompt = f"""次の「現在のプログラム」を唯一のコード基準として、ユーザーの依頼を反映してください。
+過去の会話にあるコードではなく、必ずこのコードから編集を開始してください。
+
+<current_program>
+```scratch
+{current_program}
+```
+</current_program>
+
+<request>
+ユーザーの依頼:
+{user_input}
+</request>
+
+中学生にもわかるように、変更後のプログラムの構造と処理の流れを順番に説明してください。
+必要なら、解説する実在ブロックだけをターゲット見出しなしの ```scratch``` 断片で示してください。
+変更後の完成したプログラムは、回答の最後に全ターゲットの見出しを含む1個の ```scratch-project``` コードブロックで返してください。
+現在コードにある全ターゲット・未変更コード・空ターゲットを保持し、インデントは使用しないでください。
+解説用のScratch断片には、`# Stage`、スプライト見出し、`# ブロックなし`、完成コードに存在しないブロックを含めないでください。
+回答直前に、各行の対応構文、Boolean入力、括弧、メニューのv、end、全ターゲット、未変更コードの保持を検査してください。
+構文テンプレートやリファレンスの内容を作品の機能として流用しないでください。"""
+    return [
+        {'role': 'system', 'content': system_prompt},
+        *sanitize_history(data.get('history')),
+        {'role': 'user', 'content': task_prompt}
+    ]
 
 
 def parse_json_request():
@@ -317,7 +412,8 @@ def repair_scratch():
         data = parse_json_request()
         code = data.get('code') or ''
         diagnostics = data.get('diagnostics') or []
-        syntax_reference = data.get('syntaxReference') or ''
+        reference_start = SYSTEM_PROMPT.find('## Scratch 3.0ブロック・リファレンス')
+        syntax_reference = SYSTEM_PROMPT[reference_start:] if reference_start >= 0 else SYSTEM_PROMPT
 
         if not enabled or not ai_enabled or not code or not diagnostics:
             return jsonify({'enabled': enabled, 'repaired': False, 'code': code})
@@ -343,7 +439,7 @@ def repair_scratch():
 プログラム:
 {code}"""
         response = client.chat.completions.create(
-            model='gpt-5.4-mini',
+            model=SYNTAX_REPAIR_MODEL,
             messages=[
                 {
                     'role': 'system',
@@ -379,10 +475,10 @@ def llm_proxy():
             return jsonify({"error": "AI機能は現在オフになっています。", "disabled": True}), 503
 
         data = parse_json_request()
-        messages = data.get('messages')
-        model = data.get('model', 'gpt-5.4')
+        messages = build_llm_messages(data)
+        model = LLM_MODEL
         # フロントから送られた生のユーザー入力（JSONを含まない）
-        user_input_display = data.get('userInput') or '(不明な入力)'
+        user_input_display = data['userInput']
 
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
@@ -391,12 +487,8 @@ def llm_proxy():
         # 入力モデレーション
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
-        last_user_message = next(
-            (msg['content'] for msg in reversed(messages) if msg['role'] == 'user'), None
-        )
-
-        if last_user_message:
-            mod_res = client.moderations.create(input=last_user_message)
+        if user_input_display:
+            mod_res = client.moderations.create(input=user_input_display)
             output = mod_res.results[0]
             if output.flagged:
                 return jsonify({
