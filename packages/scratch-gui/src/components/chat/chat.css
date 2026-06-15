@@ -256,7 +256,7 @@
 .input {
     flex-grow: 1;
     padding: 6px 9px;
-    border: 1px solid #c7d8ef;
+    border: none;
     border-radius: 8px;
     font-size: 12px;
     min-height: 30px;
@@ -266,16 +266,14 @@
     resize: none;
     box-sizing: border-box;
     /* ←これ必須！ */
-    background: #f8fbff;
+    background: transparent;
     color: #30405a;
     outline: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    transition: box-shadow 0.15s ease;
 }
 
 .input:focus {
-    border-color: #4d97ff;
-    background: #fff;
-    box-shadow: 0 0 0 2px rgba(77, 151, 255, 0.16);
+    box-shadow: none;
 }
 
 .send-button {
@@ -667,8 +665,6 @@
 }
 
 .expanded-chat-window .input {
-    border-color: #cbd6e6;
-    background: #f8fafc;
     color: #333b4f;
 }
 
