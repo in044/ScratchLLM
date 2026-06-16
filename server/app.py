@@ -119,12 +119,24 @@ def sanitize_sprite_catalog(value):
             continue
         name = item.get('name')
         tags = item.get('tags', [])
+        display_name = item.get('displayName')
+        japanese_name = item.get('japaneseName')
+        aliases = item.get('aliases', [])
         if not isinstance(name, str) or not name.strip():
             continue
         if not isinstance(tags, list):
             tags = []
+        if not isinstance(aliases, list):
+            aliases = []
         catalog.append({
             'name': name.strip()[:100],
+            'displayName': display_name.strip()[:120] if isinstance(display_name, str) else name.strip()[:100],
+            'japaneseName': japanese_name.strip()[:40] if isinstance(japanese_name, str) else '',
+            'aliases': [
+                alias.strip()[:120]
+                for alias in aliases[:10]
+                if isinstance(alias, str) and alias.strip()
+            ],
             'tags': [
                 tag.strip()[:50]
                 for tag in tags[:20]
@@ -171,11 +183,24 @@ def sanitize_current_assets(value):
     return {'targets': targets}
 
 
+def sanitize_existing_sprites(value):
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise BadRequest('existingSprites must be an array.')
+    return [
+        item.strip()[:100]
+        for item in value[:100]
+        if isinstance(item, str) and item.strip()
+    ]
+
+
 def build_sprite_selection_messages(data):
     user_input = require_string(data, 'userInput', 10000)
     catalog = sanitize_sprite_catalog(data.get('spriteCatalog'))
+    existing_sprites = sanitize_existing_sprites(data.get('existingSprites'))
     catalog_text = '\n'.join(
-        f'- {item["name"]}: {", ".join(item["tags"])}'
+        f'- {item["displayName"]}'
         for item in catalog
     )
     prompt = f"""ユーザーの依頼を読み、Scratchのスプライトライブラリから新しいスプライトを追加すべきか判定してください。
@@ -183,42 +208,75 @@ def build_sprite_selection_messages(data):
 複数の登場物を依頼された場合は複数選び、同じ種類を複数依頼された場合は同じnameを必要な数だけ繰り返してください。
 明示されていないスプライトを余分に選ばず、最大10個までにしてください。
 既存スプライトの動作変更、コード追加、背景追加、質問、説明依頼では選ばないでください。
-必ず一覧にあるnameを一字一句そのまま使用してください。
+既存スプライト一覧に同じ意味の対象がすでにある場合は、新規追加せずexistingTargetNameでその名前を返してください。
+たとえば既存に「ネコ」があり、依頼が猫やCatに関するものなら、Catを追加せず「ネコ」を再利用してください。
+spriteNameは必ずスプライト一覧にある「日本語名（英語名）」を一字一句そのまま使用してください。
 
 ユーザーの依頼:
 {user_input}
+
+既存スプライト一覧:
+{json.dumps(existing_sprites, ensure_ascii=False)}
 
 スプライト一覧:
 {catalog_text}
 
 JSONだけを返してください。
-追加する場合: {{"spriteNames":["一覧のname","一覧のname"]}}
-追加しない場合: {{"spriteNames":[]}}"""
+新規追加する場合: {{"sprites":[{{"spriteName":"一覧の日本語名（英語名）"}}]}}
+既存を使う場合: {{"sprites":[{{"existingTargetName":"既存スプライト名"}}]}}
+追加も再利用もしない場合: {{"sprites":[]}}"""
     return [
         {
             'role': 'system',
             'content': 'あなたはScratchスプライトライブラリの保守的な選択器です。JSONだけを返します。'
         },
         {'role': 'user', 'content': prompt}
-    ], catalog
+    ], catalog, existing_sprites
 
 
-def parse_sprite_selection(content, catalog):
+def parse_sprite_selection(content, catalog, existing_sprites=None):
     try:
         selection = json.loads(content or '{}')
     except json.JSONDecodeError:
         return []
     if not isinstance(selection, dict):
         return []
+    name_by_display_name = {item['displayName']: item for item in catalog}
+    valid_names = {item['name'] for item in catalog}
+    valid_existing = set(existing_sprites or [])
+    sprites = selection.get('sprites')
+    if isinstance(sprites, list):
+        result = []
+        for item in sprites[:10]:
+            if not isinstance(item, dict):
+                continue
+            existing_name = item.get('existingTargetName')
+            if isinstance(existing_name, str) and existing_name in valid_existing:
+                result.append({'existingTargetName': existing_name})
+                continue
+            sprite_name = item.get('spriteName')
+            matched = name_by_display_name.get(sprite_name) if isinstance(sprite_name, str) else None
+            if not matched and isinstance(sprite_name, str) and sprite_name in valid_names:
+                matched = next((candidate for candidate in catalog if candidate['name'] == sprite_name), None)
+            if not matched:
+                continue
+            result.append({
+                'spriteName': matched['name'],
+                'japaneseName': matched['japaneseName']
+            })
+        return result
+
     names = selection.get('spriteNames')
     if not isinstance(names, list):
         legacy_name = selection.get('spriteName')
         names = [legacy_name] if isinstance(legacy_name, str) else []
-    valid_names = {item['name'] for item in catalog}
     return [
-        name
+        {
+            'spriteName': name_by_display_name.get(name, {'name': name, 'japaneseName': ''})['name'],
+            'japaneseName': name_by_display_name.get(name, {'japaneseName': ''})['japaneseName']
+        }
         for name in names[:10]
-        if isinstance(name, str) and name in valid_names
+        if isinstance(name, str) and (name in valid_names or name in name_by_display_name)
     ]
 
 
@@ -593,7 +651,7 @@ def select_sprite():
             return jsonify({'spriteNames': [], 'disabled': True}), 503
 
         data = parse_json_request()
-        messages, catalog = build_sprite_selection_messages(data)
+        messages, catalog, existing_sprites = build_sprite_selection_messages(data)
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
             return jsonify({'error': 'OpenAI API key is not set.'}), 500
@@ -612,7 +670,15 @@ def select_sprite():
             response_format={'type': 'json_object'}
         )
         content = response.choices[0].message.content
-        return jsonify({'spriteNames': parse_sprite_selection(content, catalog)})
+        sprites = parse_sprite_selection(content, catalog, existing_sprites)
+        return jsonify({
+            'sprites': sprites,
+            'spriteNames': [
+                item['spriteName']
+                for item in sprites
+                if 'spriteName' in item
+            ]
+        })
     except BadRequest as e:
         return jsonify({'error': e.description}), 400
     except Exception as e:

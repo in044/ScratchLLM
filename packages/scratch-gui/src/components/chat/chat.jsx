@@ -29,6 +29,7 @@ import ScratchTextCompiler from '../../lib/scratch-text-compiler';
 import validateScratchProject from '../../lib/scratch-project-validator';
 import {
     addLibrarySprite,
+    buildExistingSpriteNames,
     buildProjectAssetSummary,
     buildSpriteCatalog
 } from '../../lib/automatic-sprite-selection';
@@ -194,6 +195,7 @@ export class ChatComponent extends React.Component {
 
     async _addRequestedLibrarySprites (userInput) {
         try {
+            const project = this.props.vm.toJSON();
             const response = await fetch(SPRITE_SELECTION_URL, {
                 method: 'POST',
                 headers: {
@@ -201,23 +203,36 @@ export class ChatComponent extends React.Component {
                 },
                 body: JSON.stringify({
                     userInput,
-                    spriteCatalog: buildSpriteCatalog()
+                    spriteCatalog: buildSpriteCatalog(),
+                    existingSprites: buildExistingSpriteNames(project)
                 })
             });
             if (!response.ok) throw new Error(`Sprite selection returned ${response.status}.`);
             const data = await response.json();
-            const spriteNames = Array.isArray(data.spriteNames) ? data.spriteNames : [];
+            const spriteSelections = Array.isArray(data.sprites) ?
+                data.sprites :
+                (Array.isArray(data.spriteNames) ? data.spriteNames.map(spriteName => ({spriteName})) : []);
             const addedSpriteNames = [];
-            for (const spriteName of spriteNames) {
+            const reusedSpriteNames = [];
+            for (const selection of spriteSelections) {
+                if (!selection) continue;
+                if (selection.existingTargetName) {
+                    reusedSpriteNames.push(selection.existingTargetName);
+                    continue;
+                }
                 // Add sequentially so VM target updates do not race each other.
-                const addedSpriteName = await addLibrarySprite(this.props.vm, spriteName);
+                const addedSpriteName = await addLibrarySprite(
+                    this.props.vm,
+                    selection.spriteName,
+                    selection.japaneseName
+                );
                 if (addedSpriteName) addedSpriteNames.push(addedSpriteName);
             }
 
-            return addedSpriteNames;
+            return {addedSpriteNames, reusedSpriteNames};
         } catch (error) {
             console.warn('Automatic sprite selection was unavailable:', error);
-            return [];
+            return {addedSpriteNames: [], reusedSpriteNames: []};
         }
     }
 
@@ -235,12 +250,23 @@ export class ChatComponent extends React.Component {
             this.textareaRef.current.style.height = '30px';
         }
 
-        const addedSpriteNames = await this._addRequestedLibrarySprites(inputValue);
+        const {addedSpriteNames, reusedSpriteNames} = await this._addRequestedLibrarySprites(inputValue);
         if (!this._isMounted) return;
         if (addedSpriteNames.length > 0) {
             this.props.vm.refreshWorkspace();
             this.props.onAddMessage(buildSpriteAddedMessage(addedSpriteNames));
         }
+        const selectedSpriteContext = [
+            addedSpriteNames.length > 0 ?
+                `追加済みスプライト: ${addedSpriteNames.join('、')}` :
+                '',
+            reusedSpriteNames.length > 0 ?
+                `既存スプライトを再利用: ${reusedSpriteNames.join('、')}` :
+                ''
+        ].filter(Boolean).join('\n');
+        const llmUserInput = selectedSpriteContext ?
+            `${inputValue}\n\n${selectedSpriteContext}` :
+            inputValue;
 
         const projectJson = this.props.vm.toJSON();
         const projectScratchBlocks = ScratchTextCompiler.projectToScratchBlocks(projectJson);
@@ -255,7 +281,7 @@ export class ChatComponent extends React.Component {
                 'Content-Type': 'application/json; charset=UTF-8'
             },
             body: JSON.stringify(buildLlmRequestPayload({
-                userInput: inputValue,
+                userInput: llmUserInput,
                 currentProgram: projectScratchBlocks,
                 currentAssets: buildProjectAssetSummary(projectJson),
                 history,

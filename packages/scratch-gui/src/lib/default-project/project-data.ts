@@ -54,7 +54,7 @@ const projectData = (translateFunction?: TranslatorFunction): object => {
             },
             {
                 isStage: false,
-                name: translator(messages.sprite, {index: 1}),
+                name: 'ネコ',
                 variables: {},
                 lists: {},
                 broadcasts: {},

@@ -75,32 +75,64 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_sprite_selection_prompt_uses_only_compact_catalog(self):
-        messages, catalog = build_sprite_selection_messages({
+        messages, catalog, existing_sprites = build_sprite_selection_messages({
             'userInput': '空を飛ぶ動物を追加して',
+            'existingSprites': ['ネコ'],
             'spriteCatalog': [
-                {'name': 'Bat', 'tags': ['animals', 'flying'], 'costumes': ['ignored']},
-                {'name': 'Cat', 'tags': ['animals']}
+                {
+                    'name': 'Bat',
+                    'displayName': 'コウモリ（Bat）',
+                    'japaneseName': 'コウモリ',
+                    'aliases': ['Bat', 'コウモリ', 'コウモリ（Bat）'],
+                    'tags': ['animals', 'flying'],
+                    'costumes': ['ignored']
+                },
+                {'name': 'Cat', 'displayName': 'ネコ（Cat）', 'japaneseName': 'ネコ', 'tags': ['animals']}
             ]
         })
 
         self.assertEqual([item['name'] for item in catalog], ['Bat', 'Cat'])
-        self.assertIn('Bat: animals, flying', messages[-1]['content'])
+        self.assertEqual(existing_sprites, ['ネコ'])
+        self.assertIn('- コウモリ（Bat）', messages[-1]['content'])
+        self.assertIn('- ネコ（Cat）', messages[-1]['content'])
+        self.assertIn('既存スプライト一覧', messages[-1]['content'])
         self.assertNotIn('ignored', messages[-1]['content'])
 
     def test_sprite_selection_accepts_only_library_names(self):
         catalog = [
-            {'name': 'Bat', 'tags': ['animals']},
-            {'name': 'Cat', 'tags': ['animals']}
+            {
+                'name': 'Bat',
+                'displayName': 'コウモリ（Bat）',
+                'japaneseName': 'コウモリ',
+                'tags': ['animals']
+            },
+            {
+                'name': 'Cat',
+                'displayName': 'ネコ（Cat）',
+                'japaneseName': 'ネコ',
+                'tags': ['animals']
+            }
         ]
 
         self.assertEqual(
             parse_sprite_selection(
-                '{"spriteNames":["Bat","Cat","Bat","Dragon"]}',
-                catalog
+                '{"sprites":['
+                '{"spriteName":"コウモリ（Bat）"},'
+                '{"existingTargetName":"ネコ"},'
+                '{"spriteName":"ドラゴン（Dragon）"}'
+                ']}',
+                catalog,
+                ['ネコ']
             ),
-            ['Bat', 'Cat', 'Bat']
+            [
+                {'spriteName': 'Bat', 'japaneseName': 'コウモリ'},
+                {'existingTargetName': 'ネコ'}
+            ]
         )
-        self.assertEqual(parse_sprite_selection('{"spriteName":"Bat"}', catalog), ['Bat'])
+        self.assertEqual(
+            parse_sprite_selection('{"spriteName":"コウモリ（Bat）"}', catalog),
+            [{'spriteName': 'Bat', 'japaneseName': 'コウモリ'}]
+        )
         self.assertEqual(parse_sprite_selection('not json', catalog), [])
 
     def test_server_includes_current_asset_names_in_task_prompt(self):
@@ -126,7 +158,12 @@ class PromptSecurityTest(unittest.TestCase):
         )
         client.chat.completions.create.return_value = SimpleNamespace(
             choices=[SimpleNamespace(
-                message=SimpleNamespace(content='{"spriteNames":["Bat","Cat"]}')
+                message=SimpleNamespace(content=(
+                    '{"sprites":['
+                    '{"spriteName":"コウモリ（Bat）"},'
+                    '{"existingTargetName":"ネコ"}'
+                    ']}'
+                ))
             )]
         )
 
@@ -134,14 +171,31 @@ class PromptSecurityTest(unittest.TestCase):
             with patch('openai.OpenAI', return_value=client):
                 response = app.test_client().post('/api/select-sprite', json={
                     'userInput': '空を飛ぶ動物を追加して',
+                    'existingSprites': ['ネコ'],
                     'spriteCatalog': [
-                        {'name': 'Bat', 'tags': ['animals', 'flying']},
-                        {'name': 'Cat', 'tags': ['animals']}
+                        {
+                            'name': 'Bat',
+                            'displayName': 'コウモリ（Bat）',
+                            'japaneseName': 'コウモリ',
+                            'tags': ['animals', 'flying']
+                        },
+                        {
+                            'name': 'Cat',
+                            'displayName': 'ネコ（Cat）',
+                            'japaneseName': 'ネコ',
+                            'tags': ['animals']
+                        }
                     ]
                 })
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {'spriteNames': ['Bat', 'Cat']})
+        self.assertEqual(response.get_json(), {
+            'sprites': [
+                {'spriteName': 'Bat', 'japaneseName': 'コウモリ'},
+                {'existingTargetName': 'ネコ'}
+            ],
+            'spriteNames': ['Bat']
+        })
         client.chat.completions.create.assert_called_once()
 
 

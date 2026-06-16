@@ -18,4 +18,12 @@ describe('defaultProject', () => {
             });
         });
     });
+
+    test('initial Scratch cat is named in Japanese', () => {
+        const defaultProject = defaultProjectGenerator();
+        const projectData = JSON.parse(defaultProject[0].data);
+        const initialSprite = projectData.targets.find(target => !target.isStage);
+
+        expect(initialSprite.name).toBe('ネコ');
+    });
 });

@@ -4,9 +4,9 @@ import React from 'react';
 import {injectIntl, intlShape, defineMessages} from 'react-intl';
 import VM from '@scratch/scratch-vm';
 
-import spriteLibraryContent from '../lib/libraries/sprites.json';
 import randomizeSpritePosition from '../lib/randomize-sprite-position';
 import spriteTags from '../lib/libraries/sprite-tags';
+import {buildDisplaySpriteLibrary} from '../lib/automatic-sprite-selection';
 
 import LibraryComponent from '../components/library/library.jsx';
 
@@ -27,15 +27,28 @@ class SpriteLibrary extends React.PureComponent {
     }
     handleItemSelect (item) {
         // Randomize position of library sprite
-        randomizeSpritePosition(item);
-        this.props.vm.addSprite(JSON.stringify(item)).then(() => {
+        const sprite = {
+            ...item,
+            name: item.libraryName || item.name
+        };
+        delete sprite.libraryName;
+        randomizeSpritePosition(sprite);
+        this.props.vm.addSprite(JSON.stringify(sprite)).then(() => {
+            const displayName = item.name;
+            if (
+                item.libraryName &&
+                displayName !== item.libraryName &&
+                this.props.vm.editingTarget
+            ) {
+                this.props.vm.renameSprite(this.props.vm.editingTarget.id, displayName);
+            }
             this.props.onActivateBlocksTab();
         });
     }
     render () {
         return (
             <LibraryComponent
-                data={spriteLibraryContent}
+                data={buildDisplaySpriteLibrary()}
                 id="spriteLibrary"
                 tags={spriteTags}
                 title={this.props.intl.formatMessage(messages.libraryTitle)}
