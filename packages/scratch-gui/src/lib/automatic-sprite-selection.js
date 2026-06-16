@@ -2,6 +2,20 @@ import spriteLibraryContent from './libraries/sprites.json';
 import {getSpriteDisplayName, getSpriteJapaneseName} from './libraries/sprite-display-names';
 import randomizeSpritePosition from './randomize-sprite-position';
 
+const parseProject = project => {
+    if (typeof project !== 'string') return project || {};
+    try {
+        return JSON.parse(project);
+    } catch (e) {
+        return {};
+    }
+};
+
+const getProjectTargets = project => {
+    const parsedProject = parseProject(project);
+    return Array.isArray(parsedProject.targets) ? parsedProject.targets : [];
+};
+
 export const buildSpriteCatalog = () => spriteLibraryContent.map(sprite => ({
     name: sprite.name,
     displayName: getSpriteDisplayName(sprite.name),
@@ -19,7 +33,7 @@ export const buildDisplaySpriteLibrary = () => spriteLibraryContent.map(sprite =
 }));
 
 export const buildProjectAssetSummary = project => ({
-    targets: (project.targets || []).map(target => ({
+    targets: getProjectTargets(project).map(target => ({
         name: getTargetDisplayName(target),
         costumes: (target.costumes || []).map(costume => costume.name),
         sounds: (target.sounds || []).map(sound => sound.name)
@@ -40,8 +54,60 @@ export const getTargetDisplayName = target => {
     return target.name;
 };
 
+const normalizeSpriteName = value => String(value || '').trim().toLocaleLowerCase();
+
+const assetIdForLibraryMatch = asset => {
+    if (!asset) return '';
+    if (asset.assetId) return asset.assetId;
+    if (asset.md5ext) return String(asset.md5ext).split('.')[0];
+    return '';
+};
+
+const targetHasLibrarySpriteAssets = (target, librarySprite) => {
+    const libraryCostumeIds = (librarySprite.costumes || [])
+        .map(assetIdForLibraryMatch)
+        .filter(Boolean);
+    if (libraryCostumeIds.length === 0) return false;
+
+    const targetCostumeIds = new Set((target.costumes || [])
+        .map(assetIdForLibraryMatch)
+        .filter(Boolean));
+
+    return libraryCostumeIds.every(id => targetCostumeIds.has(id));
+};
+
+export const findExistingLibrarySpriteName = (project, libraryName, japaneseName = '') => {
+    const librarySprite = findLibrarySprite(libraryName);
+    if (!librarySprite) return '';
+
+    const expectedNames = new Set([
+        libraryName,
+        getSpriteDisplayName(libraryName),
+        getSpriteJapaneseName(libraryName),
+        japaneseName,
+        formatLibrarySpriteName(libraryName, japaneseName)
+    ].map(normalizeSpriteName).filter(Boolean));
+
+    const targets = getProjectTargets(project);
+    for (const target of targets) {
+        if (!target || target.isStage) continue;
+
+        const displayName = getTargetDisplayName(target);
+        const targetNames = [
+            target.name,
+            displayName
+        ].map(normalizeSpriteName).filter(Boolean);
+
+        if (targetNames.some(name => expectedNames.has(name)) ||
+                targetHasLibrarySpriteAssets(target, librarySprite)) {
+            return displayName || target.name;
+        }
+    }
+    return '';
+};
+
 export const buildExistingSpriteNames = project => (
-    (project.targets || [])
+    getProjectTargets(project)
         .filter(target => !target.isStage)
         .flatMap(target => {
             const displayName = getTargetDisplayName(target);

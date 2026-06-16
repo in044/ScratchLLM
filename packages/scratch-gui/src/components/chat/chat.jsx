@@ -31,7 +31,8 @@ import {
     addLibrarySprite,
     buildExistingSpriteNames,
     buildProjectAssetSummary,
-    buildSpriteCatalog
+    buildSpriteCatalog,
+    findExistingLibrarySpriteName
 } from '../../lib/automatic-sprite-selection';
 
 export const markdownToSafeHtml = text => DOMPurify.sanitize(
@@ -218,6 +219,16 @@ export class ChatComponent extends React.Component {
                 if (!selection) continue;
                 if (selection.existingTargetName) {
                     reusedSpriteNames.push(selection.existingTargetName);
+                    continue;
+                }
+                const currentProject = this.props.vm.toJSON();
+                const existingSpriteName = findExistingLibrarySpriteName(
+                    currentProject,
+                    selection.spriteName,
+                    selection.japaneseName
+                );
+                if (existingSpriteName) {
+                    reusedSpriteNames.push(existingSpriteName);
                     continue;
                 }
                 // Add sequentially so VM target updates do not race each other.

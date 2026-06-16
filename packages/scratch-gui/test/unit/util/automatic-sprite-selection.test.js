@@ -4,6 +4,7 @@ import {
     buildExistingSpriteNames,
     buildProjectAssetSummary,
     buildSpriteCatalog,
+    findExistingLibrarySpriteName,
     formatLibrarySpriteName,
     getTargetDisplayName,
     isDefaultScratchCatTarget,
@@ -76,6 +77,52 @@ test('summarizes existing sprite names for duplicate detection', () => {
             {isStage: false, name: 'Bat'}
         ]
     })).toEqual(['ネコ', 'Bat']);
+});
+
+test('summarizes existing sprite names from VM JSON strings', () => {
+    const projectJson = JSON.stringify({
+        targets: [
+            {isStage: true, name: 'Stage'},
+            {isStage: false, name: 'ネコ'},
+            {isStage: false, name: 'りんご'}
+        ]
+    });
+
+    expect(buildExistingSpriteNames(projectJson)).toEqual(['ネコ', 'りんご']);
+    expect(findExistingLibrarySpriteName(projectJson, 'Cat', 'ネコ')).toBe('ネコ');
+    expect(buildProjectAssetSummary(projectJson).targets.map(target => target.name))
+        .toEqual(['Stage', 'ネコ', 'りんご']);
+});
+
+test('finds an existing library sprite by localized and library names', () => {
+    expect(findExistingLibrarySpriteName({
+        targets: [
+            {isStage: false, name: 'ネコ'},
+            {isStage: false, name: 'りんご'}
+        ]
+    }, 'Cat', 'ネコ')).toBe('ネコ');
+
+    expect(findExistingLibrarySpriteName({
+        targets: [
+            {isStage: false, name: 'りんご'}
+        ]
+    }, 'Apple', 'りんご')).toBe('りんご');
+
+    expect(findExistingLibrarySpriteName({
+        targets: [
+            {isStage: false, name: 'Apple'}
+        ]
+    }, 'Apple', 'りんご')).toBe('Apple');
+});
+
+test('finds an existing library sprite by costume assets after rename', () => {
+    expect(findExistingLibrarySpriteName({
+        targets: [{
+            isStage: false,
+            name: 'ごほうび',
+            costumes: [{assetId: '3826a4091a33e4d26f87a2fac7cf796b'}]
+        }]
+    }, 'Apple', 'りんご')).toBe('ごほうび');
 });
 
 test('recognizes the default Scratch cat even when it is named Sprite1', () => {
