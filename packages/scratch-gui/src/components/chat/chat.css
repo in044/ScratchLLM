@@ -256,7 +256,7 @@
 .input {
     flex-grow: 1;
     padding: 6px 9px;
-    border: none;
+    border: 0;
     border-radius: 8px;
     font-size: 12px;
     min-height: 30px;
@@ -266,14 +266,44 @@
     resize: none;
     box-sizing: border-box;
     /* ←これ必須！ */
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    appearance: none;
     background: transparent;
+    background-color: transparent;
+    box-shadow: none;
     color: #30405a;
     outline: none;
     transition: box-shadow 0.15s ease;
 }
 
-.input:focus {
+.input:focus,
+.input:disabled {
+    background: transparent;
+    background-color: transparent;
+    border: 0;
     box-shadow: none;
+    outline: none;
+}
+
+textarea.input,
+textarea.input:hover,
+textarea.input:focus,
+textarea.input:focus-visible,
+textarea.input:disabled,
+.expanded-chat-window textarea.input,
+.expanded-chat-window textarea.input:hover,
+.expanded-chat-window textarea.input:focus,
+.expanded-chat-window textarea.input:focus-visible,
+.expanded-chat-window textarea.input:disabled {
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
 }
 
 .send-button {

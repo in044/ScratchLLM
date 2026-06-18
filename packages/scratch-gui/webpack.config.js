@@ -63,6 +63,10 @@ const baseConfig = new ScratchWebpackConfigBuilder(
         'process.env.GTM_ID': process.env.GTM_ID ? `"${process.env.GTM_ID}"` : null,
         'process.env.REACT_APP_API_BASE_URL': `"${process.env.REACT_APP_API_BASE_URL || ''}"` 
     }))
+    .addPlugin(new webpack.NormalModuleReplacementPlugin(
+        /scratch-audio[\\/]src[\\/]StartAudioContext\.js$/,
+        path.resolve(__dirname, 'src/lib/audio/deferred-start-audio-context.js')
+    ))
     .addPlugin(new CopyWebpackPlugin({
         patterns: [
             {

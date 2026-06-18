@@ -262,7 +262,6 @@ export class ChatComponent extends React.Component {
         }
 
         const {addedSpriteNames, reusedSpriteNames} = await this._addRequestedLibrarySprites(inputValue);
-        if (!this._isMounted) return;
         if (addedSpriteNames.length > 0) {
             this.props.vm.refreshWorkspace();
             this.props.onAddMessage(buildSpriteAddedMessage(addedSpriteNames));
@@ -301,8 +300,6 @@ export class ChatComponent extends React.Component {
         })
             .then(response => response.json())
             .then(data => {
-                if (!this._isMounted) return;
-
                 // ── AI機能が無効の場合 ──
                 if (data.disabled) {
                     const botMessage = { text: '【お知らせ】AI機能は現在先生によって停止されています。', sender: 'bot' };
@@ -320,7 +317,6 @@ export class ChatComponent extends React.Component {
 
                     evtSource.addEventListener('approved', event => {
                         evtSource.close();
-                        if (!this._isMounted) return;
                         this.props.onSetIsLoading(false);
                         this.props.onSetPendingRequestId(null);
 
@@ -333,7 +329,6 @@ export class ChatComponent extends React.Component {
 
                     evtSource.addEventListener('rejected', event => {
                         evtSource.close();
-                        if (!this._isMounted) return;
                         this.props.onSetIsLoading(false);
                         this.props.onSetPendingRequestId(null);
 
@@ -345,7 +340,6 @@ export class ChatComponent extends React.Component {
 
                     evtSource.onerror = () => {
                         evtSource.close();
-                        if (!this._isMounted) return;
                         this.props.onSetIsLoading(false);
                         this.props.onSetPendingRequestId(null);
                         const errorMsg = { text: '⚠️ 先生との通信が切断されました。もう一度試してください。', sender: 'bot' };
@@ -369,7 +363,6 @@ export class ChatComponent extends React.Component {
                 this._handleScratchBlocksResponse(fullResponse, projectJson, true);
             })
             .catch(error => {
-                if (!this._isMounted) return;
                 console.error('Error fetching from OpenAI API:', error);
                 const botMessage = { text: 'An error occurred while contacting the AI.', sender: 'bot' };
                 this.props.onAddMessage(botMessage);
@@ -476,7 +469,6 @@ export class ChatComponent extends React.Component {
 
         try {
             await this.props.vm.loadProject(newProjectJson);
-            if (!this._isMounted) return;
             this.props.vm.refreshWorkspace();
             if (compilerDiagnostics.length > 0) {
                 this.props.onAddMessage({
@@ -486,7 +478,6 @@ export class ChatComponent extends React.Component {
             }
             if (shouldStopLoading) this.props.onSetIsLoading(false);
         } catch (e) {
-            if (!this._isMounted) return;
             console.error('Error loading ScratchBlocks project:', e);
             this.props.onAddMessage({ text: 'プロジェクトの読み込みに失敗しました。', sender: 'bot' });
             if (shouldStopLoading) this.props.onSetIsLoading(false);

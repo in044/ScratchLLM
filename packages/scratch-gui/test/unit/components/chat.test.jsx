@@ -7,6 +7,7 @@ import ScratchBlockRenderer, {
     extractCustomBlockSignatures
 } from '../../../src/components/chat/scratch-block-renderer.jsx';
 import {
+    ChatComponent,
     buildLlmRequestPayload,
     buildSpriteAddedMessage,
     markdownToSafeHtml,
@@ -86,5 +87,189 @@ describe('LLM request payload', () => {
         expect(payload.messages).toBeUndefined();
         expect(payload.model).toBeUndefined();
         expect(payload.systemPrompt).toBeUndefined();
+    });
+});
+
+describe('Chat request lifecycle', () => {
+    const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0));
+    let originalFetch;
+    let originalEventSource;
+
+    const makeChatWrapper = ({
+        onAddMessage = jest.fn(),
+        onSetIsLoading = jest.fn(),
+        onSetPendingRequestId = jest.fn(),
+        projectJson = {
+            targets: [{
+                isStage: true,
+                name: 'Stage',
+                variables: {},
+                lists: {},
+                blocks: {},
+                comments: {},
+                costumes: [],
+                sounds: []
+            }]
+        }
+    } = {}) => shallow(
+        <ChatComponent
+            explanationLength="normal"
+            hasConsented
+            isLoading={false}
+            messages={[]}
+            pendingRequestId={null}
+            vm={{
+                editingTarget: {id: 'stage'},
+                loadProject: jest.fn(() => Promise.resolve()),
+                refreshWorkspace: jest.fn(),
+                toJSON: jest.fn(() => projectJson)
+            }}
+            onAddMessage={onAddMessage}
+            onClearHistory={jest.fn()}
+            onClose={jest.fn()}
+            onSetExplanationLength={jest.fn()}
+            onSetHasConsented={jest.fn()}
+            onSetIsLoading={onSetIsLoading}
+            onSetPendingRequestId={onSetPendingRequestId}
+        />
+    );
+
+    beforeEach(() => {
+        originalFetch = global.fetch;
+        originalEventSource = global.EventSource;
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+        global.EventSource = originalEventSource;
+        jest.restoreAllMocks();
+    });
+
+    test('keeps processing a reply after the chat component unmounts', async () => {
+        const onAddMessage = jest.fn();
+        const onSetIsLoading = jest.fn();
+        const resolveSpriteSelection = jest.fn();
+        const spriteSelectionPromise = new Promise(resolve => {
+            resolveSpriteSelection.mockImplementation(() => resolve({
+                addedSpriteNames: [],
+                reusedSpriteNames: []
+            }));
+        });
+
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{
+                    message: {
+                        content: '返答です。'
+                    }
+                }]
+            })
+        }));
+
+        const wrapper = makeChatWrapper({onAddMessage, onSetIsLoading});
+        const instance = wrapper.instance();
+        instance._addRequestedLibrarySprites = jest.fn(() => spriteSelectionPromise);
+        wrapper.setState({inputValue: 'こんにちは'});
+
+        const sendPromise = instance.handleSend();
+        wrapper.unmount();
+        resolveSpriteSelection();
+
+        await sendPromise;
+        await flushPromises();
+        await flushPromises();
+
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: 'こんにちは',
+            sender: 'user'
+        });
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: '返答です。',
+            sender: 'bot'
+        });
+        expect(onSetIsLoading).toHaveBeenCalledWith(true);
+        expect(onSetIsLoading).toHaveBeenCalledWith(false);
+    });
+
+    test('keeps processing an approved SSE reply after the chat component unmounts', async () => {
+        const onAddMessage = jest.fn();
+        const onSetIsLoading = jest.fn();
+        const onSetPendingRequestId = jest.fn();
+        const eventListeners = {};
+        const close = jest.fn();
+
+        global.EventSource = jest.fn(() => ({
+            addEventListener: (name, handler) => {
+                eventListeners[name] = handler;
+            },
+            close
+        }));
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                pending: true,
+                request_id: 'request-1'
+            })
+        }));
+
+        const wrapper = makeChatWrapper({
+            onAddMessage,
+            onSetIsLoading,
+            onSetPendingRequestId
+        });
+        const instance = wrapper.instance();
+        instance._addRequestedLibrarySprites = jest.fn(() => Promise.resolve({
+            addedSpriteNames: [],
+            reusedSpriteNames: []
+        }));
+        wrapper.setState({inputValue: '承認して'});
+
+        const sendPromise = instance.handleSend();
+        wrapper.unmount();
+
+        await sendPromise;
+        await flushPromises();
+        eventListeners.approved({
+            data: JSON.stringify({
+                response: '承認済み返答です。'
+            })
+        });
+        await flushPromises();
+
+        expect(close).toHaveBeenCalled();
+        expect(onSetPendingRequestId).toHaveBeenCalledWith('request-1');
+        expect(onSetPendingRequestId).toHaveBeenCalledWith(null);
+        expect(onSetIsLoading).toHaveBeenCalledWith(false);
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: '承認済み返答です。',
+            sender: 'bot'
+        });
+    });
+
+    test('keeps surfacing request errors after the chat component unmounts', async () => {
+        const onAddMessage = jest.fn();
+        const onSetIsLoading = jest.fn();
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        global.fetch = jest.fn(() => Promise.reject(new Error('network failed')));
+
+        const wrapper = makeChatWrapper({onAddMessage, onSetIsLoading});
+        const instance = wrapper.instance();
+        instance._addRequestedLibrarySprites = jest.fn(() => Promise.resolve({
+            addedSpriteNames: [],
+            reusedSpriteNames: []
+        }));
+        wrapper.setState({inputValue: '失敗テスト'});
+
+        const sendPromise = instance.handleSend();
+        wrapper.unmount();
+
+        await sendPromise;
+        await flushPromises();
+
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: 'An error occurred while contacting the AI.',
+            sender: 'bot'
+        });
+        expect(onSetIsLoading).toHaveBeenCalledWith(false);
     });
 });

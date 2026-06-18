@@ -4,9 +4,6 @@ import PropTypes from 'prop-types';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { defineMessages, FormattedMessage, injectIntl, intlShape } from 'react-intl';
 import { connect } from 'react-redux';
-import MediaQuery from 'react-responsive';
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
-import tabStyles from 'react-tabs/style/react-tabs.css';
 import VM from '@scratch/scratch-vm';
 import Renderer from '@scratch/scratch-render';
 
@@ -43,6 +40,11 @@ import costumesIcon from './icon--costumes.svg';
 import soundsIcon from './icon--sounds.svg';
 import DebugModal from '../debug-modal/debug-modal.jsx';
 import { setPlatform } from '../../reducers/platform.js';
+import {
+    BLOCKS_TAB_INDEX,
+    COSTUMES_TAB_INDEX,
+    SOUNDS_TAB_INDEX
+} from '../../reducers/editor-tab';
 import { PLATFORM } from '../../lib/platform.js';
 import ExpandableChat from '../chat/expandable-chat.jsx';
 import ChatModal from '../chat/chat.jsx';
@@ -59,6 +61,31 @@ const messages = defineMessages({
 // Cache this value to only retrieve it once the first time.
 // Assume that it doesn't change for a session.
 let isRendererSupported = null;
+
+const getMediaQueryMatches = minWidth => (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(`(min-width: ${minWidth}px)`).matches
+);
+
+const useMinWidth = minWidth => {
+    const [matches, setMatches] = useState(() => getMediaQueryMatches(minWidth));
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+        const mediaQueryList = window.matchMedia(`(min-width: ${minWidth}px)`);
+        const handleChange = event => setMatches(event.matches);
+        setMatches(mediaQueryList.matches);
+        if (mediaQueryList.addEventListener) {
+            mediaQueryList.addEventListener('change', handleChange);
+            return () => mediaQueryList.removeEventListener('change', handleChange);
+        }
+        mediaQueryList.addListener(handleChange);
+        return () => mediaQueryList.removeListener(handleChange);
+    }, [minWidth]);
+
+    return matches;
+};
 
 const GUIComponent = props => {
     const {
@@ -147,7 +174,7 @@ const GUIComponent = props => {
         onRequestCloseChatModal,
         onDockToSidebar,
         ...componentProps
-    } = omit(props, 'dispatch', 'setPlatform');
+    } = omit(props, 'dispatch', 'setPlatform', 'onOpenChatModal');
     if (children) {
         return <Box {...componentProps}>{children}</Box>;
     }
@@ -264,14 +291,7 @@ const GUIComponent = props => {
         };
     }, []);
 
-    const tabClassNames = {
-        tabs: styles.tabs,
-        tab: classNames(tabStyles.reactTabsTab, styles.tab),
-        tabList: classNames(tabStyles.reactTabsTabList, styles.tabList),
-        tabPanel: classNames(tabStyles.reactTabsTabPanel, styles.tabPanel),
-        tabPanelSelected: classNames(tabStyles.reactTabsTabPanelSelected, styles.isSelected),
-        tabSelected: classNames(tabStyles.reactTabsTabSelected, styles.isSelected)
-    };
+    const isFullSize = useMinWidth(layout.fullSizeMinWidth);
 
     const onCloseDebugModal = useCallback(() => {
         if (onDebugModalClose) {
@@ -284,23 +304,22 @@ const GUIComponent = props => {
         isRendererSupported = Renderer.isSupported();
     }
 
-    return (<MediaQuery minWidth={layout.fullSizeMinWidth}>{isFullSize => {
-        const stageSize = resolveStageSize(stageSizeMode, isFullSize);
+    const stageSize = resolveStageSize(stageSizeMode, isFullSize);
 
-        return isPlayerOnly ? (
-            <StageWrapper
-                isFullScreen={isFullScreen}
-                isRendererSupported={isRendererSupported}
-                isRtl={isRtl}
-                loading={loading}
-                stageSize={STAGE_SIZE_MODES.large}
-                vm={vm}
-            >
-                {alertsVisible ? (
-                    <Alerts className={styles.alertsContainer} />
-                ) : null}
-            </StageWrapper>
-        ) : (
+    return isPlayerOnly ? (
+        <StageWrapper
+            isFullScreen={isFullScreen}
+            isRendererSupported={isRendererSupported}
+            isRtl={isRtl}
+            loading={loading}
+            stageSize={STAGE_SIZE_MODES.large}
+            vm={vm}
+        >
+            {alertsVisible ? (
+                <Alerts className={styles.alertsContainer} />
+            ) : null}
+        </StageWrapper>
+    ) : (
             <Box
                 className={styles.pageWrapper}
                 dir={isRtl ? 'rtl' : 'ltr'}
@@ -417,16 +436,19 @@ const GUIComponent = props => {
                                 editorWrapperRef.current = ref;
                             }}
                         >
-                            <Tabs
-                                forceRenderTabPanel
-                                className={tabClassNames.tabs}
-                                selectedIndex={activeTabIndex}
-                                selectedTabClassName={tabClassNames.tabSelected}
-                                selectedTabPanelClassName={tabClassNames.tabPanelSelected}
-                                onSelect={onActivateTab}
-                            >
-                                <TabList className={tabClassNames.tabList}>
-                                    <Tab className={tabClassNames.tab}>
+                            <div className={styles.tabs}>
+                                <div
+                                    className={styles.tabList}
+                                    role="tablist"
+                                >
+                                    <button
+                                        className={classNames(styles.tab, {
+                                            [styles.isSelected]: activeTabIndex === BLOCKS_TAB_INDEX
+                                        })}
+                                        role="tab"
+                                        type="button"
+                                        onClick={() => onActivateTab(BLOCKS_TAB_INDEX)}
+                                    >
                                         <img
                                             draggable={false}
                                             src={codeIcon}
@@ -436,9 +458,13 @@ const GUIComponent = props => {
                                             description="Button to get to the code panel"
                                             id="gui.gui.codeTab"
                                         />
-                                    </Tab>
-                                    <Tab
-                                        className={tabClassNames.tab}
+                                    </button>
+                                    <button
+                                        className={classNames(styles.tab, {
+                                            [styles.isSelected]: activeTabIndex === COSTUMES_TAB_INDEX
+                                        })}
+                                        role="tab"
+                                        type="button"
                                         onClick={onActivateCostumesTab}
                                     >
                                         <img
@@ -458,9 +484,13 @@ const GUIComponent = props => {
                                                 id="gui.gui.costumesTab"
                                             />
                                         )}
-                                    </Tab>
-                                    <Tab
-                                        className={tabClassNames.tab}
+                                    </button>
+                                    <button
+                                        className={classNames(styles.tab, {
+                                            [styles.isSelected]: activeTabIndex === SOUNDS_TAB_INDEX
+                                        })}
+                                        role="tab"
+                                        type="button"
                                         onClick={onActivateSoundsTab}
                                     >
                                         <img
@@ -472,9 +502,14 @@ const GUIComponent = props => {
                                             description="Button to get to the sounds panel"
                                             id="gui.gui.soundsTab"
                                         />
-                                    </Tab>
-                                </TabList>
-                                <TabPanel className={tabClassNames.tabPanel}>
+                                    </button>
+                                </div>
+                                <div
+                                    className={classNames(styles.tabPanel, {
+                                        [styles.isSelected]: activeTabIndex === BLOCKS_TAB_INDEX
+                                    })}
+                                    role="tabpanel"
+                                >
                                     <Box className={styles.blocksWrapper}>
                                         <Blocks
                                             key={`${blocksId}/${theme}`}
@@ -511,18 +546,28 @@ const GUIComponent = props => {
                                     <Box className={styles.watermark}>
                                         <Watermark />
                                     </Box>
-                                </TabPanel>
-                                <TabPanel className={tabClassNames.tabPanel}>
+                                </div>
+                                <div
+                                    className={classNames(styles.tabPanel, {
+                                        [styles.isSelected]: activeTabIndex === COSTUMES_TAB_INDEX
+                                    })}
+                                    role="tabpanel"
+                                >
                                     {costumesTabVisible ? <CostumeTab
                                         vm={vm}
                                         onNewLibraryBackdropClick={onNewLibraryBackdropClick}
                                         onNewLibraryCostumeClick={onNewLibraryCostumeClick}
                                     /> : null}
-                                </TabPanel>
-                                <TabPanel className={tabClassNames.tabPanel}>
+                                </div>
+                                <div
+                                    className={classNames(styles.tabPanel, {
+                                        [styles.isSelected]: activeTabIndex === SOUNDS_TAB_INDEX
+                                    })}
+                                    role="tabpanel"
+                                >
                                     {soundsTabVisible ? <SoundTab vm={vm} /> : null}
-                                </TabPanel>
-                            </Tabs>
+                                </div>
+                            </div>
                             {/* {backpackVisible ? (
                                 <Backpack host={backpackHost} />
                             ) : null} */}
@@ -550,8 +595,7 @@ const GUIComponent = props => {
                 <DragLayer />
                 <ConsentModal />
             </Box>
-        );
-    }}</MediaQuery>);
+    );
 };
 
 GUIComponent.propTypes = {
@@ -605,6 +649,7 @@ GUIComponent.propTypes = {
     onLogOut: PropTypes.func,
     onNewSpriteClick: PropTypes.func,
     onNewLibraryCostumeClick: PropTypes.func,
+    onOpenChatModal: PropTypes.func,
     onOpenRegistration: PropTypes.func,
     onRequestCloseBackdropLibrary: PropTypes.func,
     onRequestCloseCostumeLibrary: PropTypes.func,

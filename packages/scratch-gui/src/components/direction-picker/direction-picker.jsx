@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import Popover from 'react-popover';
 import {injectIntl, intlShape, defineMessages, FormattedMessage} from 'react-intl';
 
 import Label from '../forms/label.jsx';
@@ -16,6 +15,65 @@ import leftRightIcon from './icon--left-right.svg';
 import dontRotateIcon from './icon--dont-rotate.svg';
 
 const BufferedInput = BufferedInputHOC(Input);
+
+class DirectionPopover extends React.Component {
+    constructor (props) {
+        super(props);
+        this.setWrapperRef = this.setWrapperRef.bind(this);
+        this.handleDocumentMouseDown = this.handleDocumentMouseDown.bind(this);
+        this.handleDocumentTouchStart = this.handleDocumentTouchStart.bind(this);
+    }
+
+    componentDidMount () {
+        document.addEventListener('mousedown', this.handleDocumentMouseDown);
+        document.addEventListener('touchstart', this.handleDocumentTouchStart);
+    }
+
+    componentWillUnmount () {
+        document.removeEventListener('mousedown', this.handleDocumentMouseDown);
+        document.removeEventListener('touchstart', this.handleDocumentTouchStart);
+    }
+
+    setWrapperRef (element) {
+        this.wrapperRef = element;
+    }
+
+    handleDocumentMouseDown (event) {
+        this.handleOuterAction(event);
+    }
+
+    handleDocumentTouchStart (event) {
+        this.handleOuterAction(event);
+    }
+
+    handleOuterAction (event) {
+        if (!this.props.isOpen || !this.wrapperRef || this.wrapperRef.contains(event.target)) return;
+        this.props.onOuterAction(event);
+    }
+
+    render () {
+        return (
+            <div
+                className={styles.popoverWrapper}
+                ref={this.setWrapperRef}
+            >
+                {this.props.children}
+                {this.props.isOpen ? (
+                    <div className={styles.popoverBody}>
+                        {this.props.body}
+                    </div>
+                ) : null}
+            </div>
+        );
+    }
+}
+
+DirectionPopover.propTypes = {
+    body: PropTypes.node,
+    children: PropTypes.node,
+    isOpen: PropTypes.bool,
+    onOuterAction: PropTypes.func
+};
 
 const directionLabel = (
     <FormattedMessage
@@ -55,7 +113,7 @@ const DirectionPicker = props => (
         above={props.labelAbove}
         text={directionLabel}
     >
-        <Popover
+        <DirectionPopover
             body={
                 <div>
                     <Dial
@@ -88,7 +146,6 @@ const DirectionPicker = props => (
                 </div>
             }
             isOpen={props.popoverOpen}
-            preferPlace="above"
             onOuterAction={props.onClosePopover}
         >
             <BufferedInput
@@ -101,7 +158,7 @@ const DirectionPicker = props => (
                 onFocus={props.onOpenPopover}
                 onSubmit={props.onChangeDirection}
             />
-        </Popover>
+        </DirectionPopover>
     </Label>
 
 );

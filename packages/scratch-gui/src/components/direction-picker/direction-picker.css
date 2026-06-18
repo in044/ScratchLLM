@@ -2,3 +2,19 @@
     justify-content: center;
     margin-bottom: 1rem;
 }
+
+.popover-wrapper {
+    position: relative;
+}
+
+.popover-body {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: white;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15), 0 4px 8px rgba(0, 0, 0, 0.15);
+}

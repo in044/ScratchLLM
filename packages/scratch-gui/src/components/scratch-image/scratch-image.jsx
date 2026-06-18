@@ -58,7 +58,7 @@ class ScratchImage extends React.PureComponent {
         this.state = {};
         Object.assign(this.state, this._loadImageSource(props.imageSource));
     }
-    componentWillReceiveProps (nextProps) {
+    UNSAFE_componentWillReceiveProps (nextProps) {
         const newState = this._loadImageSource(nextProps.imageSource);
         this.setState(newState);
     }
