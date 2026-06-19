@@ -88,6 +88,7 @@ export const renderMessageContent = text => {
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
 const SYNTAX_REPAIR_URL = `${process.env.REACT_APP_API_BASE_URL}/api/repair-scratch`;
 const SPRITE_SELECTION_URL = `${process.env.REACT_APP_API_BASE_URL}/api/select-sprite`;
+const SPRITE_PLAN_URL = `${process.env.REACT_APP_API_BASE_URL}/api/plan-sprites`;
 
 export const buildLlmRequestPayload = ({
     userInput,
@@ -194,7 +195,46 @@ export class ChatComponent extends React.Component {
         textarea.style.height = `${newHeight}px`;
     }
 
-    async _addRequestedLibrarySprites (userInput) {
+    async _planRequiredSprites (userInput, projectJson) {
+        try {
+            const response = await fetch(SPRITE_PLAN_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json; charset=UTF-8'
+                },
+                body: JSON.stringify({
+                    userInput,
+                    currentProgram: ScratchTextCompiler.projectToScratchBlocks(projectJson),
+                    currentAssets: buildProjectAssetSummary(projectJson)
+                })
+            });
+            if (!response.ok) throw new Error(`Sprite planning returned ${response.status}.`);
+            const data = await response.json();
+            return {
+                requiredSprites: Array.isArray(data.requiredSprites) ? data.requiredSprites : [],
+                existingSpritesToReuse: Array.isArray(data.existingSpritesToReuse) ?
+                    data.existingSpritesToReuse :
+                    [],
+                forbiddenSpriteAdditions: Array.isArray(data.forbiddenSpriteAdditions) ?
+                    data.forbiddenSpriteAdditions :
+                    [],
+                reason: typeof data.reason === 'string' ? data.reason : ''
+            };
+        } catch (error) {
+            console.warn('Automatic sprite planning was unavailable:', error);
+            return {
+                requiredSprites: [],
+                existingSpritesToReuse: [],
+                forbiddenSpriteAdditions: [],
+                reason: ''
+            };
+        }
+    }
+
+    async _addRequestedLibrarySprites (userInput, requiredSprites) {
+        if (!Array.isArray(requiredSprites) || requiredSprites.length === 0) {
+            return {addedSpriteNames: [], reusedSpriteNames: []};
+        }
         try {
             const project = this.props.vm.toJSON();
             const response = await fetch(SPRITE_SELECTION_URL, {
@@ -204,6 +244,7 @@ export class ChatComponent extends React.Component {
                 },
                 body: JSON.stringify({
                     userInput,
+                    requiredSprites,
                     spriteCatalog: buildSpriteCatalog(),
                     existingSprites: buildExistingSpriteNames(project)
                 })
@@ -261,17 +302,32 @@ export class ChatComponent extends React.Component {
             this.textareaRef.current.style.height = '30px';
         }
 
-        const {addedSpriteNames, reusedSpriteNames} = await this._addRequestedLibrarySprites(inputValue);
+        const initialProjectJson = this.props.vm.toJSON();
+        const spritePlan = await this._planRequiredSprites(inputValue, initialProjectJson);
+        const {addedSpriteNames, reusedSpriteNames} = await this._addRequestedLibrarySprites(
+            inputValue,
+            spritePlan.requiredSprites
+        );
         if (addedSpriteNames.length > 0) {
             this.props.vm.refreshWorkspace();
             this.props.onAddMessage(buildSpriteAddedMessage(addedSpriteNames));
         }
+        const spriteNamesToReuse = Array.from(new Set([
+            ...reusedSpriteNames,
+            ...spritePlan.existingSpritesToReuse
+        ]));
         const selectedSpriteContext = [
             addedSpriteNames.length > 0 ?
                 `追加済みスプライト: ${addedSpriteNames.join('、')}` :
                 '',
-            reusedSpriteNames.length > 0 ?
-                `既存スプライトを再利用: ${reusedSpriteNames.join('、')}` :
+            spriteNamesToReuse.length > 0 ?
+                `既存スプライトを再利用: ${spriteNamesToReuse.join('、')}` :
+                '',
+            addedSpriteNames.length === 0 && spritePlan.requiredSprites.length === 0 ?
+                '新規スプライト追加は不要' :
+                '',
+            spritePlan.forbiddenSpriteAdditions.length > 0 ?
+                `追加しないスプライト: ${spritePlan.forbiddenSpriteAdditions.join('、')}` :
                 ''
         ].filter(Boolean).join('\n');
         const llmUserInput = selectedSpriteContext ?

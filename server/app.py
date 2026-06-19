@@ -51,6 +51,7 @@ admin_queues_lock = Lock()
 LLM_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-5.4')
 SYNTAX_REPAIR_MODEL = os.environ.get('OPENAI_SYNTAX_REPAIR_MODEL', 'gpt-5.4-mini')
 SPRITE_SELECTION_MODEL = os.environ.get('OPENAI_SPRITE_SELECTION_MODEL', 'gpt-5.4-mini')
+SPRITE_REQUIREMENT_MODEL = os.environ.get('OPENAI_SPRITE_REQUIREMENT_MODEL', LLM_MODEL)
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), 'scratch_system_prompt.txt')
 with open(PROMPT_PATH, encoding='utf-8') as prompt_file:
     # Recreate the leading and trailing newlines from the original JS template literal.
@@ -195,25 +196,126 @@ def sanitize_existing_sprites(value):
     ]
 
 
+def sanitize_required_sprites(value):
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise BadRequest('requiredSprites must be an array.')
+    return [
+        item.strip()[:120]
+        for item in value[:10]
+        if isinstance(item, str) and item.strip()
+    ]
+
+
+def build_sprite_requirement_messages(data):
+    user_input = require_string(data, 'userInput', 10000)
+    current_program = require_string(data, 'currentProgram', 200000)
+    current_assets = sanitize_current_assets(data.get('currentAssets'))
+    prompt = f"""次のScratchプログラム変更依頼を、コード修正の観点から解析してください。
+目的は「新しいスプライトが本当に必要か」だけを保守的に判定することです。
+
+ルール:
+- 既存スプライトの動作変更、入力キー、条件、変数、見た目変更、説明依頼では新規スプライトを要求しない。
+- ユーザーが明示した新しい登場物・キャラクター・物体が、既存スプライトだけでは実現できない場合だけ requiredSprites に入れる。
+- 「矢印で移動」はキーボードの矢印キー操作を意味する。矢印スプライト、矢印画像、左右ボタンを要求してはいけない。
+- UIボタンや操作説明用の画像は、ユーザーが「画面に追加して」と明示した場合だけ要求する。
+- 既存スプライトで代用できる対象は existingSpritesToReuse に入れ、requiredSprites には入れない。
+- 迷う場合は requiredSprites を空配列にする。
+
+現在のプログラム:
+```scratch
+{current_program}
+```
+
+現在の素材:
+{json.dumps(current_assets, ensure_ascii=False)}
+
+ユーザーの依頼:
+{user_input}
+
+JSONだけを返してください。
+形式:
+{{
+  "requiredSprites": ["新しく必要なスプライトの短い説明"],
+  "existingSpritesToReuse": ["再利用する既存スプライト名"],
+  "forbiddenSpriteAdditions": ["追加してはいけないもの"],
+  "reason": "短い理由"
+}}"""
+    return [
+        {
+            'role': 'system',
+            'content': 'あなたはScratchコード修正のための素材要求ゲートです。JSONだけを返します。'
+        },
+        {'role': 'user', 'content': prompt}
+    ]
+
+
+def parse_sprite_requirement(content):
+    try:
+        plan = json.loads(content or '{}')
+    except json.JSONDecodeError:
+        return {
+            'requiredSprites': [],
+            'existingSpritesToReuse': [],
+            'forbiddenSpriteAdditions': [],
+            'reason': ''
+        }
+    if not isinstance(plan, dict):
+        plan = {}
+
+    def string_list(name):
+        value = plan.get(name)
+        if not isinstance(value, list):
+            return []
+        return [
+            item.strip()[:120]
+            for item in value[:10]
+            if isinstance(item, str) and item.strip()
+        ]
+
+    reason = plan.get('reason')
+    return {
+        'requiredSprites': string_list('requiredSprites'),
+        'existingSpritesToReuse': string_list('existingSpritesToReuse'),
+        'forbiddenSpriteAdditions': string_list('forbiddenSpriteAdditions'),
+        'reason': reason.strip()[:500] if isinstance(reason, str) else ''
+    }
+
+
 def build_sprite_selection_messages(data):
     user_input = require_string(data, 'userInput', 10000)
     catalog = sanitize_sprite_catalog(data.get('spriteCatalog'))
     existing_sprites = sanitize_existing_sprites(data.get('existingSprites'))
+    required_sprites = sanitize_required_sprites(data.get('requiredSprites'))
+    if required_sprites is not None and not required_sprites:
+        return None, catalog, existing_sprites
     catalog_text = '\n'.join(
         f'- {item["displayName"]}'
         for item in catalog
     )
+    required_sprites_text = (
+        json.dumps(required_sprites, ensure_ascii=False)
+        if required_sprites is not None else
+        '未指定'
+    )
     prompt = f"""ユーザーの依頼を読み、Scratchのスプライトライブラリから新しいスプライトを追加すべきか判定してください。
 ユーザーが新しい登場物・キャラクター・物体の追加を依頼している場合だけ、一覧から必要なスプライトを選んでください。
+requiredSprites が未指定ではない場合は、requiredSprites に列挙された必要素材だけを選択対象にしてください。
+requiredSprites が空配列の場合は必ず {{"sprites":[]}} を返してください。
 複数の登場物を依頼された場合は複数選び、同じ種類を複数依頼された場合は同じnameを必要な数だけ繰り返してください。
 明示されていないスプライトを余分に選ばず、最大10個までにしてください。
 既存スプライトの動作変更、コード追加、背景追加、質問、説明依頼では選ばないでください。
 既存スプライト一覧に同じ意味の対象がすでにある場合は、新規追加せずexistingTargetNameでその名前を返してください。
 たとえば既存に「ネコ」があり、依頼が猫やCatに関するものなら、Catを追加せず「ネコ」を再利用してください。
+「矢印で移動」はキーボードの矢印キー操作を意味します。矢印スプライトや左右ボタンを追加してはいけません。
 spriteNameは必ずスプライト一覧にある「日本語名（英語名）」を一字一句そのまま使用してください。
 
 ユーザーの依頼:
 {user_input}
+
+コード修正AIが要求した新規スプライト:
+{required_sprites_text}
 
 既存スプライト一覧:
 {json.dumps(existing_sprites, ensure_ascii=False)}
@@ -345,6 +447,23 @@ def parse_json_request():
         'Failed to decode JSON object as UTF-8 or CP932: '
         f'{"; ".join(decode_errors)}'
     )
+
+
+def normalize_scratch_key_names(code):
+    replacements = {
+        '[上向き v] キーが押されたとき': '[上向き矢印 v] キーが押されたとき',
+        '[下向き v] キーが押されたとき': '[下向き矢印 v] キーが押されたとき',
+        '[右向き v] キーが押されたとき': '[右向き矢印 v] キーが押されたとき',
+        '[左向き v] キーが押されたとき': '[左向き矢印 v] キーが押されたとき',
+        '<(上向き v) キーが押された>': '<(上向き矢印 v) キーが押された>',
+        '<(下向き v) キーが押された>': '<(下向き矢印 v) キーが押された>',
+        '<(右向き v) キーが押された>': '<(右向き矢印 v) キーが押された>',
+        '<(左向き v) キーが押された>': '<(左向き矢印 v) キーが押された>',
+    }
+    normalized = code
+    for wrong, correct in replacements.items():
+        normalized = normalized.replace(wrong, correct)
+    return normalized
 
 
 # ─────────────────────────────────────────────
@@ -589,9 +708,20 @@ def repair_scratch():
             ai_enabled = app_state['ai_enabled']
         data = parse_json_request()
         code = data.get('code') or ''
+        original_code = code
         diagnostics = data.get('diagnostics') or []
         reference_start = SYSTEM_PROMPT.find('## Scratch 3.0ブロック・リファレンス')
         syntax_reference = SYSTEM_PROMPT[reference_start:] if reference_start >= 0 else SYSTEM_PROMPT
+
+        if enabled and code:
+            normalized_code = normalize_scratch_key_names(code)
+            if normalized_code != code and (not ai_enabled or not diagnostics):
+                return jsonify({
+                    'enabled': True,
+                    'repaired': True,
+                    'code': normalized_code
+                })
+            code = normalized_code
 
         if not enabled or not ai_enabled or not code or not diagnostics:
             return jsonify({'enabled': enabled, 'repaired': False, 'code': code})
@@ -626,16 +756,57 @@ def repair_scratch():
                 {'role': 'user', 'content': prompt}
             ]
         )
-        repaired_code = (response.choices[0].message.content or '').strip()
+        repaired_code = normalize_scratch_key_names(
+            (response.choices[0].message.content or '').strip()
+        )
         return jsonify({
             'enabled': True,
-            'repaired': bool(repaired_code and repaired_code != code),
+            'repaired': bool(repaired_code and repaired_code != original_code),
             'code': repaired_code or code
         })
     except BadRequest as e:
         return jsonify({'error': e.description}), 400
     except Exception as e:
         print(f"Error repairing ScratchBlocks syntax: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────
+# プログラム修正用スプライト要求計画
+# ─────────────────────────────────────────────
+@app.route('/api/plan-sprites', methods=['POST'])
+def plan_sprites():
+    try:
+        with state_lock:
+            ai_enabled = app_state['ai_enabled']
+        if not ai_enabled:
+            return jsonify({'requiredSprites': [], 'disabled': True}), 503
+
+        data = parse_json_request()
+        messages = build_sprite_requirement_messages(data)
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            return jsonify({'error': 'OpenAI API key is not set.'}), 500
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        moderation = client.moderations.create(input=data['userInput'])
+        if moderation.results[0].flagged:
+            return jsonify({
+                'error': 'This content violates our safety policies.',
+                'flagged': True
+            }), 400
+        response = client.chat.completions.create(
+            model=SPRITE_REQUIREMENT_MODEL,
+            messages=messages,
+            response_format={'type': 'json_object'}
+        )
+        content = response.choices[0].message.content
+        return jsonify(parse_sprite_requirement(content))
+    except BadRequest as e:
+        return jsonify({'error': e.description}), 400
+    except Exception as e:
+        print(f"Error planning sprites: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -652,6 +823,8 @@ def select_sprite():
 
         data = parse_json_request()
         messages, catalog, existing_sprites = build_sprite_selection_messages(data)
+        if messages is None:
+            return jsonify({'sprites': [], 'spriteNames': []})
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
             return jsonify({'error': 'OpenAI API key is not set.'}), 500
