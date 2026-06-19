@@ -34,6 +34,14 @@ describe('Chat message rendering', () => {
         expect(component.find(ScratchBlockRenderer)).toHaveLength(1);
     });
 
+    test('keeps ScratchBlocks fences as Scratch blocks', () => {
+        const component = shallow(
+            <div>{renderMessageContent('説明\n```scratchblocks\n⚑ が押されたとき\n```')}</div>
+        );
+
+        expect(component.find(ScratchBlockRenderer)).toHaveLength(1);
+    });
+
     test('applies Scratch custom block colors to argument reporters', () => {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         const argument = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -270,6 +278,47 @@ describe('Chat request lifecycle', () => {
             text: 'An error occurred while contacting the AI.',
             sender: 'bot'
         });
+        expect(onSetIsLoading).toHaveBeenCalledWith(false);
+    });
+
+    test('reuses the imported program repair for the matching explanatory Scratch fence', async () => {
+        const onAddMessage = jest.fn();
+        const onSetIsLoading = jest.fn();
+        const sourceCode = '[右向き v] キーが押されたとき\nx座標を (10) ずつ変える';
+
+        global.fetch = jest.fn(() => Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+                enabled: true,
+                repaired: true,
+                code: '[右向き矢印 v] キーが押されたとき\nx座標を (10) ずつ変える'
+            })
+        }));
+
+        const wrapper = makeChatWrapper({onAddMessage, onSetIsLoading});
+        const instance = wrapper.instance();
+
+        await instance._handleScratchBlocksResponse([
+            '説明です。',
+            '```scratch',
+            sourceCode,
+            '```',
+            '```scratch-project',
+            sourceCode,
+            '```'
+        ].join('\n'), instance.props.vm.toJSON(), true);
+
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: [
+                '説明です。',
+                '```scratch',
+                '[右向き矢印 v] キーが押されたとき',
+                'x座標を (10) ずつ変える',
+                '```'
+            ].join('\n'),
+            sender: 'bot'
+        });
+        expect(global.fetch).toHaveBeenCalledTimes(1);
         expect(onSetIsLoading).toHaveBeenCalledWith(false);
     });
 });

@@ -59,11 +59,11 @@ export const renderMessageContent = text => {
     // machine-readable output used to update the VM and is hidden from users.
     const visibleText = text.replace(/```scratch-project\s*[\s\S]*?```/giu, '');
     const customBlockSignatures = extractCustomBlockSignatures(visibleText);
-    const parts = visibleText.split(/(```scratch[ \t]*\r?\n[\s\S]*?```)/gu);
+    const parts = visibleText.split(/(```(?:scratch|scratchblocks)[ \t]*\r?\n[\s\S]*?```)/gu);
     return parts.map((part, index) => {
-        if (/^```scratch[ \t]*\r?\n/u.test(part)) {
+        if (/^```(?:scratch|scratchblocks)[ \t]*\r?\n/u.test(part)) {
             // Remove the markers
-            const code = part.replace(/^```scratch[ \t]*\r?\n|```$/gu, '');
+            const code = part.replace(/^```(?:scratch|scratchblocks)[ \t]*\r?\n|```$/gu, '');
             return (<ScratchBlockRenderer
                 key={index}
                 code={code}
@@ -447,6 +447,49 @@ export class ChatComponent extends React.Component {
         }
     }
 
+    async _repairExplanatoryScratchBlocks(text, currentProject, knownRepairs = new Map()) {
+        const source = String(text || '');
+        const scratchFenceRegex = /```(scratch|scratchblocks)([ \t]*\r?\n)([\s\S]*?)```/giu;
+        const replacements = [];
+        let match = scratchFenceRegex.exec(source);
+
+        while (match) {
+            const originalFence = match[0];
+            const language = match[1];
+            const newline = match[2];
+            const code = match[3];
+            const trimmedCode = code.trim();
+            let repairedCode = knownRepairs.get(trimmedCode);
+
+            if (!repairedCode) {
+                const compiled = this._compileScratchCode(trimmedCode, currentProject, false);
+                repairedCode = await this._repairScratchCode(trimmedCode, compiled.diagnostics);
+            }
+
+            if (repairedCode && repairedCode !== trimmedCode) {
+                replacements.push({
+                    start: match.index,
+                    end: match.index + originalFence.length,
+                    text: `\`\`\`${language}${newline}${repairedCode}\n\`\`\``
+                });
+            }
+            match = scratchFenceRegex.exec(source);
+        }
+
+        if (replacements.length === 0) return source;
+
+        let repairedText = source;
+        for (let i = replacements.length - 1; i >= 0; i--) {
+            const replacement = replacements[i];
+            repairedText = [
+                repairedText.slice(0, replacement.start),
+                replacement.text,
+                repairedText.slice(replacement.end)
+            ].join('');
+        }
+        return repairedText;
+    }
+
     _compileScratchCode(scratchCode, currentProject, useFuzzyRepair) {
         const project = ScratchTextCompiler.compile(
             scratchCode,
@@ -460,13 +503,81 @@ export class ChatComponent extends React.Component {
         };
     }
 
+    async _compileScratchCodeForImport(scratchCode, currentProject) {
+        const initial = this._compileScratchCode(scratchCode, currentProject, false);
+        let compiled = initial;
+        let repairedCode = null;
+
+        if (initial.diagnostics.length > 0) {
+            const candidateRepair = await this._repairScratchCode(scratchCode, initial.diagnostics);
+            const originalFuzzy = this._compileScratchCode(scratchCode, currentProject, true);
+            if (candidateRepair) {
+                const repairedFuzzy = this._compileScratchCode(candidateRepair, currentProject, true);
+                if (repairedFuzzy.diagnostics.length <= originalFuzzy.diagnostics.length) {
+                    compiled = repairedFuzzy;
+                    repairedCode = candidateRepair;
+                } else {
+                    compiled = originalFuzzy;
+                }
+            } else {
+                compiled = originalFuzzy;
+            }
+        }
+
+        return {
+            project: compiled.project,
+            diagnostics: compiled.diagnostics,
+            repairedCode
+        };
+    }
+
     async _handleScratchBlocksResponse(fullResponse, projectJson, shouldStopLoading) {
         const scratchCode = ScratchTextCompiler.extractScratchBlocks(fullResponse);
-        const displayResponse = fullResponse
+        let displayResponse = fullResponse
             .replace(/```scratch-project\s*[\s\S]*?```/giu, '')
             .replace(/```json\s*[\s\S]*?```/giu, '')
             .replace('[SCRATCH-PROJECT-JSON]', '')
             .trim();
+        const currentProject = typeof projectJson === 'string' ?
+            JSON.parse(projectJson) :
+            projectJson;
+
+        let newProjectJson = null;
+        let compilerDiagnostics = [];
+        let compileError = null;
+        const knownRepairs = new Map();
+
+        if (scratchCode) {
+            try {
+                const importResult = await this._compileScratchCodeForImport(scratchCode, currentProject);
+                newProjectJson = importResult.project;
+                compilerDiagnostics = importResult.diagnostics;
+                if (importResult.repairedCode && importResult.repairedCode !== scratchCode.trim()) {
+                    knownRepairs.set(scratchCode.trim(), importResult.repairedCode);
+                }
+                const hadVisibleScripts = currentProject.targets.some(target => (
+                    Object.values(target.blocks || {}).some(block => block.topLevel)
+                ));
+                const hasVisibleScripts = newProjectJson.targets.some(target => (
+                    Object.values(target.blocks || {}).some(block => block.topLevel)
+                ));
+                if (hadVisibleScripts && !hasVisibleScripts) {
+                    throw new Error('ScratchBlocks response did not contain visible scripts.');
+                }
+                const validation = validateScratchProject(newProjectJson);
+                if (!validation.valid) {
+                    throw new Error(validation.errors.slice(0, 3).join('\n'));
+                }
+            } catch (e) {
+                compileError = e;
+            }
+        }
+
+        displayResponse = await this._repairExplanatoryScratchBlocks(
+            displayResponse,
+            currentProject,
+            knownRepairs
+        );
 
         this.props.onAddMessage({
             text: displayResponse || fullResponse,
@@ -478,45 +589,10 @@ export class ChatComponent extends React.Component {
             return;
         }
 
-        let newProjectJson = null;
-        let compilerDiagnostics = [];
-        try {
-            const currentProject = typeof projectJson === 'string' ?
-                JSON.parse(projectJson) :
-                projectJson;
-            const initial = this._compileScratchCode(scratchCode, currentProject, false);
-            let compiled = initial;
-            if (initial.diagnostics.length > 0) {
-                const repairedCode = await this._repairScratchCode(scratchCode, initial.diagnostics);
-                const originalFuzzy = this._compileScratchCode(scratchCode, currentProject, true);
-                if (repairedCode) {
-                    const repairedFuzzy = this._compileScratchCode(repairedCode, currentProject, true);
-                    compiled = repairedFuzzy.diagnostics.length <= originalFuzzy.diagnostics.length ?
-                        repairedFuzzy :
-                        originalFuzzy;
-                } else {
-                    compiled = originalFuzzy;
-                }
-            }
-            newProjectJson = compiled.project;
-            compilerDiagnostics = compiled.diagnostics;
-            const hadVisibleScripts = currentProject.targets.some(target => (
-                Object.values(target.blocks || {}).some(block => block.topLevel)
-            ));
-            const hasVisibleScripts = newProjectJson.targets.some(target => (
-                Object.values(target.blocks || {}).some(block => block.topLevel)
-            ));
-            if (hadVisibleScripts && !hasVisibleScripts) {
-                throw new Error('ScratchBlocks response did not contain visible scripts.');
-            }
-            const validation = validateScratchProject(newProjectJson);
-            if (!validation.valid) {
-                throw new Error(validation.errors.slice(0, 3).join('\n'));
-            }
-        } catch (e) {
-            console.error('Error compiling ScratchBlocks response:', e);
+        if (compileError) {
+            console.error('Error compiling ScratchBlocks response:', compileError);
             this.props.onAddMessage({
-                text: `ScratchBlocks記法をプログラムに変換できませんでした。\n${e.message}`,
+                text: `ScratchBlocks記法をプログラムに変換できませんでした。\n${compileError.message}`,
                 sender: 'bot'
             });
             if (shouldStopLoading) this.props.onSetIsLoading(false);
