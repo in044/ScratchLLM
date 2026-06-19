@@ -1,7 +1,17 @@
-<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M3 5.5C3 4.11929 4.11929 3 5.5 3H12.5C13.8807 3 15 4.11929 15 5.5V10.5C15 11.8807 13.8807 13 12.5 13H8L4.5 16V13.8C3.62627 13.4111 3 12.5351 3 11.5V5.5Z" fill="white"/>
-  <path d="M16.5 2.5L16.9 3.6L18 4L16.9 4.4L16.5 5.5L16.1 4.4L15 4L16.1 3.6L16.5 2.5Z" fill="white"/>
-  <circle cx="6.5" cy="8" r="1" fill="#855CD6"/>
-  <circle cx="9" cy="8" r="1" fill="#855CD6"/>
-  <circle cx="11.5" cy="8" r="1" fill="#855CD6"/>
+<!-- Filled chat bubble with three dots -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="false" role="img">
+  <title>Chat Icon — Filled</title>
+  <desc>丸みのある吹き出しと3つの点のチャットアイコン（塗りつぶし）</desc>
+  <defs>
+    <style>
+      .fill { fill: var(--icon-fill, #ffffff); }
+      .dots { fill: var(--icon-dots, #ffffff); }
+    </style>
+  </defs>
+  <g transform="translate(0 2.4)">
+    <path class="fill" d="M4 5.5C4 4.119 5.12 3 6.5 3h11C19.88 3 21 4.12 21 5.5v6c0 1.38-1.12 2.5-2.5 2.5H15l-3.5 3.5c-.2.2-.51.3-.78.22-.28-.08-.47-.32-.47-.61V14H6.5C5.12 14 4 12.88 4 11.5v-6z"/>
+    <circle class="dots" cx="9.5" cy="9.5" r="0.9"/>
+    <circle class="dots" cx="12" cy="9.5" r="0.9"/>
+    <circle class="dots" cx="14.5" cy="9.5" r="0.9"/>
+  </g>
 </svg>
