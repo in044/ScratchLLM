@@ -1,4 +1,7 @@
 import {
+    addLibraryCostumeToEditingTarget,
+    addLibrarySoundToEditingTarget,
+    addMissingLibrarySpriteAssets,
     addLibrarySprite,
     buildDisplaySpriteLibrary,
     buildExistingSpriteNames,
@@ -7,6 +10,8 @@ import {
     findExistingLibrarySpriteName,
     formatLibrarySpriteName,
     getTargetDisplayName,
+    inferDirectLibraryCostumes,
+    inferRequiredSpriteAssets,
     isAutomaticSpriteAddEnabled,
     isSpriteJapaneseNamesEnabled,
     isDefaultScratchCatTarget,
@@ -18,7 +23,7 @@ afterEach(() => {
     delete process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED;
 });
 
-test('builds a compact sprite catalog without asset data', () => {
+test('builds a compact sprite catalog with asset names but without asset payloads', () => {
     const catalog = buildSpriteCatalog();
 
     expect(catalog.length).toBeGreaterThan(0);
@@ -27,9 +32,12 @@ test('builds a compact sprite catalog without asset data', () => {
         displayName: expect.any(String),
         japaneseName: expect.any(String),
         aliases: expect.any(Array),
-        tags: expect.any(Array)
+        tags: expect.any(Array),
+        costumes: expect.any(Array),
+        sounds: expect.any(Array)
     });
-    expect(catalog[0].costumes).toBeUndefined();
+    expect(catalog[0].costumes.every(costume => typeof costume === 'string')).toBe(true);
+    expect(catalog[0].assetId).toBeUndefined();
 });
 
 test('builds display names for the sprite library while preserving the original library name', () => {
@@ -203,9 +211,199 @@ test('summarizes only project asset names for the main LLM', () => {
     });
 });
 
+test('infers missing dog sound requests for automatic asset selection', () => {
+    expect(inferRequiredSpriteAssets(
+        'スペースキーを押したら犬の音が流れるようにして',
+        {
+            targets: [{
+                name: 'Cat',
+                isStage: false,
+                costumes: [{name: 'cat-a'}],
+                sounds: [{name: 'Meow'}]
+            }]
+        }
+    )).toEqual(['犬の音']);
+});
+
+test('does not infer dog sound requests when a dog sound already exists', () => {
+    expect(inferRequiredSpriteAssets(
+        'スペースキーを押したら犬の音が流れるようにして',
+        {
+            targets: [{
+                name: 'Cat',
+                isStage: false,
+                sounds: [{name: 'dog1'}]
+            }]
+        }
+    )).toEqual([]);
+});
+
+test('infers dog costume requests for direct costume addition', () => {
+    expect(inferDirectLibraryCostumes(
+        'ネコに犬のコスチュームを追加して',
+        {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                costumes: [{name: 'cat-a'}]
+            }]
+        }
+    )).toEqual(['Dog1-a', 'Dog1-b']);
+    expect(inferDirectLibraryCostumes(
+        'スペースキーを押したら犬に変身して',
+        {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                costumes: [{name: 'cat-a'}]
+            }]
+        }
+    )).toEqual(['Dog1-a', 'Dog1-b']);
+});
+
+test('adds a library costume to the editing target', async () => {
+    const vm = {
+        editingTarget: {
+            id: 'cat-id',
+            name: 'ネコ',
+            getName: () => 'ネコ'
+        },
+        toJSON: jest.fn(() => ({
+            targets: [{
+                id: 'cat-id',
+                name: 'ネコ',
+                isStage: false,
+                costumes: [{name: 'cat-a'}]
+            }]
+        })),
+        addCostume: jest.fn(() => Promise.resolve())
+    };
+
+    await expect(addLibraryCostumeToEditingTarget(vm, 'Dog1-a')).resolves.toEqual({
+        targetName: 'ネコ',
+        costumeName: 'Dog1-a',
+        sourceCostumeName: 'Dog1-a'
+    });
+    expect(vm.addCostume).toHaveBeenCalledWith(
+        '35cd78a8a71546a16c530d0b2d7d5a7f.svg',
+        expect.objectContaining({
+            name: 'Dog1-a',
+            md5: '35cd78a8a71546a16c530d0b2d7d5a7f.svg'
+        }),
+        'cat-id',
+        2
+    );
+});
+
+test('returns the actual costume name when Scratch renames an added library costume', async () => {
+    const beforeProject = {
+        targets: [{
+            id: 'cat-id',
+            name: 'ネコ',
+            isStage: false,
+            costumes: [{name: 'cat-a'}]
+        }]
+    };
+    const afterProject = {
+        targets: [{
+            id: 'cat-id',
+            name: 'ネコ',
+            isStage: false,
+            costumes: [
+                {name: 'cat-a'},
+                {
+                    name: 'コスチューム2',
+                    md5ext: '35cd78a8a71546a16c530d0b2d7d5a7f.svg'
+                }
+            ]
+        }]
+    };
+    const vm = {
+        editingTarget: {
+            id: 'cat-id',
+            name: 'ネコ',
+            getName: () => 'ネコ'
+        },
+        toJSON: jest.fn()
+            .mockReturnValueOnce(beforeProject)
+            .mockReturnValueOnce(afterProject),
+        addCostume: jest.fn(() => Promise.resolve())
+    };
+
+    await expect(addLibraryCostumeToEditingTarget(vm, 'Dog1-a')).resolves.toEqual({
+        targetName: 'ネコ',
+        costumeName: 'コスチューム2',
+        sourceCostumeName: 'Dog1-a'
+    });
+});
+
+test('adds a library sound to the editing target', async () => {
+    const vm = {
+        editingTarget: {
+            id: 'cat-id',
+            name: 'ネコ',
+            getName: () => 'ネコ'
+        },
+        toJSON: jest.fn(() => ({
+            targets: [{
+                id: 'cat-id',
+                name: 'ネコ',
+                isStage: false,
+                sounds: [{name: 'Meow'}]
+            }]
+        })),
+        addSound: jest.fn(() => Promise.resolve())
+    };
+
+    await expect(addLibrarySoundToEditingTarget(vm, 'Dog1')).resolves.toEqual({
+        targetName: 'ネコ',
+        soundName: 'Dog1'
+    });
+    expect(vm.addSound).toHaveBeenCalledWith(
+        expect.objectContaining({
+            name: 'Dog1',
+            md5: 'b15adefc3c12f758b6dc6a045362532f.wav'
+        }),
+        'cat-id'
+    );
+});
+
 test('does not add a sprite outside the library', async () => {
     const vm = {addSprite: jest.fn(() => Promise.resolve())};
 
     await expect(addLibrarySprite(vm, 'Not in library')).resolves.toBeNull();
     expect(vm.addSprite).not.toHaveBeenCalled();
+});
+
+test('adds missing costumes and sounds from a reused library sprite', async () => {
+    const vm = {
+        toJSON: jest.fn(() => ({
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                costumes: [{name: 'cat-a', assetId: 'bcf454acf82e4504149f7ffe07081dbc'}],
+                sounds: []
+            }]
+        })),
+        addCostume: jest.fn(() => Promise.resolve()),
+        addSound: jest.fn(() => Promise.resolve())
+    };
+
+    await expect(addMissingLibrarySpriteAssets(vm, 'ネコ', 'Cat', 'ネコ')).resolves.toEqual({
+        costumes: ['cat-b'],
+        sounds: ['Meow']
+    });
+    expect(vm.addCostume).toHaveBeenCalledWith(
+        '0fb9be3e8397c983338cb71dc84d0b25.svg',
+        expect.objectContaining({name: 'cat-b'}),
+        'cat-id',
+        2
+    );
+    expect(vm.addSound).toHaveBeenCalledWith(
+        expect.objectContaining({name: 'Meow', md5: '83c36d806dc92327b9e7049a565c6bff.wav'}),
+        'cat-id'
+    );
 });

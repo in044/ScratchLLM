@@ -28,11 +28,16 @@ import ScratchBlockRenderer, {
 import ScratchTextCompiler from '../../lib/scratch-text-compiler';
 import validateScratchProject from '../../lib/scratch-project-validator';
 import {
+    addLibraryCostumeToEditingTarget,
+    addMissingLibrarySpriteAssets,
+    addLibrarySoundToEditingTarget,
     addLibrarySprite,
     buildExistingSpriteNames,
     buildProjectAssetSummary,
     buildSpriteCatalog,
     findExistingLibrarySpriteName,
+    inferDirectLibraryCostumes,
+    inferRequiredSpriteAssets,
     isAutomaticSpriteAddEnabled
 } from '../../lib/automatic-sprite-selection';
 
@@ -88,7 +93,6 @@ export const renderMessageContent = text => {
 //   REACT_APP_API_BASE_URL=https://your-domain.example.com
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
 const SYNTAX_REPAIR_URL = `${process.env.REACT_APP_API_BASE_URL}/api/repair-scratch`;
-const SPRITE_SELECTION_URL = `${process.env.REACT_APP_API_BASE_URL}/api/select-sprite`;
 const SPRITE_PLAN_URL = `${process.env.REACT_APP_API_BASE_URL}/api/plan-sprites`;
 
 export const buildLlmRequestPayload = ({
@@ -109,6 +113,70 @@ export const buildSpriteAddedMessage = spriteNames => ({
     text: `${(Array.isArray(spriteNames) ? spriteNames : [spriteNames]).join('、')}を追加しました。`,
     sender: 'bot'
 });
+
+export const buildSpriteAssetsAddedMessage = assetSummaries => ({
+    text: assetSummaries.flatMap(summary => [
+        ...summary.costumes.map(costume => (
+            `${summary.targetName}に${formatAddedAssetName(costume)}のコスチュームを追加しました。`
+        )),
+        ...summary.sounds.map(sound => (
+            `${summary.targetName}に${formatAddedAssetName(sound)}の音を追加しました。`
+        ))
+    ]).join(''),
+    sender: 'bot'
+});
+
+const getAddedAssetName = asset => (
+    asset && typeof asset === 'object' ? asset.name : asset
+);
+
+const getAddedAssetSourceName = asset => (
+    asset && typeof asset === 'object' ? asset.sourceName : ''
+);
+
+const formatAddedAssetName = asset => {
+    const name = getAddedAssetName(asset);
+    const sourceName = getAddedAssetSourceName(asset);
+    return sourceName && sourceName !== name ? `${name}（${sourceName}）` : name;
+};
+
+const buildAddedAssetContextLines = assetSummaries => assetSummaries.flatMap(summary => [
+    ...summary.costumes.map(costume => {
+        const name = getAddedAssetName(costume);
+        const sourceName = getAddedAssetSourceName(costume);
+        const sourceText = sourceName && sourceName !== name ? `追加元は ${sourceName} です。` : '';
+        return [
+            `追加済みコスチューム: ${summary.targetName}で使えるコスチューム名は「${name}」です。`,
+            sourceText,
+            'この名前はcurrentAssetsにあるので使用できます。'
+        ].join('');
+    }),
+    ...summary.sounds.map(sound => {
+        const name = getAddedAssetName(sound);
+        const sourceName = getAddedAssetSourceName(sound);
+        const sourceText = sourceName && sourceName !== name ? `追加元は ${sourceName} です。` : '';
+        return [
+            `追加済み音: ${summary.targetName}で使える音名は「${name}」です。`,
+            sourceText,
+            'この名前はcurrentAssetsにあるので使用できます。'
+        ].join('');
+    })
+]);
+
+export const getApiErrorMessage = error => {
+    if (error && typeof error === 'object' && error.code === 'rate_limited') {
+        return 'OpenAI APIの利用上限に達しました。少し時間をおいてから、もう一度試してください。';
+    }
+    return error && typeof error === 'object' && error.message ?
+        error.message :
+        String(error || 'Unknown error');
+};
+
+const isDogSoundRequirement = asset => /犬|いぬ|イヌ|子犬|dog|puppy|bark|吠/iu.test(String(asset || '')) &&
+    /音|sound|鳴|流|play|bark/iu.test(String(asset || ''));
+
+const isDogCostumeRequirement = asset => /犬|いぬ|イヌ|子犬|dog|puppy/iu.test(String(asset || '')) &&
+    /コスチューム|見た目|姿|衣装|変身|変化|変える|costume|look|transform/iu.test(String(asset || ''));
 
 export class ChatComponent extends React.Component {
 
@@ -214,13 +282,17 @@ export class ChatComponent extends React.Component {
                 body: JSON.stringify({
                     userInput,
                     currentProgram: ScratchTextCompiler.projectToScratchBlocks(projectJson),
-                    currentAssets: buildProjectAssetSummary(projectJson)
+                    currentAssets: buildProjectAssetSummary(projectJson),
+                    spriteCatalog: buildSpriteCatalog(),
+                    existingSprites: buildExistingSpriteNames(projectJson)
                 })
             });
             if (!response.ok) throw new Error(`Sprite planning returned ${response.status}.`);
             const data = await response.json();
             return {
                 requiredSprites: Array.isArray(data.requiredSprites) ? data.requiredSprites : [],
+                sprites: Array.isArray(data.sprites) ? data.sprites : [],
+                assetAdditions: Array.isArray(data.assetAdditions) ? data.assetAdditions : [],
                 existingSpritesToReuse: Array.isArray(data.existingSpritesToReuse) ?
                     data.existingSpritesToReuse :
                     [],
@@ -233,6 +305,8 @@ export class ChatComponent extends React.Component {
             console.warn('Automatic sprite planning was unavailable:', error);
             return {
                 requiredSprites: [],
+                sprites: [],
+                assetAdditions: [],
                 existingSpritesToReuse: [],
                 forbiddenSpriteAdditions: [],
                 reason: ''
@@ -240,64 +314,57 @@ export class ChatComponent extends React.Component {
         }
     }
 
-    async _addRequestedLibrarySprites (userInput, requiredSprites) {
+    async _applyPlannedSpriteAssets (spritePlan) {
         if (!isAutomaticSpriteAddEnabled()) {
-            return {addedSpriteNames: [], reusedSpriteNames: []};
+            return {addedSpriteNames: [], reusedSpriteNames: [], addedAssetSummaries: []};
         }
-        if (!Array.isArray(requiredSprites) || requiredSprites.length === 0) {
-            return {addedSpriteNames: [], reusedSpriteNames: []};
-        }
-        try {
-            const project = this.props.vm.toJSON();
-            const response = await fetch(SPRITE_SELECTION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json; charset=UTF-8'
-                },
-                body: JSON.stringify({
-                    userInput,
-                    requiredSprites,
-                    spriteCatalog: buildSpriteCatalog(),
-                    existingSprites: buildExistingSpriteNames(project)
-                })
-            });
-            if (!response.ok) throw new Error(`Sprite selection returned ${response.status}.`);
-            const data = await response.json();
-            const spriteSelections = Array.isArray(data.sprites) ?
-                data.sprites :
-                (Array.isArray(data.spriteNames) ? data.spriteNames.map(spriteName => ({spriteName})) : []);
-            const addedSpriteNames = [];
-            const reusedSpriteNames = [];
-            for (const selection of spriteSelections) {
-                if (!selection) continue;
-                if (selection.existingTargetName) {
-                    reusedSpriteNames.push(selection.existingTargetName);
-                    continue;
-                }
-                const currentProject = this.props.vm.toJSON();
-                const existingSpriteName = findExistingLibrarySpriteName(
-                    currentProject,
-                    selection.spriteName,
-                    selection.japaneseName
-                );
-                if (existingSpriteName) {
-                    reusedSpriteNames.push(existingSpriteName);
-                    continue;
-                }
-                // Add sequentially so VM target updates do not race each other.
-                const addedSpriteName = await addLibrarySprite(
-                    this.props.vm,
-                    selection.spriteName,
-                    selection.japaneseName
-                );
-                if (addedSpriteName) addedSpriteNames.push(addedSpriteName);
-            }
+        const addedSpriteNames = [];
+        const reusedSpriteNames = [];
+        const addedAssetSummaries = [];
 
-            return {addedSpriteNames, reusedSpriteNames};
-        } catch (error) {
-            console.warn('Automatic sprite selection was unavailable:', error);
-            return {addedSpriteNames: [], reusedSpriteNames: []};
+        const assetAdditions = Array.isArray(spritePlan.assetAdditions) ? spritePlan.assetAdditions : [];
+        for (const addition of assetAdditions) {
+            const addedAssets = await addMissingLibrarySpriteAssets(
+                this.props.vm,
+                addition.targetName,
+                addition.sourceSpriteName,
+                '',
+                {
+                    costumes: addition.costumeNames || [],
+                    sounds: addition.soundNames || []
+                }
+            );
+            if (addedAssets.costumes.length > 0 || addedAssets.sounds.length > 0) {
+                addedAssetSummaries.push({
+                    targetName: addition.targetName,
+                    costumes: addedAssets.costumes,
+                    sounds: addedAssets.sounds
+                });
+            }
         }
+
+        const sprites = Array.isArray(spritePlan.sprites) ? spritePlan.sprites : [];
+        for (const selection of sprites) {
+            if (!selection || !selection.spriteName) continue;
+            const currentProject = this.props.vm.toJSON();
+            const existingSpriteName = findExistingLibrarySpriteName(
+                currentProject,
+                selection.spriteName,
+                selection.japaneseName
+            );
+            if (existingSpriteName) {
+                reusedSpriteNames.push(existingSpriteName);
+                continue;
+            }
+            const addedSpriteName = await addLibrarySprite(
+                this.props.vm,
+                selection.spriteName,
+                selection.japaneseName
+            );
+            if (addedSpriteName) addedSpriteNames.push(addedSpriteName);
+        }
+
+        return {addedSpriteNames, reusedSpriteNames, addedAssetSummaries};
     }
 
     async handleSend() {
@@ -317,13 +384,63 @@ export class ChatComponent extends React.Component {
         const initialProjectJson = this.props.vm.toJSON();
         const automaticSpriteAddEnabled = isAutomaticSpriteAddEnabled();
         const spritePlan = await this._planRequiredSprites(inputValue, initialProjectJson);
-        const {addedSpriteNames, reusedSpriteNames} = await this._addRequestedLibrarySprites(
-            inputValue,
-            spritePlan.requiredSprites
-        );
-        if (addedSpriteNames.length > 0) {
+        const inferredRequiredAssets = inferRequiredSpriteAssets(inputValue, initialProjectJson);
+        const directCostumeNames = inferDirectLibraryCostumes(inputValue, initialProjectJson);
+        const directlyAddedAssetSummaries = [];
+        let requiredSpritesFromPlan = spritePlan.requiredSprites;
+        let unresolvedInferredRequiredAssets = inferredRequiredAssets;
+        if (directCostumeNames.length > 0) {
+            for (const costumeName of directCostumeNames) {
+                const addedCostume = await addLibraryCostumeToEditingTarget(this.props.vm, costumeName);
+                if (addedCostume) {
+                    directlyAddedAssetSummaries.push({
+                        targetName: addedCostume.targetName,
+                        costumes: [{
+                            name: addedCostume.costumeName,
+                            sourceName: addedCostume.sourceCostumeName
+                        }],
+                        sounds: []
+                    });
+                }
+            }
+            if (directlyAddedAssetSummaries.some(summary => summary.costumes.length > 0)) {
+                requiredSpritesFromPlan = requiredSpritesFromPlan.filter(asset => !isDogCostumeRequirement(asset));
+            }
+        }
+        if (inferredRequiredAssets.includes('犬の音')) {
+            const addedSound = await addLibrarySoundToEditingTarget(this.props.vm, 'Dog1');
+            if (addedSound) {
+                directlyAddedAssetSummaries.push({
+                    targetName: addedSound.targetName,
+                    costumes: [],
+                    sounds: [addedSound.soundName]
+                });
+                unresolvedInferredRequiredAssets = inferredRequiredAssets.filter(asset => asset !== '犬の音');
+                requiredSpritesFromPlan = requiredSpritesFromPlan.filter(asset => !isDogSoundRequirement(asset));
+            }
+        }
+        const plannedAssets = await this._applyPlannedSpriteAssets(spritePlan);
+        const addedSpriteNames = [
+            ...plannedAssets.addedSpriteNames
+        ];
+        const reusedSpriteNames = [
+            ...plannedAssets.reusedSpriteNames
+        ];
+        const addedAssetSummaries = [
+            ...plannedAssets.addedAssetSummaries
+        ];
+        const allAddedAssetSummaries = [
+            ...directlyAddedAssetSummaries,
+            ...addedAssetSummaries
+        ];
+        if (addedSpriteNames.length > 0 || allAddedAssetSummaries.length > 0) {
             this.props.vm.refreshWorkspace();
+        }
+        if (addedSpriteNames.length > 0) {
             this.props.onAddMessage(buildSpriteAddedMessage(addedSpriteNames));
+        }
+        if (allAddedAssetSummaries.length > 0) {
+            this.props.onAddMessage(buildSpriteAssetsAddedMessage(allAddedAssetSummaries));
         }
         const spriteNamesToReuse = Array.from(new Set([
             ...reusedSpriteNames,
@@ -333,10 +450,16 @@ export class ChatComponent extends React.Component {
             addedSpriteNames.length > 0 ?
                 `追加済みスプライト: ${addedSpriteNames.join('、')}` :
                 '',
+            ...buildAddedAssetContextLines(allAddedAssetSummaries),
             spriteNamesToReuse.length > 0 ?
                 `既存スプライトを再利用: ${spriteNamesToReuse.join('、')}` :
                 '',
-            automaticSpriteAddEnabled && addedSpriteNames.length === 0 && spritePlan.requiredSprites.length === 0 ?
+            automaticSpriteAddEnabled &&
+                    addedSpriteNames.length === 0 &&
+                    directlyAddedAssetSummaries.length === 0 &&
+                    plannedAssets.addedAssetSummaries.length === 0 &&
+                    requiredSpritesFromPlan.length === 0 &&
+                    unresolvedInferredRequiredAssets.length === 0 ?
                 '新規スプライト追加は不要' :
                 '',
             spritePlan.forbiddenSpriteAdditions.length > 0 ?
@@ -426,7 +549,7 @@ export class ChatComponent extends React.Component {
                     fullResponse = data.choices[0].message.content;
                 } else if (data && data.error) {
                     console.error('OpenAI API Error:', data.error);
-                    fullResponse = `Error: ${data.error.message || data.error} `;
+                    fullResponse = getApiErrorMessage(data.error);
                 }
 
                 this._handleScratchBlocksResponse(fullResponse, projectJson, true);

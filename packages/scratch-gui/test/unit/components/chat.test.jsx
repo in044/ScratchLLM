@@ -9,7 +9,9 @@ import ScratchBlockRenderer, {
 import {
     ChatComponent,
     buildLlmRequestPayload,
+    buildSpriteAssetsAddedMessage,
     buildSpriteAddedMessage,
+    getApiErrorMessage,
     markdownToSafeHtml,
     renderMessageContent
 } from '../../../src/components/chat/chat.jsx';
@@ -73,6 +75,28 @@ describe('Automatic sprite notification', () => {
             sender: 'bot'
         });
     });
+
+    test('builds a bot message after library sprite assets are added', () => {
+        expect(buildSpriteAssetsAddedMessage([{
+            targetName: 'ネコ',
+            costumes: ['cat-b'],
+            sounds: ['Meow']
+        }])).toEqual({
+            text: 'ネコにcat-bのコスチュームを追加しました。ネコにMeowの音を追加しました。',
+            sender: 'bot'
+        });
+    });
+
+    test('keeps source names when Scratch renames added costumes', () => {
+        expect(buildSpriteAssetsAddedMessage([{
+            targetName: 'ネコ',
+            costumes: [{name: 'コスチューム2', sourceName: 'Dog1-a'}],
+            sounds: []
+        }])).toEqual({
+            text: 'ネコにコスチューム2（Dog1-a）のコスチュームを追加しました。',
+            sender: 'bot'
+        });
+    });
 });
 
 describe('LLM request payload', () => {
@@ -98,6 +122,15 @@ describe('LLM request payload', () => {
     });
 });
 
+describe('API error messages', () => {
+    test('shows a friendly message for rate limits', () => {
+        expect(getApiErrorMessage({
+            code: 'rate_limited',
+            message: 'raw provider message'
+        })).toBe('OpenAI APIの利用上限に達しました。少し時間をおいてから、もう一度試してください。');
+    });
+});
+
 describe('Chat request lifecycle', () => {
     const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0));
     let originalFetch;
@@ -107,6 +140,7 @@ describe('Chat request lifecycle', () => {
         onAddMessage = jest.fn(),
         onSetIsLoading = jest.fn(),
         onSetPendingRequestId = jest.fn(),
+        vmOverrides = {},
         projectJson = {
             targets: [{
                 isStage: true,
@@ -130,7 +164,8 @@ describe('Chat request lifecycle', () => {
                 editingTarget: {id: 'stage'},
                 loadProject: jest.fn(() => Promise.resolve()),
                 refreshWorkspace: jest.fn(),
-                toJSON: jest.fn(() => projectJson)
+                toJSON: jest.fn(() => projectJson),
+                ...vmOverrides
             }}
             onAddMessage={onAddMessage}
             onClearHistory={jest.fn()}
@@ -156,11 +191,12 @@ describe('Chat request lifecycle', () => {
     test('keeps processing a reply after the chat component unmounts', async () => {
         const onAddMessage = jest.fn();
         const onSetIsLoading = jest.fn();
-        const resolveSpriteSelection = jest.fn();
-        const spriteSelectionPromise = new Promise(resolve => {
-            resolveSpriteSelection.mockImplementation(() => resolve({
+        const resolveSpritePlanning = jest.fn();
+        const spritePlanningPromise = new Promise(resolve => {
+            resolveSpritePlanning.mockImplementation(() => resolve({
                 addedSpriteNames: [],
-                reusedSpriteNames: []
+                reusedSpriteNames: [],
+                addedAssetSummaries: []
             }));
         });
 
@@ -176,12 +212,12 @@ describe('Chat request lifecycle', () => {
 
         const wrapper = makeChatWrapper({onAddMessage, onSetIsLoading});
         const instance = wrapper.instance();
-        instance._addRequestedLibrarySprites = jest.fn(() => spriteSelectionPromise);
+        instance._applyPlannedSpriteAssets = jest.fn(() => spritePlanningPromise);
         wrapper.setState({inputValue: 'こんにちは'});
 
         const sendPromise = instance.handleSend();
         wrapper.unmount();
-        resolveSpriteSelection();
+        resolveSpritePlanning();
 
         await sendPromise;
         await flushPromises();
@@ -225,9 +261,10 @@ describe('Chat request lifecycle', () => {
             onSetPendingRequestId
         });
         const instance = wrapper.instance();
-        instance._addRequestedLibrarySprites = jest.fn(() => Promise.resolve({
+        instance._applyPlannedSpriteAssets = jest.fn(() => Promise.resolve({
             addedSpriteNames: [],
-            reusedSpriteNames: []
+            reusedSpriteNames: [],
+            addedAssetSummaries: []
         }));
         wrapper.setState({inputValue: '承認して'});
 
@@ -262,9 +299,10 @@ describe('Chat request lifecycle', () => {
 
         const wrapper = makeChatWrapper({onAddMessage, onSetIsLoading});
         const instance = wrapper.instance();
-        instance._addRequestedLibrarySprites = jest.fn(() => Promise.resolve({
+        instance._applyPlannedSpriteAssets = jest.fn(() => Promise.resolve({
             addedSpriteNames: [],
-            reusedSpriteNames: []
+            reusedSpriteNames: [],
+            addedAssetSummaries: []
         }));
         wrapper.setState({inputValue: '失敗テスト'});
 
@@ -279,6 +317,270 @@ describe('Chat request lifecycle', () => {
             sender: 'bot'
         });
         expect(onSetIsLoading).toHaveBeenCalledWith(false);
+    });
+
+    test('does not request a dog sprite after directly adding a dog sound', async () => {
+        const onAddMessage = jest.fn();
+        const addSound = jest.fn(() => Promise.resolve());
+        const projectJson = {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                variables: {},
+                lists: {},
+                blocks: {},
+                comments: {},
+                costumes: [{name: 'cat-a'}],
+                sounds: [{name: 'Meow'}]
+            }]
+        };
+
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{
+                    message: {
+                        content: '返答です。'
+                    }
+                }]
+            })
+        }));
+
+        const wrapper = makeChatWrapper({
+            onAddMessage,
+            projectJson,
+            vmOverrides: {
+                editingTarget: {id: 'cat-id', name: 'ネコ'},
+                addSound
+            }
+        });
+        const instance = wrapper.instance();
+        instance._planRequiredSprites = jest.fn(() => Promise.resolve({
+            requiredSprites: ['犬の音'],
+            existingSpritesToReuse: [],
+            forbiddenSpriteAdditions: [],
+            reason: ''
+        }));
+        wrapper.setState({inputValue: 'スペースキーを押したら犬の音が流れるようにして'});
+
+        await instance.handleSend();
+        await flushPromises();
+
+        expect(addSound).toHaveBeenCalledWith(
+            expect.objectContaining({name: 'Dog1'}),
+            'cat-id'
+        );
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: 'ネコにDog1の音を追加しました。',
+            sender: 'bot'
+        });
+    });
+
+    test('does not request a dog sprite after directly adding dog costumes', async () => {
+        const onAddMessage = jest.fn();
+        const addCostume = jest.fn(() => Promise.resolve());
+        const projectJson = {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                variables: {},
+                lists: {},
+                blocks: {},
+                comments: {},
+                costumes: [{name: 'cat-a'}],
+                sounds: []
+            }]
+        };
+
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{
+                    message: {
+                        content: '返答です。'
+                    }
+                }]
+            })
+        }));
+
+        const wrapper = makeChatWrapper({
+            onAddMessage,
+            projectJson,
+            vmOverrides: {
+                editingTarget: {id: 'cat-id', name: 'ネコ'},
+                addCostume
+            }
+        });
+        const instance = wrapper.instance();
+        instance._planRequiredSprites = jest.fn(() => Promise.resolve({
+            requiredSprites: ['犬のコスチューム'],
+            existingSpritesToReuse: [],
+            forbiddenSpriteAdditions: [],
+            reason: ''
+        }));
+        wrapper.setState({inputValue: 'ネコに犬のコスチュームを追加して'});
+
+        await instance.handleSend();
+        await flushPromises();
+
+        expect(addCostume).toHaveBeenCalledWith(
+            '35cd78a8a71546a16c530d0b2d7d5a7f.svg',
+            expect.objectContaining({name: 'Dog1-a'}),
+            'cat-id',
+            2
+        );
+        expect(addCostume).toHaveBeenCalledWith(
+            'd5a72e1eb23a91df4b53c0b16493d1e6.svg',
+            expect.objectContaining({name: 'Dog1-b'}),
+            'cat-id',
+            2
+        );
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: 'ネコにDog1-aのコスチュームを追加しました。ネコにDog1-bのコスチュームを追加しました。',
+            sender: 'bot'
+        });
+    });
+
+    test('passes renamed added costume context to the program LLM', async () => {
+        const onAddMessage = jest.fn();
+        const addCostume = jest.fn(() => Promise.resolve());
+        const beforeProjectJson = {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                variables: {},
+                lists: {},
+                blocks: {},
+                comments: {},
+                costumes: [{name: 'cat-a'}],
+                sounds: []
+            }]
+        };
+        const afterProjectJson = {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                variables: {},
+                lists: {},
+                blocks: {},
+                comments: {},
+                costumes: [
+                    {name: 'cat-a'},
+                    {
+                        name: 'コスチューム2',
+                        md5ext: '35cd78a8a71546a16c530d0b2d7d5a7f.svg'
+                    }
+                ],
+                sounds: []
+            }]
+        };
+        const toJSON = jest.fn()
+            .mockReturnValueOnce(beforeProjectJson)
+            .mockReturnValueOnce(beforeProjectJson)
+            .mockReturnValueOnce(afterProjectJson)
+            .mockReturnValue(afterProjectJson);
+
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{
+                    message: {
+                        content: '返答です。'
+                    }
+                }]
+            })
+        }));
+
+        const wrapper = makeChatWrapper({
+            onAddMessage,
+            vmOverrides: {
+                editingTarget: {id: 'cat-id', name: 'ネコ'},
+                addCostume,
+                toJSON
+            }
+        });
+        const instance = wrapper.instance();
+        instance._planRequiredSprites = jest.fn(() => Promise.resolve({
+            requiredSprites: ['犬のコスチューム'],
+            existingSpritesToReuse: [],
+            forbiddenSpriteAdditions: [],
+            reason: ''
+        }));
+        wrapper.setState({inputValue: 'スペースキーで犬に変身して'});
+
+        await instance.handleSend();
+        await flushPromises();
+
+        const payload = JSON.parse(global.fetch.mock.calls[0][1].body);
+        expect(payload.userInput).toContain('追加済みコスチューム');
+        expect(payload.userInput).toContain('「コスチューム2」');
+        expect(payload.userInput).toContain('Dog1-a');
+        expect(payload.currentAssets.targets[0].costumes).toContain('コスチューム2');
+    });
+
+    test('applies planner asset additions without legacy sprite selection', async () => {
+        const onAddMessage = jest.fn();
+        const addSound = jest.fn(() => Promise.resolve());
+        const projectJson = {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                variables: {},
+                lists: {},
+                blocks: {},
+                comments: {},
+                costumes: [{name: 'cat-a'}],
+                sounds: [{name: 'Meow'}]
+            }]
+        };
+
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{
+                    message: {
+                        content: '返答です。'
+                    }
+                }]
+            })
+        }));
+
+        const wrapper = makeChatWrapper({
+            onAddMessage,
+            projectJson,
+            vmOverrides: {
+                editingTarget: {id: 'cat-id', name: 'ネコ'},
+                addSound
+            }
+        });
+        const instance = wrapper.instance();
+        instance._planRequiredSprites = jest.fn(() => Promise.resolve({
+            requiredSprites: ['犬の音'],
+            sprites: [],
+            assetAdditions: [{
+                targetName: 'ネコ',
+                sourceSpriteName: 'Dog1',
+                costumeNames: [],
+                soundNames: ['dog1']
+            }],
+            existingSpritesToReuse: [],
+            forbiddenSpriteAdditions: [],
+            reason: ''
+        }));
+        wrapper.setState({inputValue: 'ネコにライブラリの音を追加して'});
+
+        await instance.handleSend();
+        await flushPromises();
+
+        expect(addSound).toHaveBeenCalledWith(
+            expect.objectContaining({name: 'dog1'}),
+            'cat-id'
+        );
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: 'ネコにdog1の音を追加しました。',
+            sender: 'bot'
+        });
     });
 
     test('reuses the imported program repair for the matching explanatory Scratch fence', async () => {

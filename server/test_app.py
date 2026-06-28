@@ -10,10 +10,10 @@ from app import (
     app,
     build_llm_messages,
     build_sprite_requirement_messages,
-    build_sprite_selection_messages,
+    is_rate_limit_error,
     normalize_scratch_key_names,
     parse_sprite_requirement,
-    parse_sprite_selection,
+    parse_sprite_requirement_with_catalog,
     parse_json_request
 )
 
@@ -133,52 +133,6 @@ class PromptSecurityTest(unittest.TestCase):
         })
         client.chat.completions.create.assert_not_called()
 
-    def test_sprite_selection_prompt_uses_only_compact_catalog(self):
-        messages, catalog, existing_sprites = build_sprite_selection_messages({
-            'userInput': '空を飛ぶ動物を追加して',
-            'existingSprites': ['ネコ'],
-            'spriteCatalog': [
-                {
-                    'name': 'Bat',
-                    'displayName': 'コウモリ（Bat）',
-                    'japaneseName': 'コウモリ',
-                    'aliases': ['Bat', 'コウモリ', 'コウモリ（Bat）'],
-                    'tags': ['animals', 'flying'],
-                    'costumes': ['ignored']
-                },
-                {'name': 'Cat', 'displayName': 'ネコ（Cat）', 'japaneseName': 'ネコ', 'tags': ['animals']}
-            ]
-        })
-
-        self.assertEqual([item['name'] for item in catalog], ['Bat', 'Cat'])
-        self.assertEqual(existing_sprites, ['ネコ'])
-        self.assertIn('- コウモリ（Bat）', messages[-1]['content'])
-        self.assertIn('- ネコ（Cat）', messages[-1]['content'])
-        self.assertIn('既存スプライト一覧', messages[-1]['content'])
-        self.assertNotIn('ignored', messages[-1]['content'])
-
-    def test_sprite_selection_prompt_can_disable_japanese_names(self):
-        with patch.dict(os.environ, {'SCRATCH_SPRITE_JAPANESE_NAMES_ENABLED': 'false'}):
-            messages, catalog, _ = build_sprite_selection_messages({
-                'userInput': '空を飛ぶ動物を追加して',
-                'existingSprites': ['Cat'],
-                'spriteCatalog': [
-                    {
-                        'name': 'Bat',
-                        'displayName': 'コウモリ（Bat）',
-                        'japaneseName': 'コウモリ',
-                        'aliases': ['コウモリ（Bat）'],
-                        'tags': ['animals', 'flying']
-                    }
-                ]
-            })
-
-        self.assertEqual(catalog[0]['displayName'], 'Bat')
-        self.assertEqual(catalog[0]['japaneseName'], '')
-        self.assertIn('- Bat', messages[-1]['content'])
-        self.assertIn('スプライト一覧にある名前', messages[-1]['content'])
-        self.assertNotIn('コウモリ（Bat）', messages[-1]['content'])
-
     def test_sprite_requirement_prompt_treats_arrows_as_keyboard_input(self):
         messages = build_sprite_requirement_messages({
             'userInput': '矢印で滑らかに左右移動するようにして',
@@ -196,6 +150,23 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertIn('requiredSprites', messages[-1]['content'])
         self.assertIn('迷う場合は requiredSprites を空配列', messages[-1]['content'])
 
+    def test_sprite_requirement_prompt_includes_missing_sound_assets(self):
+        messages = build_sprite_requirement_messages({
+            'userInput': 'スペースキーを押したら犬の音が流れるようにして',
+            'currentProgram': '# Stage\n# ブロックなし\n\n# ネコ\n# ブロックなし',
+            'currentAssets': {
+                'targets': [
+                    {'name': 'Stage', 'costumes': ['背景1'], 'sounds': ['ポップ']},
+                    {'name': 'ネコ', 'costumes': ['cat-a'], 'sounds': ['Meow']}
+                ]
+            }
+        })
+
+        self.assertIn('犬の音', messages[-1]['content'])
+        self.assertIn('現在の素材にない', messages[-1]['content'])
+        self.assertIn('requiredSprites', messages[-1]['content'])
+        self.assertIn('実際に追加する素材は必ず sprites または assetAdditions', messages[-1]['content'])
+
     def test_parse_sprite_requirement_normalizes_json(self):
         self.assertEqual(
             parse_sprite_requirement(
@@ -204,6 +175,8 @@ class PromptSecurityTest(unittest.TestCase):
             ),
             {
                 'requiredSprites': ['敵'],
+                'sprites': [],
+                'assetAdditions': [],
                 'existingSpritesToReuse': ['ネコ'],
                 'forbiddenSpriteAdditions': ['矢印'],
                 'reason': '既存で移動できる'
@@ -211,56 +184,96 @@ class PromptSecurityTest(unittest.TestCase):
         )
         self.assertEqual(parse_sprite_requirement('not json')['requiredSprites'], [])
 
-    def test_sprite_selection_skips_when_required_sprites_is_empty(self):
-        messages, catalog, existing_sprites = build_sprite_selection_messages({
-            'userInput': '矢印で滑らかに左右移動するようにして',
-            'requiredSprites': [],
-            'existingSprites': ['ネコ'],
-            'spriteCatalog': [
-                {'name': 'Arrow1', 'displayName': '矢印1（Arrow1）', 'japaneseName': '矢印1'}
-            ]
-        })
-
-        self.assertIsNone(messages)
-        self.assertEqual([item['name'] for item in catalog], ['Arrow1'])
-        self.assertEqual(existing_sprites, ['ネコ'])
-
-    def test_sprite_selection_accepts_only_library_names(self):
-        catalog = [
-            {
-                'name': 'Bat',
-                'displayName': 'コウモリ（Bat）',
-                'japaneseName': 'コウモリ',
-                'tags': ['animals']
-            },
-            {
-                'name': 'Cat',
-                'displayName': 'ネコ（Cat）',
-                'japaneseName': 'ネコ',
-                'tags': ['animals']
-            }
-        ]
+    def test_parse_sprite_requirement_accepts_planned_sprite_assets(self):
+        catalog = [{
+            'name': 'Dog1',
+            'displayName': 'イヌ1（Dog1）',
+            'japaneseName': 'イヌ1',
+            'costumes': ['dog1-a', 'dog1-b'],
+            'sounds': ['dog1'],
+            'tags': ['animals']
+        }]
 
         self.assertEqual(
-            parse_sprite_selection(
-                '{"sprites":['
-                '{"spriteName":"コウモリ（Bat）"},'
-                '{"existingTargetName":"ネコ"},'
-                '{"spriteName":"ドラゴン（Dragon）"}'
-                ']}',
-                catalog,
-                ['ネコ']
+            parse_sprite_requirement_with_catalog(
+                json.dumps({
+                    'requiredSprites': ['犬の音'],
+                    'sprites': [{'spriteName': 'Dog1'}],
+                    'assetAdditions': [{
+                        'targetName': 'ネコ',
+                        'sourceSpriteName': 'Dog1',
+                        'costumeNames': ['dog1-a', 'not-real'],
+                        'soundNames': ['dog1', 'not-real']
+                    }],
+                    'reason': '犬の音が必要'
+                }, ensure_ascii=False),
+                catalog
             ),
-            [
-                {'spriteName': 'Bat', 'japaneseName': 'コウモリ'},
-                {'existingTargetName': 'ネコ'}
-            ]
+            {
+                'requiredSprites': ['犬の音'],
+                'sprites': [{'spriteName': 'Dog1'}],
+                'assetAdditions': [{
+                    'targetName': 'ネコ',
+                    'sourceSpriteName': 'Dog1',
+                    'costumeNames': ['dog1-a'],
+                    'soundNames': ['dog1']
+                }],
+                'existingSpritesToReuse': [],
+                'forbiddenSpriteAdditions': [],
+                'reason': '犬の音が必要'
+            }
         )
+
+    def test_parse_sprite_requirement_infers_planned_sprite_from_required_name(self):
+        catalog = [{
+            'name': 'Bananas',
+            'displayName': 'バナナ（Bananas）',
+            'japaneseName': 'バナナ',
+            'aliases': ['バナナ（Bananas）'],
+            'costumes': ['bananas'],
+            'sounds': ['Chomp', 'Bite'],
+            'tags': ['food', 'fruit']
+        }]
+
         self.assertEqual(
-            parse_sprite_selection('{"spriteName":"コウモリ（Bat）"}', catalog),
-            [{'spriteName': 'Bat', 'japaneseName': 'コウモリ'}]
+            parse_sprite_requirement_with_catalog(
+                json.dumps({
+                    'requiredSprites': ['バナナ'],
+                    'reason': '新しい敵が必要'
+                }, ensure_ascii=False),
+                catalog
+            ),
+            {
+                'requiredSprites': ['バナナ'],
+                'sprites': [{'spriteName': 'Bananas'}],
+                'assetAdditions': [],
+                'existingSpritesToReuse': [],
+                'forbiddenSpriteAdditions': [],
+                'reason': '新しい敵が必要'
+            }
         )
-        self.assertEqual(parse_sprite_selection('not json', catalog), [])
+
+    def test_parse_sprite_requirement_does_not_infer_sprite_for_asset_only_requirement(self):
+        catalog = [{
+            'name': 'Dog1',
+            'displayName': 'イヌ1（Dog1）',
+            'japaneseName': 'イヌ1',
+            'aliases': ['イヌ1（Dog1）'],
+            'costumes': ['dog1-a', 'dog1-b'],
+            'sounds': ['Dog1'],
+            'tags': ['animals']
+        }]
+
+        self.assertEqual(
+            parse_sprite_requirement_with_catalog(
+                json.dumps({
+                    'requiredSprites': ['犬の音'],
+                    'reason': '音だけ必要'
+                }, ensure_ascii=False),
+                catalog
+            )['sprites'],
+            []
+        )
 
     def test_server_includes_current_asset_names_in_task_prompt(self):
         messages = build_llm_messages({
@@ -277,90 +290,6 @@ class PromptSecurityTest(unittest.TestCase):
 
         self.assertIn('butterfly2-b', messages[-1]['content'])
         self.assertIn('"sounds": ["pop"]', messages[-1]['content'])
-
-    def test_select_sprite_endpoint_returns_only_valid_selected_name(self):
-        client = MagicMock()
-        client.moderations.create.return_value = SimpleNamespace(
-            results=[SimpleNamespace(flagged=False)]
-        )
-        client.chat.completions.create.return_value = SimpleNamespace(
-            choices=[SimpleNamespace(
-                message=SimpleNamespace(content=(
-                    '{"sprites":['
-                    '{"spriteName":"コウモリ（Bat）"},'
-                    '{"existingTargetName":"ネコ"}'
-                    ']}'
-                ))
-            )]
-        )
-
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
-            with patch('openai.OpenAI', return_value=client):
-                response = app.test_client().post('/api/select-sprite', json={
-                    'userInput': '空を飛ぶ動物を追加して',
-                    'existingSprites': ['ネコ'],
-                    'spriteCatalog': [
-                        {
-                            'name': 'Bat',
-                            'displayName': 'コウモリ（Bat）',
-                            'japaneseName': 'コウモリ',
-                            'tags': ['animals', 'flying']
-                        },
-                        {
-                            'name': 'Cat',
-                            'displayName': 'ネコ（Cat）',
-                            'japaneseName': 'ネコ',
-                            'tags': ['animals']
-                        }
-                    ]
-                })
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {
-            'sprites': [
-                {'spriteName': 'Bat', 'japaneseName': 'コウモリ'},
-                {'existingTargetName': 'ネコ'}
-            ],
-            'spriteNames': ['Bat']
-        })
-        client.chat.completions.create.assert_called_once()
-
-    def test_select_sprite_endpoint_does_not_call_openai_for_empty_required_sprites(self):
-        client = MagicMock()
-
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
-            with patch('openai.OpenAI', return_value=client):
-                response = app.test_client().post('/api/select-sprite', json={
-                    'userInput': '矢印で滑らかに左右移動するようにして',
-                    'requiredSprites': [],
-                    'existingSprites': ['ネコ'],
-                    'spriteCatalog': [
-                        {'name': 'Arrow1', 'displayName': '矢印1（Arrow1）', 'japaneseName': '矢印1'}
-                    ]
-                })
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {'sprites': [], 'spriteNames': []})
-        client.chat.completions.create.assert_not_called()
-
-    def test_select_sprite_endpoint_can_be_disabled_by_environment(self):
-        client = MagicMock()
-
-        with patch.dict(os.environ, {
-            'OPENAI_API_KEY': 'test-key',
-            'SCRATCH_AUTO_SPRITE_ADD_ENABLED': 'false'
-        }):
-            with patch('openai.OpenAI', return_value=client):
-                response = app.test_client().post('/api/select-sprite', json={
-                    'userInput': '空を飛ぶ動物を追加して',
-                    'spriteCatalog': [
-                        {'name': 'Bat', 'displayName': 'コウモリ（Bat）', 'japaneseName': 'コウモリ'}
-                    ]
-                })
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {'sprites': [], 'spriteNames': [], 'disabled': True})
-        client.chat.completions.create.assert_not_called()
 
     def test_plan_sprites_endpoint_returns_requirement_plan(self):
         client = MagicMock()
@@ -387,9 +316,52 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {
             'requiredSprites': [],
+            'sprites': [],
+            'assetAdditions': [],
             'existingSpritesToReuse': ['ネコ'],
             'forbiddenSpriteAdditions': ['矢印'],
             'reason': 'キーボード入力だから'
+        })
+        client.chat.completions.create.assert_called_once()
+
+    def test_plan_sprites_endpoint_infers_sprite_from_required_name(self):
+        client = MagicMock()
+        client.moderations.create.return_value = SimpleNamespace(
+            results=[SimpleNamespace(flagged=False)]
+        )
+        client.chat.completions.create.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content=(
+                    '{"requiredSprites":["バナナ"],"reason":"バナナが敵として必要"}'
+                ))
+            )]
+        )
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            with patch('openai.OpenAI', return_value=client):
+                response = app.test_client().post('/api/plan-sprites', json={
+                    'userInput': 'バナナから逃げるゲームを作って',
+                    'currentProgram': '# Stage\n# ブロックなし\n\n# ネコ\n# ブロックなし',
+                    'currentAssets': {'targets': [{'name': 'ネコ'}]},
+                    'spriteCatalog': [{
+                        'name': 'Bananas',
+                        'displayName': 'バナナ（Bananas）',
+                        'japaneseName': 'バナナ',
+                        'aliases': ['バナナ（Bananas）'],
+                        'costumes': ['bananas'],
+                        'sounds': ['Chomp', 'Bite'],
+                        'tags': ['food', 'fruit']
+                    }]
+                })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'requiredSprites': ['バナナ'],
+            'sprites': [{'spriteName': 'Bananas'}],
+            'assetAdditions': [],
+            'existingSpritesToReuse': [],
+            'forbiddenSpriteAdditions': [],
+            'reason': 'バナナが敵として必要'
         })
         client.chat.completions.create.assert_called_once()
 
@@ -410,12 +382,39 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {
             'requiredSprites': [],
+            'sprites': [],
+            'assetAdditions': [],
             'existingSpritesToReuse': [],
             'forbiddenSpriteAdditions': [],
             'reason': '',
             'disabled': True
         })
         client.chat.completions.create.assert_not_called()
+
+    def test_rate_limit_errors_are_detected(self):
+        error = Exception("Error code: 429 - {'error': {'message': 'Too Many Requests'}}")
+
+        self.assertTrue(is_rate_limit_error(error))
+
+    def test_llm_endpoint_returns_friendly_rate_limit_error(self):
+        client = MagicMock()
+        client.moderations.create.return_value = SimpleNamespace(
+            results=[SimpleNamespace(flagged=False)]
+        )
+        client.chat.completions.create.side_effect = Exception(
+            "Error code: 429 - {'error': {'message': 'Too Many Requests'}}"
+        )
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            with patch('openai.OpenAI', return_value=client):
+                response = app.test_client().post('/api/llm', json={
+                    'userInput': 'こんにちは',
+                    'currentProgram': '# Stage\n# ブロックなし',
+                    'currentAssets': {'targets': []}
+                })
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.get_json()['error']['code'], 'rate_limited')
 
 
 if __name__ == '__main__':

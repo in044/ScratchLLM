@@ -4,6 +4,7 @@ import json
 import queue
 import argparse
 import threading
+import re
 from flask import Flask, request, jsonify, Response, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -33,6 +34,25 @@ def env_flag(name, default=True):
     return value.strip().lower() not in ('0', 'false', 'no', 'off')
 
 
+def is_rate_limit_error(error):
+    status_code = getattr(error, 'status_code', None)
+    if status_code == 429:
+        return True
+    code = getattr(error, 'code', None)
+    if code == 'rate_limit_exceeded':
+        return True
+    return '429' in str(error) or 'Too Many Requests' in str(error)
+
+
+def rate_limit_response():
+    return jsonify({
+        'error': {
+            'code': 'rate_limited',
+            'message': 'OpenAI APIの利用上限に達しました。少し時間をおいてからもう一度試してください。'
+        }
+    }), 429
+
+
 # --- Global State ---
 state_lock = Lock()
 app_state = {
@@ -56,7 +76,6 @@ admin_queues_lock = Lock()
 
 LLM_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-5.4')
 SYNTAX_REPAIR_MODEL = os.environ.get('OPENAI_SYNTAX_REPAIR_MODEL', 'gpt-5.4-mini')
-SPRITE_SELECTION_MODEL = os.environ.get('OPENAI_SPRITE_SELECTION_MODEL', 'gpt-5.4-mini')
 SPRITE_REQUIREMENT_MODEL = os.environ.get('OPENAI_SPRITE_REQUIREMENT_MODEL', LLM_MODEL)
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), 'scratch_system_prompt.txt')
 with open(PROMPT_PATH, encoding='utf-8') as prompt_file:
@@ -127,6 +146,8 @@ def sanitize_sprite_catalog(value):
             continue
         name = item.get('name')
         tags = item.get('tags', [])
+        costumes = item.get('costumes', [])
+        sounds = item.get('sounds', [])
         display_name = item.get('displayName')
         japanese_name = item.get('japaneseName')
         aliases = item.get('aliases', [])
@@ -134,6 +155,10 @@ def sanitize_sprite_catalog(value):
             continue
         if not isinstance(tags, list):
             tags = []
+        if not isinstance(costumes, list):
+            costumes = []
+        if not isinstance(sounds, list):
+            sounds = []
         if not isinstance(aliases, list):
             aliases = []
         sanitized_name = name.strip()[:100]
@@ -160,11 +185,27 @@ def sanitize_sprite_catalog(value):
                 tag.strip()[:50]
                 for tag in tags[:20]
                 if isinstance(tag, str) and tag.strip()
+            ],
+            'costumes': [
+                costume.strip()[:80]
+                for costume in costumes[:30]
+                if isinstance(costume, str) and costume.strip()
+            ],
+            'sounds': [
+                sound.strip()[:80]
+                for sound in sounds[:30]
+                if isinstance(sound, str) and sound.strip()
             ]
         })
     if not catalog:
         raise BadRequest('spriteCatalog must contain at least one sprite.')
     return catalog
+
+
+def sanitize_optional_sprite_catalog(value):
+    if value is None:
+        return []
+    return sanitize_sprite_catalog(value)
 
 
 def sanitize_current_assets(value):
@@ -214,31 +255,40 @@ def sanitize_existing_sprites(value):
     ]
 
 
-def sanitize_required_sprites(value):
-    if value is None:
-        return None
-    if not isinstance(value, list):
-        raise BadRequest('requiredSprites must be an array.')
-    return [
-        item.strip()[:120]
-        for item in value[:10]
-        if isinstance(item, str) and item.strip()
-    ]
-
-
 def build_sprite_requirement_messages(data):
     user_input = require_string(data, 'userInput', 10000)
     current_program = require_string(data, 'currentProgram', 200000)
     current_assets = sanitize_current_assets(data.get('currentAssets'))
+    catalog = sanitize_optional_sprite_catalog(data.get('spriteCatalog'))
+    existing_sprites = sanitize_existing_sprites(data.get('existingSprites'))
+
+    def catalog_line(item):
+        asset_parts = []
+        if item['costumes']:
+            asset_parts.append(f'コスチューム: {", ".join(item["costumes"])}')
+        if item['sounds']:
+            asset_parts.append(f'音: {", ".join(item["sounds"])}')
+        asset_text = f'（{" / ".join(asset_parts)}）' if asset_parts else ''
+        return f'- {item["displayName"]}{asset_text}'
+
+    catalog_text = '\n'.join(catalog_line(item) for item in catalog) if catalog else '未指定'
     prompt = f"""次のScratchプログラム変更依頼を、コード修正の観点から解析してください。
-目的は「新しいスプライトが本当に必要か」だけを保守的に判定することです。
+目的は「Scratchライブラリから自動追加すべきスプライト・コスチューム・音が本当に必要か」を保守的に判定することです。
 
 ルール:
 - 既存スプライトの動作変更、入力キー、条件、変数、見た目変更、説明依頼では新規スプライトを要求しない。
 - ユーザーが明示した新しい登場物・キャラクター・物体が、既存スプライトだけでは実現できない場合だけ requiredSprites に入れる。
+- ユーザーが明示したコスチューム・見た目素材・音が現在の素材にない場合も、requiredSprites に「犬の音」「走るコスチューム」のような必要素材の短い説明を入れる。
+- 音やコスチュームだけが必要な場合は、新しい登場物として画面に出す必要はないが、素材を含むライブラリスプライトを後段で選べるよう requiredSprites に入れる。
 - 「矢印で移動」はキーボードの矢印キー操作を意味する。矢印スプライト、矢印画像、左右ボタンを要求してはいけない。
 - UIボタンや操作説明用の画像は、ユーザーが「画面に追加して」と明示した場合だけ要求する。
 - 既存スプライトで代用できる対象は existingSpritesToReuse に入れ、requiredSprites には入れない。
+- スプライトを新しく画面に登場させる必要がある場合は sprites に入れる。
+- 既存スプライトへコスチューム・音だけを追加すればよい場合は assetAdditions に入れ、sprites には入れない。
+- requiredSprites は説明用です。実際に追加する素材は必ず sprites または assetAdditions にも入れる。
+- 例: 「バナナから逃げるゲーム」は requiredSprites に「バナナ」、sprites に {{"spriteName":"Bananas"}} を入れる。
+- spriteName/sourceSpriteName はスプライト一覧にある名前だけを使用する。
+- costumeNames/soundNames は、その sourceSpriteName の行に書かれたコスチューム名・音名だけを使用する。
 - 迷う場合は requiredSprites を空配列にする。
 
 現在のプログラム:
@@ -249,13 +299,28 @@ def build_sprite_requirement_messages(data):
 現在の素材:
 {json.dumps(current_assets, ensure_ascii=False)}
 
+既存スプライト一覧:
+{json.dumps(existing_sprites, ensure_ascii=False)}
+
+スプライト一覧:
+{catalog_text}
+
 ユーザーの依頼:
 {user_input}
 
 JSONだけを返してください。
 形式:
 {{
-  "requiredSprites": ["新しく必要なスプライトの短い説明"],
+  "requiredSprites": ["新しく必要なスプライト・コスチューム・音の短い説明"],
+  "sprites": [{{"spriteName": "追加するライブラリスプライト名"}}],
+  "assetAdditions": [
+    {{
+      "targetName": "素材を追加する既存スプライト名",
+      "sourceSpriteName": "素材を持つライブラリスプライト名",
+      "costumeNames": ["追加するコスチューム名"],
+      "soundNames": ["追加する音名"]
+    }}
+  ],
   "existingSpritesToReuse": ["再利用する既存スプライト名"],
   "forbiddenSpriteAdditions": ["追加してはいけないもの"],
   "reason": "短い理由"
@@ -275,6 +340,8 @@ def parse_sprite_requirement(content):
     except json.JSONDecodeError:
         return {
             'requiredSprites': [],
+            'sprites': [],
+            'assetAdditions': [],
             'existingSpritesToReuse': [],
             'forbiddenSpriteAdditions': [],
             'reason': ''
@@ -292,117 +359,180 @@ def parse_sprite_requirement(content):
             if isinstance(item, str) and item.strip()
         ]
 
+    catalog = []
+    valid_names = set()
+    assets_by_name = {}
+    raw_catalog = plan.get('_catalog')
+    if isinstance(raw_catalog, list):
+        catalog = raw_catalog
+    for item in catalog:
+        if not isinstance(item, dict):
+            continue
+        name = item.get('name')
+        if not isinstance(name, str):
+            continue
+        valid_names.add(name)
+        assets_by_name[name] = {
+            'costumes': set(item.get('costumes', []) if isinstance(item.get('costumes'), list) else []),
+            'sounds': set(item.get('sounds', []) if isinstance(item.get('sounds'), list) else [])
+        }
+
+    def sprite_list():
+        value = plan.get('sprites')
+        if not isinstance(value, list):
+            return []
+        result = []
+        for item in value[:10]:
+            if not isinstance(item, dict):
+                continue
+            sprite_name = item.get('spriteName')
+            if not isinstance(sprite_name, str) or not sprite_name.strip():
+                continue
+            if valid_names and sprite_name not in valid_names:
+                continue
+            result.append({'spriteName': sprite_name.strip()[:100]})
+        return result
+
+    def asset_additions():
+        value = plan.get('assetAdditions')
+        if not isinstance(value, list):
+            return []
+        result = []
+        for item in value[:10]:
+            if not isinstance(item, dict):
+                continue
+            target_name = item.get('targetName')
+            source_name = item.get('sourceSpriteName')
+            if not isinstance(target_name, str) or not target_name.strip():
+                continue
+            if not isinstance(source_name, str) or not source_name.strip():
+                continue
+            source_name = source_name.strip()[:100]
+            if valid_names and source_name not in valid_names:
+                continue
+            costume_names = item.get('costumeNames', [])
+            sound_names = item.get('soundNames', [])
+            if not isinstance(costume_names, list):
+                costume_names = []
+            if not isinstance(sound_names, list):
+                sound_names = []
+            valid_costumes = assets_by_name.get(source_name, {}).get('costumes', set())
+            valid_sounds = assets_by_name.get(source_name, {}).get('sounds', set())
+            costumes = [
+                name.strip()[:100]
+                for name in costume_names[:20]
+                if isinstance(name, str) and name.strip() and (not valid_costumes or name.strip() in valid_costumes)
+            ]
+            sounds = [
+                name.strip()[:100]
+                for name in sound_names[:20]
+                if isinstance(name, str) and name.strip() and (not valid_sounds or name.strip() in valid_sounds)
+            ]
+            if not costumes and not sounds:
+                continue
+            result.append({
+                'targetName': target_name.strip()[:100],
+                'sourceSpriteName': source_name,
+                'costumeNames': costumes,
+                'soundNames': sounds
+            })
+        return result
+
     reason = plan.get('reason')
     return {
         'requiredSprites': string_list('requiredSprites'),
+        'sprites': sprite_list(),
+        'assetAdditions': asset_additions(),
         'existingSpritesToReuse': string_list('existingSpritesToReuse'),
         'forbiddenSpriteAdditions': string_list('forbiddenSpriteAdditions'),
         'reason': reason.strip()[:500] if isinstance(reason, str) else ''
     }
 
 
-def build_sprite_selection_messages(data):
-    user_input = require_string(data, 'userInput', 10000)
-    catalog = sanitize_sprite_catalog(data.get('spriteCatalog'))
-    existing_sprites = sanitize_existing_sprites(data.get('existingSprites'))
-    required_sprites = sanitize_required_sprites(data.get('requiredSprites'))
-    if required_sprites is not None and not required_sprites:
-        return None, catalog, existing_sprites
-    catalog_text = '\n'.join(
-        f'- {item["displayName"]}'
-        for item in catalog
-    )
-    required_sprites_text = (
-        json.dumps(required_sprites, ensure_ascii=False)
-        if required_sprites is not None else
-        '未指定'
-    )
-    sprite_name_instruction = (
-        'spriteNameは必ずスプライト一覧にある「日本語名（英語名）」を一字一句そのまま使用してください。'
-        if env_flag('SCRATCH_SPRITE_JAPANESE_NAMES_ENABLED', True) else
-        'spriteNameは必ずスプライト一覧にある名前を一字一句そのまま使用してください。'
-    )
-    prompt = f"""ユーザーの依頼を読み、Scratchのスプライトライブラリから新しいスプライトを追加すべきか判定してください。
-ユーザーが新しい登場物・キャラクター・物体の追加を依頼している場合だけ、一覧から必要なスプライトを選んでください。
-requiredSprites が未指定ではない場合は、requiredSprites に列挙された必要素材だけを選択対象にしてください。
-requiredSprites が空配列の場合は必ず {{"sprites":[]}} を返してください。
-複数の登場物を依頼された場合は複数選び、同じ種類を複数依頼された場合は同じnameを必要な数だけ繰り返してください。
-明示されていないスプライトを余分に選ばず、最大10個までにしてください。
-既存スプライトの動作変更、コード追加、背景追加、質問、説明依頼では選ばないでください。
-既存スプライト一覧に同じ意味の対象がすでにある場合は、新規追加せずexistingTargetNameでその名前を返してください。
-たとえば既存に「ネコ」があり、依頼が猫やCatに関するものなら、Catを追加せず「ネコ」を再利用してください。
-「矢印で移動」はキーボードの矢印キー操作を意味します。矢印スプライトや左右ボタンを追加してはいけません。
-{sprite_name_instruction}
-
-ユーザーの依頼:
-{user_input}
-
-コード修正AIが要求した新規スプライト:
-{required_sprites_text}
-
-既存スプライト一覧:
-{json.dumps(existing_sprites, ensure_ascii=False)}
-
-スプライト一覧:
-{catalog_text}
-
-JSONだけを返してください。
-新規追加する場合: {{"sprites":[{{"spriteName":"一覧の名前"}}]}}
-既存を使う場合: {{"sprites":[{{"existingTargetName":"既存スプライト名"}}]}}
-追加も再利用もしない場合: {{"sprites":[]}}"""
-    return [
-        {
-            'role': 'system',
-            'content': 'あなたはScratchスプライトライブラリの保守的な選択器です。JSONだけを返します。'
-        },
-        {'role': 'user', 'content': prompt}
-    ], catalog, existing_sprites
+def normalize_catalog_match_text(value):
+    return re.sub(r'[\s（）()・_\-]+', '', str(value or '').strip().lower())
 
 
-def parse_sprite_selection(content, catalog, existing_sprites=None):
-    try:
-        selection = json.loads(content or '{}')
-    except json.JSONDecodeError:
+def is_asset_only_requirement(value):
+    return bool(re.search(
+        r'音|鳴|なら|流|sound|play|コスチューム|衣装|見た目|姿|変身|変化|変える|costume|look|transform',
+        str(value or ''),
+        re.I
+    ))
+
+
+def catalog_match_terms(item):
+    values = [
+        item.get('name'),
+        item.get('displayName'),
+        item.get('japaneseName')
+    ]
+    aliases = item.get('aliases')
+    if isinstance(aliases, list):
+        values.extend(aliases)
+    tags = item.get('tags')
+    if isinstance(tags, list):
+        values.extend(tags)
+    terms = []
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            terms.append(normalize_catalog_match_text(value))
+    return [term for term in terms if term]
+
+
+def infer_sprites_from_required_sprites(required_sprites, catalog, existing_sprites):
+    if not catalog:
         return []
-    if not isinstance(selection, dict):
-        return []
-    name_by_display_name = {item['displayName']: item for item in catalog}
-    valid_names = {item['name'] for item in catalog}
-    valid_existing = set(existing_sprites or [])
-    sprites = selection.get('sprites')
-    if isinstance(sprites, list):
-        result = []
-        for item in sprites[:10]:
+    existing_normalized = {
+        normalize_catalog_match_text(name)
+        for name in existing_sprites
+        if isinstance(name, str)
+    }
+    result = []
+    added = set()
+    for required in required_sprites[:10]:
+        if is_asset_only_requirement(required):
+            continue
+        normalized_required = normalize_catalog_match_text(required)
+        if not normalized_required:
+            continue
+        for item in catalog:
             if not isinstance(item, dict):
                 continue
-            existing_name = item.get('existingTargetName')
-            if isinstance(existing_name, str) and existing_name in valid_existing:
-                result.append({'existingTargetName': existing_name})
+            name = item.get('name')
+            if not isinstance(name, str) or not name.strip() or name in added:
                 continue
-            sprite_name = item.get('spriteName')
-            matched = name_by_display_name.get(sprite_name) if isinstance(sprite_name, str) else None
-            if not matched and isinstance(sprite_name, str) and sprite_name in valid_names:
-                matched = next((candidate for candidate in catalog if candidate['name'] == sprite_name), None)
-            if not matched:
+            terms = catalog_match_terms(item)
+            if normalize_catalog_match_text(name) in existing_normalized:
                 continue
-            result.append({
-                'spriteName': matched['name'],
-                'japaneseName': matched['japaneseName']
-            })
-        return result
+            if any(
+                normalized_required == term or
+                normalized_required in term or
+                term in normalized_required
+                for term in terms
+            ):
+                result.append({'spriteName': name.strip()[:100]})
+                added.add(name)
+                break
+    return result
 
-    names = selection.get('spriteNames')
-    if not isinstance(names, list):
-        legacy_name = selection.get('spriteName')
-        names = [legacy_name] if isinstance(legacy_name, str) else []
-    return [
-        {
-            'spriteName': name_by_display_name.get(name, {'name': name, 'japaneseName': ''})['name'],
-            'japaneseName': name_by_display_name.get(name, {'japaneseName': ''})['japaneseName']
-        }
-        for name in names[:10]
-        if isinstance(name, str) and (name in valid_names or name in name_by_display_name)
-    ]
+
+def parse_sprite_requirement_with_catalog(content, catalog):
+    try:
+        plan = json.loads(content or '{}')
+    except json.JSONDecodeError:
+        plan = {}
+    if not isinstance(plan, dict):
+        plan = {}
+    plan['_catalog'] = catalog
+    parsed = parse_sprite_requirement(json.dumps(plan, ensure_ascii=False))
+    if not parsed['sprites'] and not parsed['assetAdditions']:
+        parsed['sprites'] = infer_sprites_from_required_sprites(
+            parsed['requiredSprites'],
+            catalog,
+            parsed['existingSpritesToReuse']
+        )
+    return parsed
 
 
 def build_llm_messages(data):
@@ -803,6 +933,8 @@ def plan_sprites():
         if not env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True):
             return jsonify({
                 'requiredSprites': [],
+                'sprites': [],
+                'assetAdditions': [],
                 'existingSpritesToReuse': [],
                 'forbiddenSpriteAdditions': [],
                 'reason': '',
@@ -812,7 +944,12 @@ def plan_sprites():
         with state_lock:
             ai_enabled = app_state['ai_enabled']
         if not ai_enabled:
-            return jsonify({'requiredSprites': [], 'disabled': True}), 503
+            return jsonify({
+                'requiredSprites': [],
+                'sprites': [],
+                'assetAdditions': [],
+                'disabled': True
+            }), 503
 
         data = parse_json_request()
         messages = build_sprite_requirement_messages(data)
@@ -834,63 +971,15 @@ def plan_sprites():
             response_format={'type': 'json_object'}
         )
         content = response.choices[0].message.content
-        return jsonify(parse_sprite_requirement(content))
+        catalog = sanitize_optional_sprite_catalog(data.get('spriteCatalog'))
+        return jsonify(parse_sprite_requirement_with_catalog(content, catalog))
     except BadRequest as e:
         return jsonify({'error': e.description}), 400
     except Exception as e:
+        if is_rate_limit_error(e):
+            print(f"Rate limited while planning sprites: {e}")
+            return rate_limit_response()
         print(f"Error planning sprites: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-# ─────────────────────────────────────────────
-# スプライトライブラリ自動選択
-# ─────────────────────────────────────────────
-@app.route('/api/select-sprite', methods=['POST'])
-def select_sprite():
-    try:
-        if not env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True):
-            return jsonify({'sprites': [], 'spriteNames': [], 'disabled': True})
-
-        with state_lock:
-            ai_enabled = app_state['ai_enabled']
-        if not ai_enabled:
-            return jsonify({'spriteNames': [], 'disabled': True}), 503
-
-        data = parse_json_request()
-        messages, catalog, existing_sprites = build_sprite_selection_messages(data)
-        if messages is None:
-            return jsonify({'sprites': [], 'spriteNames': []})
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if not api_key:
-            return jsonify({'error': 'OpenAI API key is not set.'}), 500
-
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
-        moderation = client.moderations.create(input=data['userInput'])
-        if moderation.results[0].flagged:
-            return jsonify({
-                'error': 'This content violates our safety policies.',
-                'flagged': True
-            }), 400
-        response = client.chat.completions.create(
-            model=SPRITE_SELECTION_MODEL,
-            messages=messages,
-            response_format={'type': 'json_object'}
-        )
-        content = response.choices[0].message.content
-        sprites = parse_sprite_selection(content, catalog, existing_sprites)
-        return jsonify({
-            'sprites': sprites,
-            'spriteNames': [
-                item['spriteName']
-                for item in sprites
-                if 'spriteName' in item
-            ]
-        })
-    except BadRequest as e:
-        return jsonify({'error': e.description}), 400
-    except Exception as e:
-        print(f"Error selecting sprite: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -982,6 +1071,9 @@ def llm_proxy():
         print(f"Bad request in llm_proxy: {e.description}")
         return jsonify({"error": e.description}), 400
     except Exception as e:
+        if is_rate_limit_error(e):
+            print(f"Rate limited in llm_proxy: {e}")
+            return rate_limit_response()
         print(f"Error in llm_proxy: {e}")
         return jsonify({"error": str(e)}), 500
 

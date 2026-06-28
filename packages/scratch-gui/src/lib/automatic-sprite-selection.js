@@ -1,4 +1,6 @@
 import spriteLibraryContent from './libraries/sprites.json';
+import costumeLibraryContent from './libraries/costumes.json';
+import soundLibraryContent from './libraries/sounds.json';
 import {getSpriteDisplayName, getSpriteJapaneseName} from './libraries/sprite-display-names';
 import randomizeSpritePosition from './randomize-sprite-position';
 
@@ -44,7 +46,9 @@ export const buildSpriteCatalog = () => {
             aliases: [
                 displayName
             ].filter(Boolean),
-            tags: sprite.tags || []
+            tags: sprite.tags || [],
+            costumes: (sprite.costumes || []).map(costume => costume.name).filter(Boolean),
+            sounds: (sprite.sounds || []).map(sound => sound.name).filter(Boolean)
         };
     });
 };
@@ -62,6 +66,155 @@ export const buildProjectAssetSummary = project => ({
         sounds: (target.sounds || []).map(sound => sound.name)
     }))
 });
+
+export const inferRequiredSpriteAssets = (userInput, project) => {
+    const input = String(userInput || '');
+    const normalizedInput = normalizeSpriteName(input);
+    const currentSounds = new Set(
+        getProjectTargets(project)
+            .flatMap(target => target.sounds || [])
+            .map(sound => normalizeSpriteName(sound && sound.name))
+            .filter(Boolean)
+    );
+
+    const requiredAssets = [];
+    const asksForSound = /音|鳴|なら|流|sound|play/iu.test(input);
+    const asksForDog = /犬|いぬ|イヌ|子犬|dog|puppy|bark|吠/iu.test(input);
+    const hasDogSound = ['dog1', 'dog2', 'bark'].some(sound => currentSounds.has(sound));
+    if (asksForSound && asksForDog && !hasDogSound) {
+        requiredAssets.push('犬の音');
+    }
+
+    for (const sprite of spriteLibraryContent) {
+        for (const sound of sprite.sounds || []) {
+            const soundName = normalizeSpriteName(sound.name);
+            if (soundName && normalizedInput.includes(soundName) && !currentSounds.has(soundName)) {
+                requiredAssets.push(`${sound.name} の音`);
+            }
+        }
+    }
+
+    return Array.from(new Set(requiredAssets));
+};
+
+export const inferDirectLibraryCostumes = (userInput, project) => {
+    const input = String(userInput || '');
+    const normalizedInput = normalizeSpriteName(input);
+    const currentCostumes = new Set(
+        getProjectTargets(project)
+            .flatMap(target => target.costumes || [])
+            .map(costume => normalizeSpriteName(costume && costume.name))
+            .filter(Boolean)
+    );
+
+    const asksForCostume = /コスチューム|見た目|姿|衣装|変身|変化|変える|costume|look|transform/iu.test(input);
+    const asksForDog = /犬|いぬ|イヌ|子犬|dog|puppy/iu.test(input);
+    const costumes = [];
+    if (asksForCostume && asksForDog) {
+        costumes.push('Dog1-a', 'Dog1-b');
+    }
+
+    for (const costume of costumeLibraryContent) {
+        const costumeName = normalizeSpriteName(costume.name);
+        if (costumeName && normalizedInput.includes(costumeName) && !currentCostumes.has(costumeName)) {
+            costumes.push(costume.name);
+        }
+    }
+
+    return Array.from(new Set(
+        costumes.filter(costume => !currentCostumes.has(normalizeSpriteName(costume)))
+    ));
+};
+
+const findLibraryCostume = name => (
+    costumeLibraryContent.find(costume => costume.name === name) || null
+);
+
+const findLibrarySound = name => (
+    soundLibraryContent.find(sound => sound.name === name) || null
+);
+
+export const addLibraryCostumeToEditingTarget = async (vm, costumeName) => {
+    const source = findLibraryCostume(costumeName);
+    if (!source || !vm || !vm.editingTarget || typeof vm.addCostume !== 'function') {
+        return null;
+    }
+
+    const targetId = vm.editingTarget.id;
+    const project = typeof vm.toJSON === 'function' ? vm.toJSON() : null;
+    const target = targetId ?
+        getProjectTargets(project).find(candidate => candidate && candidate.id === targetId) :
+        null;
+    const existingCostumeIds = targetAssetIds(target && target.costumes);
+    const existingCostumeNames = targetAssetNames(target && target.costumes);
+    const sourceId = assetIdForLibraryMatch(source);
+    const sourceName = normalizeSpriteName(source.name);
+    if ((sourceId && existingCostumeIds.has(sourceId)) || (sourceName && existingCostumeNames.has(sourceName))) {
+        return null;
+    }
+
+    await vm.addCostume(source.md5ext, {
+        name: source.name,
+        md5: source.md5ext,
+        rotationCenterX: source.rotationCenterX,
+        rotationCenterY: source.rotationCenterY,
+        bitmapResolution: source.bitmapResolution,
+        skinId: null
+    }, targetId, 2);
+
+    const updatedProject = typeof vm.toJSON === 'function' ? vm.toJSON() : null;
+    const updatedTarget = findTargetById(updatedProject, targetId);
+    const addedCostumeName = findAddedAssetName(
+        target && target.costumes,
+        updatedTarget && updatedTarget.costumes,
+        source,
+        source.name
+    );
+    const targetName = target ?
+        getTargetDisplayName(target) :
+        (typeof vm.editingTarget.getName === 'function' ? vm.editingTarget.getName() : vm.editingTarget.name);
+    return {
+        targetName,
+        costumeName: addedCostumeName,
+        sourceCostumeName: source.name
+    };
+};
+
+export const addLibrarySoundToEditingTarget = async (vm, soundName) => {
+    const source = findLibrarySound(soundName);
+    if (!source || !vm || !vm.editingTarget || typeof vm.addSound !== 'function') {
+        return null;
+    }
+
+    const targetId = vm.editingTarget.id;
+    const project = typeof vm.toJSON === 'function' ? vm.toJSON() : null;
+    const target = targetId ?
+        getProjectTargets(project).find(candidate => candidate && candidate.id === targetId) :
+        null;
+    const existingSoundIds = targetAssetIds(target && target.sounds);
+    const existingSoundNames = targetAssetNames(target && target.sounds);
+    const sourceId = assetIdForLibraryMatch(source);
+    const sourceName = normalizeSpriteName(source.name);
+    if ((sourceId && existingSoundIds.has(sourceId)) || (sourceName && existingSoundNames.has(sourceName))) {
+        return null;
+    }
+
+    await vm.addSound({
+        format: source.dataFormat,
+        md5: source.md5ext,
+        rate: source.rate,
+        sampleCount: source.sampleCount,
+        name: source.name
+    }, targetId);
+
+    const targetName = target ?
+        getTargetDisplayName(target) :
+        (typeof vm.editingTarget.getName === 'function' ? vm.editingTarget.getName() : vm.editingTarget.name);
+    return {
+        targetName,
+        soundName: source.name
+    };
+};
 
 export const isDefaultScratchCatTarget = target => {
     if (!target || target.isStage) return false;
@@ -157,6 +310,121 @@ export const formatLibrarySpriteName = (libraryName, japaneseName = '') => {
 export const findLibrarySprite = name => (
     spriteLibraryContent.find(sprite => sprite.name === name) || null
 );
+
+export const findProjectTargetByDisplayName = (project, targetName) => {
+    const normalizedTargetName = normalizeSpriteName(targetName);
+    if (!normalizedTargetName) return null;
+    return getProjectTargets(project).find(target => {
+        if (!target || target.isStage) return false;
+        return [
+            target.name,
+            getTargetDisplayName(target)
+        ].map(normalizeSpriteName)
+            .filter(Boolean)
+            .includes(normalizedTargetName);
+    }) || null;
+};
+
+const targetAssetIds = (assets = []) => new Set(
+    (assets || []).map(assetIdForLibraryMatch).filter(Boolean)
+);
+
+const targetAssetNames = (assets = []) => new Set(
+    (assets || []).map(asset => normalizeSpriteName(asset && asset.name)).filter(Boolean)
+);
+
+const findTargetById = (project, targetId) => (
+    getProjectTargets(project).find(candidate => candidate && candidate.id === targetId) || null
+);
+
+const findAddedAssetName = (beforeAssets, afterAssets, sourceAsset, fallbackName) => {
+    const beforeIds = targetAssetIds(beforeAssets);
+    const beforeNames = targetAssetNames(beforeAssets);
+    const sourceId = assetIdForLibraryMatch(sourceAsset);
+    const sourceName = normalizeSpriteName(sourceAsset && sourceAsset.name);
+    const added = (afterAssets || []).find(asset => {
+        const assetId = assetIdForLibraryMatch(asset);
+        const assetName = normalizeSpriteName(asset && asset.name);
+        if (assetId && beforeIds.has(assetId)) return false;
+        if (assetName && beforeNames.has(assetName)) return false;
+        return (sourceId && assetId === sourceId) || (sourceName && assetName === sourceName);
+    });
+    return added && added.name ? added.name : fallbackName;
+};
+
+export const addMissingLibrarySpriteAssets = async (
+    vm,
+    targetName,
+    libraryName,
+    japaneseName = '',
+    assetFilter = {}
+) => {
+    const source = findLibrarySprite(libraryName);
+    if (!source || !vm || typeof vm.toJSON !== 'function') {
+        return {costumes: [], sounds: []};
+    }
+
+    const project = vm.toJSON();
+    const target = findProjectTargetByDisplayName(project, targetName) ||
+        findProjectTargetByDisplayName(project, findExistingLibrarySpriteName(project, libraryName, japaneseName));
+    if (!target || !target.id) return {costumes: [], sounds: []};
+
+    const existingCostumeIds = targetAssetIds(target.costumes);
+    const existingCostumeNames = targetAssetNames(target.costumes);
+    const hasCostumeFilter = Array.isArray(assetFilter.costumes);
+    const requestedCostumes = new Set((assetFilter.costumes || []).map(normalizeSpriteName).filter(Boolean));
+    const addedCostumes = [];
+    for (const costume of source.costumes || []) {
+        if (hasCostumeFilter && !requestedCostumes.has(normalizeSpriteName(costume.name))) {
+            continue;
+        }
+        const assetId = assetIdForLibraryMatch(costume);
+        const assetName = normalizeSpriteName(costume.name);
+        if ((assetId && existingCostumeIds.has(assetId)) || (assetName && existingCostumeNames.has(assetName))) {
+            continue;
+        }
+        const vmCostume = {
+            name: costume.name,
+            md5: costume.md5ext,
+            rotationCenterX: costume.rotationCenterX,
+            rotationCenterY: costume.rotationCenterY,
+            bitmapResolution: costume.bitmapResolution,
+            skinId: null
+        };
+        await vm.addCostume(costume.md5ext, vmCostume, target.id, 2);
+        addedCostumes.push(costume.name);
+        if (assetId) existingCostumeIds.add(assetId);
+        if (assetName) existingCostumeNames.add(assetName);
+    }
+
+    const existingSoundIds = targetAssetIds(target.sounds);
+    const existingSoundNames = targetAssetNames(target.sounds);
+    const hasSoundFilter = Array.isArray(assetFilter.sounds);
+    const requestedSounds = new Set((assetFilter.sounds || []).map(normalizeSpriteName).filter(Boolean));
+    const addedSounds = [];
+    for (const sound of source.sounds || []) {
+        if (hasSoundFilter && !requestedSounds.has(normalizeSpriteName(sound.name))) {
+            continue;
+        }
+        const assetId = assetIdForLibraryMatch(sound);
+        const assetName = normalizeSpriteName(sound.name);
+        if ((assetId && existingSoundIds.has(assetId)) || (assetName && existingSoundNames.has(assetName))) {
+            continue;
+        }
+        await vm.addSound({
+            format: sound.format || sound.dataFormat,
+            md5: sound.md5ext,
+            rate: sound.rate,
+            sampleCount: sound.sampleCount,
+            name: sound.name
+        }, target.id);
+        addedSounds.push(sound.name);
+        if (assetId) existingSoundIds.add(assetId);
+        if (assetName) existingSoundNames.add(assetName);
+    }
+
+    return {costumes: addedCostumes, sounds: addedSounds};
+};
 
 export const addLibrarySprite = (vm, name, japaneseName = '') => {
     const source = findLibrarySprite(name);
