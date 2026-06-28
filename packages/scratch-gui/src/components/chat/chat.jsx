@@ -32,7 +32,8 @@ import {
     buildExistingSpriteNames,
     buildProjectAssetSummary,
     buildSpriteCatalog,
-    findExistingLibrarySpriteName
+    findExistingLibrarySpriteName,
+    isAutomaticSpriteAddEnabled
 } from '../../lib/automatic-sprite-selection';
 
 export const markdownToSafeHtml = text => DOMPurify.sanitize(
@@ -196,6 +197,14 @@ export class ChatComponent extends React.Component {
     }
 
     async _planRequiredSprites (userInput, projectJson) {
+        if (!isAutomaticSpriteAddEnabled()) {
+            return {
+                requiredSprites: [],
+                existingSpritesToReuse: [],
+                forbiddenSpriteAdditions: [],
+                reason: ''
+            };
+        }
         try {
             const response = await fetch(SPRITE_PLAN_URL, {
                 method: 'POST',
@@ -232,6 +241,9 @@ export class ChatComponent extends React.Component {
     }
 
     async _addRequestedLibrarySprites (userInput, requiredSprites) {
+        if (!isAutomaticSpriteAddEnabled()) {
+            return {addedSpriteNames: [], reusedSpriteNames: []};
+        }
         if (!Array.isArray(requiredSprites) || requiredSprites.length === 0) {
             return {addedSpriteNames: [], reusedSpriteNames: []};
         }
@@ -303,6 +315,7 @@ export class ChatComponent extends React.Component {
         }
 
         const initialProjectJson = this.props.vm.toJSON();
+        const automaticSpriteAddEnabled = isAutomaticSpriteAddEnabled();
         const spritePlan = await this._planRequiredSprites(inputValue, initialProjectJson);
         const {addedSpriteNames, reusedSpriteNames} = await this._addRequestedLibrarySprites(
             inputValue,
@@ -323,7 +336,7 @@ export class ChatComponent extends React.Component {
             spriteNamesToReuse.length > 0 ?
                 `既存スプライトを再利用: ${spriteNamesToReuse.join('、')}` :
                 '',
-            addedSpriteNames.length === 0 && spritePlan.requiredSprites.length === 0 ?
+            automaticSpriteAddEnabled && addedSpriteNames.length === 0 && spritePlan.requiredSprites.length === 0 ?
                 '新規スプライト追加は不要' :
                 '',
             spritePlan.forbiddenSpriteAdditions.length > 0 ?

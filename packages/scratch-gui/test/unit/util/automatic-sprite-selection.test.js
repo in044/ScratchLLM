@@ -7,9 +7,16 @@ import {
     findExistingLibrarySpriteName,
     formatLibrarySpriteName,
     getTargetDisplayName,
+    isAutomaticSpriteAddEnabled,
+    isSpriteJapaneseNamesEnabled,
     isDefaultScratchCatTarget,
     findLibrarySprite
 } from '../../../src/lib/automatic-sprite-selection';
+
+afterEach(() => {
+    delete process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED;
+    delete process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED;
+});
 
 test('builds a compact sprite catalog without asset data', () => {
     const catalog = buildSpriteCatalog();
@@ -30,6 +37,41 @@ test('builds display names for the sprite library while preserving the original 
 
     expect(cat.name).toBe('ネコ');
     expect(cat.libraryName).toBe('Cat');
+});
+
+test('can disable sprite Japanese names from the environment', async () => {
+    process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED = 'false';
+    const catalogCat = buildSpriteCatalog().find(sprite => sprite.name === 'Cat');
+    const displayCat = buildDisplaySpriteLibrary().find(sprite => sprite.libraryName === 'Cat');
+    const vm = {
+        addSprite: jest.fn(() => Promise.resolve()),
+        renameSprite: jest.fn(),
+        editingTarget: {
+            id: 'cat-id',
+            name: 'Cat',
+            getName: () => 'Cat'
+        }
+    };
+
+    expect(isSpriteJapaneseNamesEnabled()).toBe(false);
+    expect(catalogCat).toMatchObject({
+        name: 'Cat',
+        displayName: 'Cat',
+        japaneseName: ''
+    });
+    expect(displayCat.name).toBe('Cat');
+    expect(formatLibrarySpriteName('Cat', 'ネコ')).toBe('Cat');
+    await expect(addLibrarySprite(vm, 'Cat', 'ネコ')).resolves.toBe('Cat');
+    expect(vm.renameSprite).not.toHaveBeenCalled();
+
+    delete process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED;
+});
+
+test('can disable automatic sprite addition from the environment', () => {
+    process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED = 'off';
+    expect(isAutomaticSpriteAddEnabled()).toBe(false);
+    delete process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED;
+    expect(isAutomaticSpriteAddEnabled()).toBe(true);
 });
 
 test('generates Japanese display names for every sprite from the sprite JSON', () => {

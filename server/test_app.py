@@ -157,6 +157,28 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertIn('既存スプライト一覧', messages[-1]['content'])
         self.assertNotIn('ignored', messages[-1]['content'])
 
+    def test_sprite_selection_prompt_can_disable_japanese_names(self):
+        with patch.dict(os.environ, {'SCRATCH_SPRITE_JAPANESE_NAMES_ENABLED': 'false'}):
+            messages, catalog, _ = build_sprite_selection_messages({
+                'userInput': '空を飛ぶ動物を追加して',
+                'existingSprites': ['Cat'],
+                'spriteCatalog': [
+                    {
+                        'name': 'Bat',
+                        'displayName': 'コウモリ（Bat）',
+                        'japaneseName': 'コウモリ',
+                        'aliases': ['コウモリ（Bat）'],
+                        'tags': ['animals', 'flying']
+                    }
+                ]
+            })
+
+        self.assertEqual(catalog[0]['displayName'], 'Bat')
+        self.assertEqual(catalog[0]['japaneseName'], '')
+        self.assertIn('- Bat', messages[-1]['content'])
+        self.assertIn('スプライト一覧にある名前', messages[-1]['content'])
+        self.assertNotIn('コウモリ（Bat）', messages[-1]['content'])
+
     def test_sprite_requirement_prompt_treats_arrows_as_keyboard_input(self):
         messages = build_sprite_requirement_messages({
             'userInput': '矢印で滑らかに左右移動するようにして',
@@ -321,6 +343,25 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertEqual(response.get_json(), {'sprites': [], 'spriteNames': []})
         client.chat.completions.create.assert_not_called()
 
+    def test_select_sprite_endpoint_can_be_disabled_by_environment(self):
+        client = MagicMock()
+
+        with patch.dict(os.environ, {
+            'OPENAI_API_KEY': 'test-key',
+            'SCRATCH_AUTO_SPRITE_ADD_ENABLED': 'false'
+        }):
+            with patch('openai.OpenAI', return_value=client):
+                response = app.test_client().post('/api/select-sprite', json={
+                    'userInput': '空を飛ぶ動物を追加して',
+                    'spriteCatalog': [
+                        {'name': 'Bat', 'displayName': 'コウモリ（Bat）', 'japaneseName': 'コウモリ'}
+                    ]
+                })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {'sprites': [], 'spriteNames': [], 'disabled': True})
+        client.chat.completions.create.assert_not_called()
+
     def test_plan_sprites_endpoint_returns_requirement_plan(self):
         client = MagicMock()
         client.moderations.create.return_value = SimpleNamespace(
@@ -351,6 +392,30 @@ class PromptSecurityTest(unittest.TestCase):
             'reason': 'キーボード入力だから'
         })
         client.chat.completions.create.assert_called_once()
+
+    def test_plan_sprites_endpoint_can_be_disabled_by_environment(self):
+        client = MagicMock()
+
+        with patch.dict(os.environ, {
+            'OPENAI_API_KEY': 'test-key',
+            'SCRATCH_AUTO_SPRITE_ADD_ENABLED': 'off'
+        }):
+            with patch('openai.OpenAI', return_value=client):
+                response = app.test_client().post('/api/plan-sprites', json={
+                    'userInput': '敵を追加して',
+                    'currentProgram': '# Stage\n# ブロックなし',
+                    'currentAssets': {'targets': []}
+                })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'requiredSprites': [],
+            'existingSpritesToReuse': [],
+            'forbiddenSpriteAdditions': [],
+            'reason': '',
+            'disabled': True
+        })
+        client.chat.completions.create.assert_not_called()
 
 
 if __name__ == '__main__':

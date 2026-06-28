@@ -2,6 +2,23 @@ import spriteLibraryContent from './libraries/sprites.json';
 import {getSpriteDisplayName, getSpriteJapaneseName} from './libraries/sprite-display-names';
 import randomizeSpritePosition from './randomize-sprite-position';
 
+const isEnvFlagEnabled = (value, defaultValue = true) => {
+    if (typeof value === 'undefined') return defaultValue;
+    return !['0', 'false', 'no', 'off'].includes(String(value)
+        .trim()
+        .toLowerCase());
+};
+
+export const isSpriteJapaneseNamesEnabled = () => isEnvFlagEnabled(
+    process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED,
+    true
+);
+
+export const isAutomaticSpriteAddEnabled = () => isEnvFlagEnabled(
+    process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED,
+    true
+);
+
 const parseProject = project => {
     if (typeof project !== 'string') return project || {};
     try {
@@ -16,20 +33,26 @@ const getProjectTargets = project => {
     return Array.isArray(parsedProject.targets) ? parsedProject.targets : [];
 };
 
-export const buildSpriteCatalog = () => spriteLibraryContent.map(sprite => ({
-    name: sprite.name,
-    displayName: getSpriteDisplayName(sprite.name),
-    japaneseName: getSpriteJapaneseName(sprite.name),
-    aliases: [
-        getSpriteDisplayName(sprite.name)
-    ].filter(Boolean),
-    tags: sprite.tags || []
-}));
+export const buildSpriteCatalog = () => {
+    const useJapaneseNames = isSpriteJapaneseNamesEnabled();
+    return spriteLibraryContent.map(sprite => {
+        const displayName = useJapaneseNames ? getSpriteDisplayName(sprite.name) : sprite.name;
+        return {
+            name: sprite.name,
+            displayName,
+            japaneseName: useJapaneseNames ? getSpriteJapaneseName(sprite.name) : '',
+            aliases: [
+                displayName
+            ].filter(Boolean),
+            tags: sprite.tags || []
+        };
+    });
+};
 
 export const buildDisplaySpriteLibrary = () => spriteLibraryContent.map(sprite => ({
     ...sprite,
     libraryName: sprite.name,
-    name: getSpriteJapaneseName(sprite.name) || sprite.name
+    name: isSpriteJapaneseNamesEnabled() ? getSpriteJapaneseName(sprite.name) || sprite.name : sprite.name
 }));
 
 export const buildProjectAssetSummary = project => ({
@@ -50,11 +73,13 @@ export const isDefaultScratchCatTarget = target => {
 export const getTargetDisplayName = target => {
     if (!target) return '';
     if (target.isStage) return 'Stage';
-    if (isDefaultScratchCatTarget(target)) return getSpriteJapaneseName('Cat');
+    if (isSpriteJapaneseNamesEnabled() && isDefaultScratchCatTarget(target)) return getSpriteJapaneseName('Cat');
     return target.name;
 };
 
-const normalizeSpriteName = value => String(value || '').trim().toLocaleLowerCase();
+const normalizeSpriteName = value => String(value || '')
+    .trim()
+    .toLocaleLowerCase();
 
 const assetIdForLibraryMatch = asset => {
     if (!asset) return '';
@@ -119,6 +144,7 @@ export const buildExistingSpriteNames = project => (
 );
 
 export const formatLibrarySpriteName = (libraryName, japaneseName = '') => {
+    if (!isSpriteJapaneseNamesEnabled()) return libraryName;
     const generatedJapaneseName = spriteLibraryContent.some(sprite => sprite.name === libraryName) ?
         getSpriteJapaneseName(libraryName) :
         '';

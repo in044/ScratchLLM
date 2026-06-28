@@ -25,15 +25,21 @@ load_dotenv()
 app = Flask(__name__, static_folder=None)
 CORS(app)
 
+
+def env_flag(name, default=True):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in ('0', 'false', 'no', 'off')
+
+
 # --- Global State ---
 state_lock = Lock()
 app_state = {
     # "approval_mode": not args.no_approval,
     "approval_mode": False,
     "ai_enabled": True,
-    "syntax_repair_enabled": os.environ.get(
-        'SCRATCH_SYNTAX_REPAIR_ENABLED', 'true'
-    ).lower() in ('1', 'true', 'yes', 'on'),
+    "syntax_repair_enabled": env_flag('SCRATCH_SYNTAX_REPAIR_ENABLED', True),
 }
 
 # id -> {
@@ -114,6 +120,7 @@ def sanitize_sprite_catalog(value):
     if not isinstance(value, list):
         raise BadRequest('spriteCatalog must be an array.')
 
+    use_japanese_names = env_flag('SCRATCH_SPRITE_JAPANESE_NAMES_ENABLED', True)
     catalog = []
     for item in value[:1000]:
         if not isinstance(item, dict):
@@ -129,14 +136,25 @@ def sanitize_sprite_catalog(value):
             tags = []
         if not isinstance(aliases, list):
             aliases = []
+        sanitized_name = name.strip()[:100]
+        sanitized_display_name = (
+            display_name.strip()[:120]
+            if use_japanese_names and isinstance(display_name, str)
+            else sanitized_name
+        )
+        sanitized_japanese_name = (
+            japanese_name.strip()[:40]
+            if use_japanese_names and isinstance(japanese_name, str)
+            else ''
+        )
         catalog.append({
-            'name': name.strip()[:100],
-            'displayName': display_name.strip()[:120] if isinstance(display_name, str) else name.strip()[:100],
-            'japaneseName': japanese_name.strip()[:40] if isinstance(japanese_name, str) else '',
+            'name': sanitized_name,
+            'displayName': sanitized_display_name,
+            'japaneseName': sanitized_japanese_name,
             'aliases': [
                 alias.strip()[:120]
                 for alias in aliases[:10]
-                if isinstance(alias, str) and alias.strip()
+                if use_japanese_names and isinstance(alias, str) and alias.strip()
             ],
             'tags': [
                 tag.strip()[:50]
@@ -299,6 +317,11 @@ def build_sprite_selection_messages(data):
         if required_sprites is not None else
         '未指定'
     )
+    sprite_name_instruction = (
+        'spriteNameは必ずスプライト一覧にある「日本語名（英語名）」を一字一句そのまま使用してください。'
+        if env_flag('SCRATCH_SPRITE_JAPANESE_NAMES_ENABLED', True) else
+        'spriteNameは必ずスプライト一覧にある名前を一字一句そのまま使用してください。'
+    )
     prompt = f"""ユーザーの依頼を読み、Scratchのスプライトライブラリから新しいスプライトを追加すべきか判定してください。
 ユーザーが新しい登場物・キャラクター・物体の追加を依頼している場合だけ、一覧から必要なスプライトを選んでください。
 requiredSprites が未指定ではない場合は、requiredSprites に列挙された必要素材だけを選択対象にしてください。
@@ -309,7 +332,7 @@ requiredSprites が空配列の場合は必ず {{"sprites":[]}} を返してく�
 既存スプライト一覧に同じ意味の対象がすでにある場合は、新規追加せずexistingTargetNameでその名前を返してください。
 たとえば既存に「ネコ」があり、依頼が猫やCatに関するものなら、Catを追加せず「ネコ」を再利用してください。
 「矢印で移動」はキーボードの矢印キー操作を意味します。矢印スプライトや左右ボタンを追加してはいけません。
-spriteNameは必ずスプライト一覧にある「日本語名（英語名）」を一字一句そのまま使用してください。
+{sprite_name_instruction}
 
 ユーザーの依頼:
 {user_input}
@@ -324,7 +347,7 @@ spriteNameは必ずスプライト一覧にある「日本語名（英語名）�
 {catalog_text}
 
 JSONだけを返してください。
-新規追加する場合: {{"sprites":[{{"spriteName":"一覧の日本語名（英語名）"}}]}}
+新規追加する場合: {{"sprites":[{{"spriteName":"一覧の名前"}}]}}
 既存を使う場合: {{"sprites":[{{"existingTargetName":"既存スプライト名"}}]}}
 追加も再利用もしない場合: {{"sprites":[]}}"""
     return [
@@ -777,6 +800,15 @@ def repair_scratch():
 @app.route('/api/plan-sprites', methods=['POST'])
 def plan_sprites():
     try:
+        if not env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True):
+            return jsonify({
+                'requiredSprites': [],
+                'existingSpritesToReuse': [],
+                'forbiddenSpriteAdditions': [],
+                'reason': '',
+                'disabled': True
+            })
+
         with state_lock:
             ai_enabled = app_state['ai_enabled']
         if not ai_enabled:
@@ -816,6 +848,9 @@ def plan_sprites():
 @app.route('/api/select-sprite', methods=['POST'])
 def select_sprite():
     try:
+        if not env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True):
+            return jsonify({'sprites': [], 'spriteNames': [], 'disabled': True})
+
         with state_lock:
             ai_enabled = app_state['ai_enabled']
         if not ai_enabled:
