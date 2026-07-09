@@ -214,20 +214,25 @@ class LibraryComponent extends React.Component {
     handleFilterClear () {
         this.setState({filterQuery: ''});
     }
+    getSearchText (dataItem) {
+        const itemName = dataItem.name ?
+            (typeof dataItem.name === 'string' ?
+                dataItem.name :
+                this.props.intl.formatMessage(dataItem.name.props)) :
+            '';
+        return (dataItem.tags || [])
+            // Second argument to map sets `this`
+            .map(String.prototype.toLowerCase.call, String.prototype.toLowerCase)
+            .concat(itemName.toLowerCase())
+            .concat(dataItem.libraryName ? dataItem.libraryName.toLowerCase() : null)
+            .filter(Boolean)
+            .join('\n'); // unlikely to partially match newlines
+    }
     getFilteredData () {
         if (this.state.selectedTag === ALL_TAG.tag) {
             if (!this.state.filterQuery) return this.props.data;
             return this.props.data.filter(dataItem => (
-                (dataItem.tags || [])
-                    // Second argument to map sets `this`
-                    .map(String.prototype.toLowerCase.call, String.prototype.toLowerCase)
-                    .concat(dataItem.name ?
-                        (typeof dataItem.name === 'string' ?
-                        // Use the name if it is a string, else use formatMessage to get the translated name
-                            dataItem.name : this.props.intl.formatMessage(dataItem.name.props)
-                        ).toLowerCase() :
-                        null)
-                    .join('\n') // unlikely to partially match newlines
+                this.getSearchText(dataItem)
                     .indexOf(this.state.filterQuery.toLowerCase()) !== -1
             ));
         }
@@ -239,6 +244,7 @@ class LibraryComponent extends React.Component {
         ));
     }
     constructKey (data) {
+        if (data.libraryName) return data.libraryName;
         return typeof data.name === 'string' ? data.name : data.rawURL;
     }
     scrollToTop () {
@@ -347,6 +353,11 @@ class LibraryComponent extends React.Component {
                                 ))}
                             </div>
                         }
+                        {this.props.filterBarControls && (
+                            <div className={styles.filterBarControls}>
+                                {this.props.filterBarControls}
+                            </div>
+                        )}
                     </div>
                 )}
                 <div
@@ -385,6 +396,7 @@ LibraryComponent.propTypes = {
         /* eslint-enable react/no-unused-prop-types, lines-around-comment */
     ),
     filterable: PropTypes.bool,
+    filterBarControls: PropTypes.node,
     withCategories: PropTypes.bool,
     id: PropTypes.string.isRequired,
     intl: intlShape.isRequired,

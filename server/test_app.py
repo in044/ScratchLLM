@@ -8,6 +8,7 @@ from app import (
     EXPLANATION_LENGTH_PROMPTS,
     SYSTEM_PROMPT,
     app,
+    app_state,
     build_llm_messages,
     build_sprite_requirement_messages,
     is_rate_limit_error,
@@ -390,6 +391,49 @@ class PromptSecurityTest(unittest.TestCase):
             'disabled': True
         })
         client.chat.completions.create.assert_not_called()
+
+    def test_plan_sprites_endpoint_can_be_disabled_by_runtime_toggle(self):
+        client = MagicMock()
+        original_value = app_state['sprite_auto_add_enabled']
+        app_state['sprite_auto_add_enabled'] = False
+
+        try:
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+                with patch('openai.OpenAI', return_value=client):
+                    response = app.test_client().post('/api/plan-sprites', json={
+                        'userInput': '敵を追加して',
+                        'currentProgram': '# Stage\n# ブロックなし',
+                        'currentAssets': {'targets': []}
+                    })
+        finally:
+            app_state['sprite_auto_add_enabled'] = original_value
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'requiredSprites': [],
+            'sprites': [],
+            'assetAdditions': [],
+            'existingSpritesToReuse': [],
+            'forbiddenSpriteAdditions': [],
+            'reason': '',
+            'disabled': True
+        })
+        client.chat.completions.create.assert_not_called()
+
+    def test_sprite_auto_add_toggle_endpoint_updates_status(self):
+        original_value = app_state['sprite_auto_add_enabled']
+        app_state['sprite_auto_add_enabled'] = True
+
+        try:
+            response = app.test_client().post('/api/admin/toggle-sprite-auto-add')
+            status_response = app.test_client().get('/api/status')
+        finally:
+            app_state['sprite_auto_add_enabled'] = original_value
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {'sprite_auto_add_enabled': False})
+        self.assertEqual(status_response.status_code, 200)
+        self.assertFalse(status_response.get_json()['sprite_auto_add_enabled'])
 
     def test_rate_limit_errors_are_detected(self):
         error = Exception("Error code: 429 - {'error': {'message': 'Too Many Requests'}}")

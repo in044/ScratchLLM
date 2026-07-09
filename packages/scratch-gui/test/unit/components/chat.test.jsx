@@ -319,6 +319,46 @@ describe('Chat request lifecycle', () => {
         expect(onSetIsLoading).toHaveBeenCalledWith(false);
     });
 
+    test('skips sprite planning when server-side automatic sprite add is off', async () => {
+        const onAddMessage = jest.fn();
+
+        global.fetch = jest.fn(url => {
+            if (String(url).includes('/api/status')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({sprite_auto_add_enabled: false})
+                });
+            }
+            return Promise.resolve({
+                json: () => Promise.resolve({
+                    choices: [{
+                        message: {
+                            content: '返答です。'
+                        }
+                    }]
+                })
+            });
+        });
+
+        const wrapper = makeChatWrapper({onAddMessage});
+        const instance = wrapper.instance();
+        wrapper.setState({inputValue: '敵を追加して'});
+
+        await instance.handleSend();
+        await flushPromises();
+
+        expect(global.fetch.mock.calls.map(call => call[0]).some(url => (
+            String(url).includes('/api/plan-sprites')
+        ))).toBe(false);
+        expect(global.fetch.mock.calls.map(call => call[0]).some(url => (
+            String(url).includes('/api/llm')
+        ))).toBe(true);
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: '返答です。',
+            sender: 'bot'
+        });
+    });
+
     test('does not request a dog sprite after directly adding a dog sound', async () => {
         const onAddMessage = jest.fn();
         const addSound = jest.fn(() => Promise.resolve());

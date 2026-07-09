@@ -48,6 +48,12 @@
     font-size: .875rem;
 }
 
+.filter-bar-controls {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+}
+
 .filter-bar-item {
     margin-right: .75rem;
 }

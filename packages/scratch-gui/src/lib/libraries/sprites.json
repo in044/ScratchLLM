@@ -1,5 +1,8 @@
 [
     {
+        "id": "Abby",
+        "englishName": "Abby",
+        "japaneseName": "アビー",
         "name": "Abby",
         "tags": [
             "people",
@@ -60,6 +63,9 @@
         "blocks": {}
     },
     {
+        "id": "Amon",
+        "englishName": "Amon",
+        "japaneseName": "アモン",
         "name": "Amon",
         "tags": [
             "people",
@@ -92,6 +98,9 @@
         "blocks": {}
     },
     {
+        "id": "Andie",
+        "englishName": "Andie",
+        "japaneseName": "アンディ",
         "name": "Andie",
         "tags": [
             "sports",
@@ -156,6 +165,9 @@
         "blocks": {}
     },
     {
+        "id": "Anina Dance",
+        "englishName": "Anina Dance",
+        "japaneseName": "アニーナのダンス",
         "name": "Anina Dance",
         "tags": [
             "people",
@@ -305,6 +317,9 @@
         "blocks": {}
     },
     {
+        "id": "Apple",
+        "englishName": "Apple",
+        "japaneseName": "りんご",
         "name": "Apple",
         "tags": [
             "food",
@@ -339,6 +354,9 @@
         "blocks": {}
     },
     {
+        "id": "Arrow1",
+        "englishName": "Arrow1",
+        "japaneseName": "矢印1",
         "name": "Arrow1",
         "tags": [
             "icons",
@@ -400,6 +418,9 @@
         "blocks": {}
     },
     {
+        "id": "Avery",
+        "englishName": "Avery",
+        "japaneseName": "エイブリー",
         "name": "Avery",
         "tags": [
             "people"
@@ -440,6 +461,9 @@
         "blocks": {}
     },
     {
+        "id": "Avery Walking",
+        "englishName": "Avery Walking",
+        "japaneseName": "歩くエイブリー",
         "name": "Avery Walking",
         "tags": [
             "people",
@@ -499,6 +523,9 @@
         "blocks": {}
     },
     {
+        "id": "Ball",
+        "englishName": "Ball",
+        "japaneseName": "ボール",
         "name": "Ball",
         "tags": [
             "round",
@@ -584,6 +611,9 @@
         "blocks": {}
     },
     {
+        "id": "Ballerina",
+        "englishName": "Ballerina",
+        "japaneseName": "バレリーナ",
         "name": "Ballerina",
         "tags": [
             "people",
@@ -643,6 +673,9 @@
         "blocks": {}
     },
     {
+        "id": "Balloon1",
+        "englishName": "Balloon1",
+        "japaneseName": "風船1",
         "name": "Balloon1",
         "tags": [
             "party",
@@ -699,6 +732,9 @@
         "blocks": {}
     },
     {
+        "id": "Bananas",
+        "englishName": "Bananas",
+        "japaneseName": "バナナ",
         "name": "Bananas",
         "tags": [
             "food",
@@ -743,6 +779,9 @@
         "blocks": {}
     },
     {
+        "id": "Baseball",
+        "englishName": "Baseball",
+        "japaneseName": "野球ボール",
         "name": "Baseball",
         "tags": [
             "baseball",
@@ -777,6 +816,9 @@
         "blocks": {}
     },
     {
+        "id": "Basketball",
+        "englishName": "Basketball",
+        "japaneseName": "バスケットボール",
         "name": "Basketball",
         "tags": [
             "sports",
@@ -819,6 +861,9 @@
         "blocks": {}
     },
     {
+        "id": "Bat",
+        "englishName": "Bat",
+        "japaneseName": "コウモリ",
         "name": "Bat",
         "tags": [
             "fantasy",
@@ -882,6 +927,9 @@
         "blocks": {}
     },
     {
+        "id": "Batter",
+        "englishName": "Batter",
+        "japaneseName": "バッター",
         "name": "Batter",
         "tags": [
             "baseball",
@@ -943,6 +991,9 @@
         "blocks": {}
     },
     {
+        "id": "Beachball",
+        "englishName": "Beachball",
+        "japaneseName": "ビーチボール",
         "name": "Beachball",
         "tags": [
             "round",
@@ -986,6 +1037,9 @@
         "blocks": {}
     },
     {
+        "id": "Bear",
+        "englishName": "Bear",
+        "japaneseName": "クマ",
         "name": "Bear",
         "tags": [
             "animals",
@@ -1028,6 +1082,9 @@
         "blocks": {}
     },
     {
+        "id": "Bear-walking",
+        "englishName": "Bear-walking",
+        "japaneseName": "歩くクマ",
         "name": "Bear-walking",
         "tags": [
             "animals",
@@ -1124,6 +1181,9 @@
         "blocks": {}
     },
     {
+        "id": "Beetle",
+        "englishName": "Beetle",
+        "japaneseName": "カブトムシ",
         "name": "Beetle",
         "tags": [
             "animals",
@@ -1158,6 +1218,9 @@
         "blocks": {}
     },
     {
+        "id": "Bell",
+        "englishName": "Bell",
+        "japaneseName": "ベル",
         "name": "Bell",
         "tags": [
             "music",
@@ -1201,6 +1264,9 @@
         "blocks": {}
     },
     {
+        "id": "Ben",
+        "englishName": "Ben",
+        "japaneseName": "ベン",
         "name": "Ben",
         "tags": [
             "sports",
@@ -1272,6 +1338,9 @@
         "blocks": {}
     },
     {
+        "id": "Bowl",
+        "englishName": "Bowl",
+        "japaneseName": "ボウル",
         "name": "Bowl",
         "tags": [
             "thing",
@@ -1304,6 +1373,9 @@
         "blocks": {}
     },
     {
+        "id": "Bowtie",
+        "englishName": "Bowtie",
+        "japaneseName": "蝶ネクタイ",
         "name": "Bowtie",
         "tags": [
             "fashion",
@@ -1337,6 +1409,9 @@
         "blocks": {}
     },
     {
+        "id": "Bread",
+        "englishName": "Bread",
+        "japaneseName": "パン",
         "name": "Bread",
         "tags": [
             "food",
@@ -1369,6 +1444,9 @@
         "blocks": {}
     },
     {
+        "id": "Broom",
+        "englishName": "Broom",
+        "japaneseName": "ほうき",
         "name": "Broom",
         "tags": [
             "fantasy",
@@ -1403,6 +1481,9 @@
         "blocks": {}
     },
     {
+        "id": "Buildings",
+        "englishName": "Buildings",
+        "japaneseName": "ビル",
         "name": "Buildings",
         "tags": [
             "things",
@@ -1518,6 +1599,9 @@
         "blocks": {}
     },
     {
+        "id": "Butterfly 1",
+        "englishName": "Butterfly 1",
+        "japaneseName": "チョウ1",
         "name": "Butterfly 1",
         "tags": [
             "animals",
@@ -1571,6 +1655,9 @@
         "blocks": {}
     },
     {
+        "id": "Butterfly 2",
+        "englishName": "Butterfly 2",
+        "japaneseName": "チョウ2",
         "name": "Butterfly 2",
         "tags": [
             "animals",
@@ -1617,6 +1704,9 @@
         "blocks": {}
     },
     {
+        "id": "Button1",
+        "englishName": "Button1",
+        "japaneseName": "ボタン1",
         "name": "Button1",
         "tags": [
             "icons",
@@ -1651,6 +1741,9 @@
         "blocks": {}
     },
     {
+        "id": "Button2",
+        "englishName": "Button2",
+        "japaneseName": "ボタン2",
         "name": "Button2",
         "tags": [
             "icons",
@@ -1693,6 +1786,9 @@
         "blocks": {}
     },
     {
+        "id": "Button3",
+        "englishName": "Button3",
+        "japaneseName": "ボタン3",
         "name": "Button3",
         "tags": [
             "icons",
@@ -1736,6 +1832,9 @@
         "blocks": {}
     },
     {
+        "id": "Button4",
+        "englishName": "Button4",
+        "japaneseName": "ボタン4",
         "name": "Button4",
         "tags": [
             "icons",
@@ -1777,6 +1876,9 @@
         "blocks": {}
     },
     {
+        "id": "Button5",
+        "englishName": "Button5",
+        "japaneseName": "ボタン5",
         "name": "Button5",
         "tags": [
             "icons",
@@ -1821,6 +1923,9 @@
         "blocks": {}
     },
     {
+        "id": "Cake",
+        "englishName": "Cake",
+        "japaneseName": "ケーキ",
         "name": "Cake",
         "tags": [
             "food",
@@ -1868,6 +1973,9 @@
         "blocks": {}
     },
     {
+        "id": "Calvrett",
+        "englishName": "Calvrett",
+        "japaneseName": "カルブレット",
         "name": "Calvrett",
         "tags": [
             "people"
@@ -1908,6 +2016,9 @@
         "blocks": {}
     },
     {
+        "id": "Casey",
+        "englishName": "Casey",
+        "japaneseName": "ケイシー",
         "name": "Casey",
         "tags": [
             "sports",
@@ -1969,6 +2080,9 @@
         "blocks": {}
     },
     {
+        "id": "Cassy Dance",
+        "englishName": "Cassy Dance",
+        "japaneseName": "キャシーのダンス",
         "name": "Cassy Dance",
         "tags": [
             "people",
@@ -2028,6 +2142,9 @@
         "blocks": {}
     },
     {
+        "id": "Cat",
+        "englishName": "Cat",
+        "japaneseName": "ネコ",
         "name": "Cat",
         "tags": [
             "animals",
@@ -2074,6 +2191,9 @@
         "blocks": {}
     },
     {
+        "id": "Cat 2",
+        "englishName": "Cat 2",
+        "japaneseName": "ネコ2",
         "name": "Cat 2",
         "tags": [
             "cat",
@@ -2109,6 +2229,9 @@
         "blocks": {}
     },
     {
+        "id": "Cat Flying",
+        "englishName": "Cat Flying",
+        "japaneseName": "飛ぶネコ",
         "name": "Cat Flying",
         "tags": [
             "animals",
@@ -2152,6 +2275,9 @@
         "blocks": {}
     },
     {
+        "id": "Catcher",
+        "englishName": "Catcher",
+        "japaneseName": "キャッチャー",
         "name": "Catcher",
         "tags": [
             "baseball",
@@ -2213,6 +2339,9 @@
         "blocks": {}
     },
     {
+        "id": "Centaur",
+        "englishName": "Centaur",
+        "japaneseName": "ケンタウロス",
         "name": "Centaur",
         "tags": [
             "fantasy",
@@ -2283,6 +2412,9 @@
         "blocks": {}
     },
     {
+        "id": "Champ99",
+        "englishName": "Champ99",
+        "japaneseName": "チャンプ99",
         "name": "Champ99",
         "tags": [
             "people",
@@ -2369,6 +2501,9 @@
         "blocks": {}
     },
     {
+        "id": "Characters 1",
+        "englishName": "Characters 1",
+        "japaneseName": "キャラクター1",
         "name": "Characters 1",
         "tags": [
             "people",
@@ -2515,6 +2650,9 @@
         "blocks": {}
     },
     {
+        "id": "Characters 2",
+        "englishName": "Characters 2",
+        "japaneseName": "キャラクター2",
         "name": "Characters 2",
         "tags": [
             "people",
@@ -2634,6 +2772,9 @@
         "blocks": {}
     },
     {
+        "id": "Cheesy Puffs",
+        "englishName": "Cheesy Puffs",
+        "japaneseName": "チーズパフ",
         "name": "Cheesy Puffs",
         "tags": [
             "food"
@@ -2665,6 +2806,9 @@
         "blocks": {}
     },
     {
+        "id": "Chick",
+        "englishName": "Chick",
+        "japaneseName": "ひよこ",
         "name": "Chick",
         "tags": [
             "animals",
@@ -2717,6 +2861,9 @@
         "blocks": {}
     },
     {
+        "id": "City Bus",
+        "englishName": "City Bus",
+        "japaneseName": "市バス",
         "name": "City Bus",
         "tags": [
             "city",
@@ -2769,6 +2916,9 @@
         "blocks": {}
     },
     {
+        "id": "Cloud",
+        "englishName": "Cloud",
+        "japaneseName": "雲",
         "name": "Cloud",
         "tags": [
             "thing",
@@ -2802,6 +2952,9 @@
         "blocks": {}
     },
     {
+        "id": "Clouds",
+        "englishName": "Clouds",
+        "japaneseName": "雲たち",
         "name": "Clouds",
         "tags": [
             "flying",
@@ -2863,6 +3016,9 @@
         "blocks": {}
     },
     {
+        "id": "Convertible",
+        "englishName": "Convertible",
+        "japaneseName": "オープンカー",
         "name": "Convertible",
         "tags": [
             "car",
@@ -2895,6 +3051,9 @@
         "blocks": {}
     },
     {
+        "id": "Convertible 2",
+        "englishName": "Convertible 2",
+        "japaneseName": "オープンカー2",
         "name": "Convertible 2",
         "tags": [
             "transportation",
@@ -2928,6 +3087,9 @@
         "blocks": {}
     },
     {
+        "id": "Crab",
+        "englishName": "Crab",
+        "japaneseName": "カニ",
         "name": "Crab",
         "tags": [
             "animals",
@@ -2977,6 +3139,9 @@
         "blocks": {}
     },
     {
+        "id": "Crystal",
+        "englishName": "Crystal",
+        "japaneseName": "クリスタル",
         "name": "Crystal",
         "tags": [
             "fantasy",
@@ -3028,6 +3193,9 @@
         "blocks": {}
     },
     {
+        "id": "D-Money Dance",
+        "englishName": "D-Money Dance",
+        "japaneseName": "Dマネーのダンス",
         "name": "D-Money Dance",
         "tags": [
             "people",
@@ -3159,6 +3327,9 @@
         "blocks": {}
     },
     {
+        "id": "Dan",
+        "englishName": "Dan",
+        "japaneseName": "ダン",
         "name": "Dan",
         "tags": [
             "people"
@@ -3199,6 +3370,9 @@
         "blocks": {}
     },
     {
+        "id": "Dani",
+        "englishName": "Dani",
+        "japaneseName": "ダニ",
         "name": "Dani",
         "tags": [
             "people"
@@ -3248,6 +3422,9 @@
         "blocks": {}
     },
     {
+        "id": "Dee",
+        "englishName": "Dee",
+        "japaneseName": "ディー",
         "name": "Dee",
         "tags": [
             "people"
@@ -3315,6 +3492,9 @@
         "blocks": {}
     },
     {
+        "id": "Devin",
+        "englishName": "Devin",
+        "japaneseName": "デビン",
         "name": "Devin",
         "tags": [
             "people"
@@ -3373,6 +3553,9 @@
         "blocks": {}
     },
     {
+        "id": "Dinosaur1",
+        "englishName": "Dinosaur1",
+        "japaneseName": "恐竜1",
         "name": "Dinosaur1",
         "tags": [
             "animals",
@@ -3433,6 +3616,9 @@
         "blocks": {}
     },
     {
+        "id": "Dinosaur2",
+        "englishName": "Dinosaur2",
+        "japaneseName": "恐竜2",
         "name": "Dinosaur2",
         "tags": [
             "animals",
@@ -3494,6 +3680,9 @@
         "blocks": {}
     },
     {
+        "id": "Dinosaur3",
+        "englishName": "Dinosaur3",
+        "japaneseName": "恐竜3",
         "name": "Dinosaur3",
         "tags": [
             "animals",
@@ -3565,6 +3754,9 @@
         "blocks": {}
     },
     {
+        "id": "Dinosaur4",
+        "englishName": "Dinosaur4",
+        "japaneseName": "恐竜4",
         "name": "Dinosaur4",
         "tags": [
             "animals",
@@ -3628,6 +3820,9 @@
         "blocks": {}
     },
     {
+        "id": "Dinosaur5",
+        "englishName": "Dinosaur5",
+        "japaneseName": "恐竜5",
         "name": "Dinosaur5",
         "tags": [
             "animals",
@@ -3733,6 +3928,9 @@
         "blocks": {}
     },
     {
+        "id": "Diver1",
+        "englishName": "Diver1",
+        "japaneseName": "ダイバー1",
         "name": "Diver1",
         "tags": [
             "people",
@@ -3769,6 +3967,9 @@
         "blocks": {}
     },
     {
+        "id": "Diver2",
+        "englishName": "Diver2",
+        "japaneseName": "ダイバー2",
         "name": "Diver2",
         "tags": [
             "people",
@@ -3805,6 +4006,9 @@
         "blocks": {}
     },
     {
+        "id": "Dog1",
+        "englishName": "Dog1",
+        "japaneseName": "イヌ1",
         "name": "Dog1",
         "tags": [
             "animals",
@@ -3848,6 +4052,9 @@
         "blocks": {}
     },
     {
+        "id": "Dog2",
+        "englishName": "Dog2",
+        "japaneseName": "イヌ2",
         "name": "Dog2",
         "tags": [
             "animals",
@@ -3900,6 +4107,9 @@
         "blocks": {}
     },
     {
+        "id": "Donut",
+        "englishName": "Donut",
+        "japaneseName": "ドーナツ",
         "name": "Donut",
         "tags": [
             "food",
@@ -3947,6 +4157,9 @@
         "blocks": {}
     },
     {
+        "id": "Dorian",
+        "englishName": "Dorian",
+        "japaneseName": "ドリアン",
         "name": "Dorian",
         "tags": [
             "sports",
@@ -4008,6 +4221,9 @@
         "blocks": {}
     },
     {
+        "id": "Dot",
+        "englishName": "Dot",
+        "japaneseName": "ドット",
         "name": "Dot",
         "tags": [
             "space",
@@ -4069,6 +4285,9 @@
         "blocks": {}
     },
     {
+        "id": "Dove",
+        "englishName": "Dove",
+        "japaneseName": "ハト",
         "name": "Dove",
         "tags": [
             "animals",
@@ -4111,6 +4330,9 @@
         "blocks": {}
     },
     {
+        "id": "Dragon",
+        "englishName": "Dragon",
+        "japaneseName": "ドラゴン",
         "name": "Dragon",
         "tags": [
             "fantasy",
@@ -4163,6 +4385,9 @@
         "blocks": {}
     },
     {
+        "id": "Dragonfly",
+        "englishName": "Dragonfly",
+        "japaneseName": "トンボ",
         "name": "Dragonfly",
         "tags": [
             "animals",
@@ -4207,6 +4432,9 @@
         "blocks": {}
     },
     {
+        "id": "Dress",
+        "englishName": "Dress",
+        "japaneseName": "ドレス",
         "name": "Dress",
         "tags": [
             "fashion",
@@ -4258,6 +4486,9 @@
         "blocks": {}
     },
     {
+        "id": "Drum",
+        "englishName": "Drum",
+        "japaneseName": "ドラム",
         "name": "Drum",
         "tags": [
             "music",
@@ -4308,6 +4539,9 @@
         "blocks": {}
     },
     {
+        "id": "Drum Kit",
+        "englishName": "Drum Kit",
+        "japaneseName": "ドラムセット",
         "name": "Drum Kit",
         "tags": [
             "music",
@@ -4385,6 +4619,9 @@
         "blocks": {}
     },
     {
+        "id": "Drum-cymbal",
+        "englishName": "Drum-cymbal",
+        "japaneseName": "シンバル",
         "name": "Drum-cymbal",
         "tags": [
             "music",
@@ -4453,6 +4690,9 @@
         "blocks": {}
     },
     {
+        "id": "Drum-highhat",
+        "englishName": "Drum-highhat",
+        "japaneseName": "ハイハット",
         "name": "Drum-highhat",
         "tags": [
             "music",
@@ -4494,6 +4734,9 @@
         "blocks": {}
     },
     {
+        "id": "Drum-snare",
+        "englishName": "Drum-snare",
+        "japaneseName": "スネアドラム",
         "name": "Drum-snare",
         "tags": [
             "music",
@@ -4553,6 +4796,9 @@
         "blocks": {}
     },
     {
+        "id": "Drums Conga",
+        "englishName": "Drums Conga",
+        "japaneseName": "コンガ",
         "name": "Drums Conga",
         "tags": [
             "drums",
@@ -4624,6 +4870,9 @@
         "blocks": {}
     },
     {
+        "id": "Drums Tabla",
+        "englishName": "Drums Tabla",
+        "japaneseName": "タブラ",
         "name": "Drums Tabla",
         "tags": [
             "drums",
@@ -4695,6 +4944,9 @@
         "blocks": {}
     },
     {
+        "id": "Duck",
+        "englishName": "Duck",
+        "japaneseName": "アヒル",
         "name": "Duck",
         "tags": [
             "animals",
@@ -4730,6 +4982,9 @@
         "blocks": {}
     },
     {
+        "id": "Earth",
+        "englishName": "Earth",
+        "japaneseName": "地球",
         "name": "Earth",
         "tags": [
             "space",
@@ -4764,6 +5019,9 @@
         "blocks": {}
     },
     {
+        "id": "Easel",
+        "englishName": "Easel",
+        "japaneseName": "イーゼル",
         "name": "Easel",
         "tags": [
             "bedroom",
@@ -4815,6 +5073,9 @@
         "blocks": {}
     },
     {
+        "id": "Egg",
+        "englishName": "Egg",
+        "japaneseName": "たまご",
         "name": "Egg",
         "tags": [
             "food",
@@ -4893,6 +5154,9 @@
         "blocks": {}
     },
     {
+        "id": "Elephant",
+        "englishName": "Elephant",
+        "japaneseName": "ゾウ",
         "name": "Elephant",
         "tags": [
             "animals",
@@ -4935,6 +5199,9 @@
         "blocks": {}
     },
     {
+        "id": "Elf",
+        "englishName": "Elf",
+        "japaneseName": "エルフ",
         "name": "Elf",
         "tags": [
             "fantasy",
@@ -5005,6 +5272,9 @@
         "blocks": {}
     },
     {
+        "id": "Fairy",
+        "englishName": "Fairy",
+        "japaneseName": "妖精",
         "name": "Fairy",
         "tags": [
             "fantasy",
@@ -5075,6 +5345,9 @@
         "blocks": {}
     },
     {
+        "id": "Fish",
+        "englishName": "Fish",
+        "japaneseName": "魚",
         "name": "Fish",
         "tags": [
             "animals",
@@ -5146,6 +5419,9 @@
         "blocks": {}
     },
     {
+        "id": "Fishbowl",
+        "englishName": "Fishbowl",
+        "japaneseName": "金魚鉢",
         "name": "Fishbowl",
         "tags": [
             "fishbowl",
@@ -5189,6 +5465,9 @@
         "blocks": {}
     },
     {
+        "id": "Food Truck",
+        "englishName": "Food Truck",
+        "japaneseName": "フードトラック",
         "name": "Food Truck",
         "tags": [
             "city",
@@ -5260,6 +5539,9 @@
         "blocks": {}
     },
     {
+        "id": "Football",
+        "englishName": "Football",
+        "japaneseName": "アメフトボール",
         "name": "Football",
         "tags": [
             "people",
@@ -5301,6 +5583,9 @@
         "blocks": {}
     },
     {
+        "id": "Fortune Cookie",
+        "englishName": "Fortune Cookie",
+        "japaneseName": "フォーチュンクッキー",
         "name": "Fortune Cookie",
         "tags": [
             "food"
@@ -5332,6 +5617,9 @@
         "blocks": {}
     },
     {
+        "id": "Fox",
+        "englishName": "Fox",
+        "japaneseName": "キツネ",
         "name": "Fox",
         "tags": [
             "animals",
@@ -5383,6 +5671,9 @@
         "blocks": {}
     },
     {
+        "id": "Frank",
+        "englishName": "Frank",
+        "japaneseName": "フランク",
         "name": "Frank",
         "tags": [
             "fantasy",
@@ -5447,6 +5738,9 @@
         "blocks": {}
     },
     {
+        "id": "Frog",
+        "englishName": "Frog",
+        "japaneseName": "カエル",
         "name": "Frog",
         "tags": [
             "animals",
@@ -5483,6 +5777,9 @@
         "blocks": {}
     },
     {
+        "id": "Frog 2 ",
+        "englishName": "Frog 2 ",
+        "japaneseName": "カエル2",
         "name": "Frog 2 ",
         "tags": [
             "animals",
@@ -5536,6 +5833,9 @@
         "blocks": {}
     },
     {
+        "id": "Fruit Platter",
+        "englishName": "Fruit Platter",
+        "japaneseName": "フルーツ盛り合わせ",
         "name": "Fruit Platter",
         "tags": [
             "food"
@@ -5567,6 +5867,9 @@
         "blocks": {}
     },
     {
+        "id": "Fruit Salad",
+        "englishName": "Fruit Salad",
+        "japaneseName": "フルーツサラダ",
         "name": "Fruit Salad",
         "tags": [
             "food",
@@ -5599,6 +5902,9 @@
         "blocks": {}
     },
     {
+        "id": "Ghost",
+        "englishName": "Ghost",
+        "japaneseName": "おばけ",
         "name": "Ghost",
         "tags": [
             "fantasy",
@@ -5662,6 +5968,9 @@
         "blocks": {}
     },
     {
+        "id": "Gift",
+        "englishName": "Gift",
+        "japaneseName": "プレゼント",
         "name": "Gift",
         "tags": [
             "thing",
@@ -5703,6 +6012,9 @@
         "blocks": {}
     },
     {
+        "id": "Giga",
+        "englishName": "Giga",
+        "japaneseName": "ギガ",
         "name": "Giga",
         "tags": [
             "fantasy",
@@ -5762,6 +6074,9 @@
         "blocks": {}
     },
     {
+        "id": "Giga Walking",
+        "englishName": "Giga Walking",
+        "japaneseName": "歩くギガ",
         "name": "Giga Walking",
         "tags": [
             "fantasy",
@@ -5812,6 +6127,9 @@
         "blocks": {}
     },
     {
+        "id": "Giraffe",
+        "englishName": "Giraffe",
+        "japaneseName": "キリン",
         "name": "Giraffe",
         "tags": [
             "animals",
@@ -5863,6 +6181,9 @@
         "blocks": {}
     },
     {
+        "id": "Glass Water",
+        "englishName": "Glass Water",
+        "japaneseName": "水のグラス",
         "name": "Glass Water",
         "tags": [
             "food",
@@ -5905,6 +6226,9 @@
         "blocks": {}
     },
     {
+        "id": "Glasses",
+        "englishName": "Glasses",
+        "japaneseName": "メガネ",
         "name": "Glasses",
         "tags": [
             "fashion",
@@ -5965,6 +6289,9 @@
         "blocks": {}
     },
     {
+        "id": "Goalie",
+        "englishName": "Goalie",
+        "japaneseName": "ゴールキーパー",
         "name": "Goalie",
         "tags": [
             "sports",
@@ -6035,6 +6362,9 @@
         "blocks": {}
     },
     {
+        "id": "Goblin",
+        "englishName": "Goblin",
+        "japaneseName": "ゴブリン",
         "name": "Goblin",
         "tags": [
             "fantasy",
@@ -6095,6 +6425,9 @@
         "blocks": {}
     },
     {
+        "id": "Gobo",
+        "englishName": "Gobo",
+        "japaneseName": "ゴボ",
         "name": "Gobo",
         "tags": [
             "fantasy",
@@ -6147,6 +6480,9 @@
         "blocks": {}
     },
     {
+        "id": "Grasshopper",
+        "englishName": "Grasshopper",
+        "japaneseName": "バッタ",
         "name": "Grasshopper",
         "tags": [
             "animals",
@@ -6227,6 +6563,9 @@
         "blocks": {}
     },
     {
+        "id": "Green Flag",
+        "englishName": "Green Flag",
+        "japaneseName": "緑の旗",
         "name": "Green Flag",
         "tags": [
             "thing"
@@ -6258,6 +6597,9 @@
         "blocks": {}
     },
     {
+        "id": "Griffin",
+        "englishName": "Griffin",
+        "japaneseName": "グリフィン",
         "name": "Griffin",
         "tags": [
             "fantasy",
@@ -6319,6 +6661,9 @@
         "blocks": {}
     },
     {
+        "id": "Guitar",
+        "englishName": "Guitar",
+        "japaneseName": "ギター",
         "name": "Guitar",
         "tags": [
             "music",
@@ -6423,6 +6768,9 @@
         "blocks": {}
     },
     {
+        "id": "Guitar-electric1",
+        "englishName": "Guitar-electric1",
+        "japaneseName": "エレキギター1",
         "name": "Guitar-electric1",
         "tags": [
             "music",
@@ -6527,6 +6875,9 @@
         "blocks": {}
     },
     {
+        "id": "Guitar-electric2",
+        "englishName": "Guitar-electric2",
+        "japaneseName": "エレキギター2",
         "name": "Guitar-electric2",
         "tags": [
             "music",
@@ -6631,6 +6982,9 @@
         "blocks": {}
     },
     {
+        "id": "Hannah",
+        "englishName": "Hannah",
+        "japaneseName": "ハンナ",
         "name": "Hannah",
         "tags": [
             "people",
@@ -6681,6 +7035,9 @@
         "blocks": {}
     },
     {
+        "id": "Hare",
+        "englishName": "Hare",
+        "japaneseName": "ウサギ",
         "name": "Hare",
         "tags": [
             "animals",
@@ -6738,6 +7095,9 @@
         "blocks": {}
     },
     {
+        "id": "Harper",
+        "englishName": "Harper",
+        "japaneseName": "ハーパー",
         "name": "Harper",
         "tags": [
             "people",
@@ -6789,6 +7149,9 @@
         "blocks": {}
     },
     {
+        "id": "Hat1 ",
+        "englishName": "Hat1 ",
+        "japaneseName": "帽子1",
         "name": "Hat1 ",
         "tags": [
             "fashion",
@@ -6849,6 +7212,9 @@
         "blocks": {}
     },
     {
+        "id": "Hatchling",
+        "englishName": "Hatchling",
+        "japaneseName": "かえったばかりのヒナ",
         "name": "Hatchling",
         "tags": [
             "animals",
@@ -6901,6 +7267,9 @@
         "blocks": {}
     },
     {
+        "id": "Heart",
+        "englishName": "Heart",
+        "japaneseName": "ハート",
         "name": "Heart",
         "tags": [
             "holiday",
@@ -6945,6 +7314,9 @@
         "blocks": {}
     },
     {
+        "id": "Heart Candy",
+        "englishName": "Heart Candy",
+        "japaneseName": "ハートキャンディ",
         "name": "Heart Candy",
         "tags": [
             "food",
@@ -7004,6 +7376,9 @@
         "blocks": {}
     },
     {
+        "id": "Heart Face",
+        "englishName": "Heart Face",
+        "japaneseName": "ハートの顔",
         "name": "Heart Face",
         "tags": [
             "emotions"
@@ -7035,6 +7410,9 @@
         "blocks": {}
     },
     {
+        "id": "Hedgehog",
+        "englishName": "Hedgehog",
+        "japaneseName": "ハリネズミ",
         "name": "Hedgehog",
         "tags": [
             "animals",
@@ -7105,6 +7483,9 @@
         "blocks": {}
     },
     {
+        "id": "Hen",
+        "englishName": "Hen",
+        "japaneseName": "めんどり",
         "name": "Hen",
         "tags": [
             "animals",
@@ -7166,6 +7547,9 @@
         "blocks": {}
     },
     {
+        "id": "Hippo1",
+        "englishName": "Hippo1",
+        "japaneseName": "カバ1",
         "name": "Hippo1",
         "tags": [
             "animals",
@@ -7213,6 +7597,9 @@
         "blocks": {}
     },
     {
+        "id": "Home Button",
+        "englishName": "Home Button",
+        "japaneseName": "ホームボタン",
         "name": "Home Button",
         "tags": [
             "ui",
@@ -7245,6 +7632,9 @@
         "blocks": {}
     },
     {
+        "id": "Horse",
+        "englishName": "Horse",
+        "japaneseName": "ウマ",
         "name": "Horse",
         "tags": [
             "animals",
@@ -7299,6 +7689,9 @@
         "blocks": {}
     },
     {
+        "id": "Jaime",
+        "englishName": "Jaime",
+        "japaneseName": "ジェイミー",
         "name": "Jaime",
         "tags": [
             "people"
@@ -7384,6 +7777,9 @@
         "blocks": {}
     },
     {
+        "id": "Jamal",
+        "englishName": "Jamal",
+        "japaneseName": "ジャマル",
         "name": "Jamal",
         "tags": [
             "sports",
@@ -7454,6 +7850,9 @@
         "blocks": {}
     },
     {
+        "id": "Jar",
+        "englishName": "Jar",
+        "japaneseName": "びん",
         "name": "Jar",
         "tags": [
             "food",
@@ -7496,6 +7895,9 @@
         "blocks": {}
     },
     {
+        "id": "Jellyfish",
+        "englishName": "Jellyfish",
+        "japaneseName": "クラゲ",
         "name": "Jellyfish",
         "tags": [
             "animals",
@@ -7568,6 +7970,9 @@
         "blocks": {}
     },
     {
+        "id": "Jordyn",
+        "englishName": "Jordyn",
+        "japaneseName": "ジョーディン",
         "name": "Jordyn",
         "tags": [
             "sports",
@@ -7639,6 +8044,9 @@
         "blocks": {}
     },
     {
+        "id": "Jouvi Dance",
+        "englishName": "Jouvi Dance",
+        "japaneseName": "ジュヴィのダンス",
         "name": "Jouvi Dance",
         "tags": [
             "people",
@@ -7779,6 +8187,9 @@
         "blocks": {}
     },
     {
+        "id": "Kai",
+        "englishName": "Kai",
+        "japaneseName": "カイ",
         "name": "Kai",
         "tags": [
             "people"
@@ -7819,6 +8230,9 @@
         "blocks": {}
     },
     {
+        "id": "Key",
+        "englishName": "Key",
+        "japaneseName": "鍵",
         "name": "Key",
         "tags": [
             "thing",
@@ -7851,6 +8265,9 @@
         "blocks": {}
     },
     {
+        "id": "Keyboard",
+        "englishName": "Keyboard",
+        "japaneseName": "キーボード",
         "name": "Keyboard",
         "tags": [
             "music",
@@ -7955,6 +8372,9 @@
         "blocks": {}
     },
     {
+        "id": "Kia",
+        "englishName": "Kia",
+        "japaneseName": "キア",
         "name": "Kia",
         "tags": [
             "people",
@@ -8011,6 +8431,9 @@
         "blocks": {}
     },
     {
+        "id": "Kiran",
+        "englishName": "Kiran",
+        "japaneseName": "キラン",
         "name": "Kiran",
         "tags": [
             "space",
@@ -8089,6 +8512,9 @@
         "blocks": {}
     },
     {
+        "id": "Knight",
+        "englishName": "Knight",
+        "japaneseName": "騎士",
         "name": "Knight",
         "tags": [
             "people",
@@ -8122,6 +8548,9 @@
         "blocks": {}
     },
     {
+        "id": "LB Dance",
+        "englishName": "LB Dance",
+        "japaneseName": "LBのダンス",
         "name": "LB Dance",
         "tags": [
             "people",
@@ -8262,6 +8691,9 @@
         "blocks": {}
     },
     {
+        "id": "Ladybug1",
+        "englishName": "Ladybug1",
+        "japaneseName": "テントウムシ1",
         "name": "Ladybug1",
         "tags": [
             "animals",
@@ -8296,6 +8728,9 @@
         "blocks": {}
     },
     {
+        "id": "Ladybug2",
+        "englishName": "Ladybug2",
+        "japaneseName": "テントウムシ2",
         "name": "Ladybug2",
         "tags": [
             "animals",
@@ -8340,6 +8775,9 @@
         "blocks": {}
     },
     {
+        "id": "Laptop",
+        "englishName": "Laptop",
+        "japaneseName": "ノートパソコン",
         "name": "Laptop",
         "tags": [
             "things",
@@ -8372,6 +8810,9 @@
         "blocks": {}
     },
     {
+        "id": "Lightning",
+        "englishName": "Lightning",
+        "japaneseName": "稲妻",
         "name": "Lightning",
         "tags": [
             "weather",
@@ -8407,6 +8848,9 @@
         "blocks": {}
     },
     {
+        "id": "Line",
+        "englishName": "Line",
+        "japaneseName": "線",
         "name": "Line",
         "tags": [
             "lava",
@@ -8440,6 +8884,9 @@
         "blocks": {}
     },
     {
+        "id": "Lion",
+        "englishName": "Lion",
+        "japaneseName": "ライオン",
         "name": "Lion",
         "tags": [
             "cat",
@@ -8502,6 +8949,9 @@
         "blocks": {}
     },
     {
+        "id": "Llama",
+        "englishName": "Llama",
+        "japaneseName": "ラマ",
         "name": "Llama",
         "tags": [
             "animals",
@@ -8553,6 +9003,9 @@
         "blocks": {}
     },
     {
+        "id": "Luca",
+        "englishName": "Luca",
+        "japaneseName": "ルカ",
         "name": "Luca",
         "tags": [
             "people",
@@ -8609,6 +9062,9 @@
         "blocks": {}
     },
     {
+        "id": "Magic Wand",
+        "englishName": "Magic Wand",
+        "japaneseName": "魔法の杖",
         "name": "Magic Wand",
         "tags": [
             "fantasy",
@@ -8642,6 +9098,9 @@
         "blocks": {}
     },
     {
+        "id": "Marian",
+        "englishName": "Marian",
+        "japaneseName": "マリアン",
         "name": "Marian",
         "tags": [
             "people"
@@ -8709,6 +9168,9 @@
         "blocks": {}
     },
     {
+        "id": "Max",
+        "englishName": "Max",
+        "japaneseName": "マックス",
         "name": "Max",
         "tags": [
             "sports",
@@ -8770,6 +9232,9 @@
         "blocks": {}
     },
     {
+        "id": "Mermaid",
+        "englishName": "Mermaid",
+        "japaneseName": "人魚",
         "name": "Mermaid",
         "tags": [
             "fantasy",
@@ -8831,6 +9296,9 @@
         "blocks": {}
     },
     {
+        "id": "Microphone",
+        "englishName": "Microphone",
+        "japaneseName": "マイク",
         "name": "Microphone",
         "tags": [
             "music",
@@ -8944,6 +9412,9 @@
         "blocks": {}
     },
     {
+        "id": "Milk",
+        "englishName": "Milk",
+        "japaneseName": "牛乳",
         "name": "Milk",
         "tags": [
             "food",
@@ -9013,6 +9484,9 @@
         "blocks": {}
     },
     {
+        "id": "Monet",
+        "englishName": "Monet",
+        "japaneseName": "モネ",
         "name": "Monet",
         "tags": [
             "space",
@@ -9082,6 +9556,9 @@
         "blocks": {}
     },
     {
+        "id": "Monkey",
+        "englishName": "Monkey",
+        "japaneseName": "サル",
         "name": "Monkey",
         "tags": [
             "animals",
@@ -9143,6 +9620,9 @@
         "blocks": {}
     },
     {
+        "id": "Motorcycle",
+        "englishName": "Motorcycle",
+        "japaneseName": "オートバイ",
         "name": "Motorcycle",
         "tags": [
             "city",
@@ -9213,6 +9693,9 @@
         "blocks": {}
     },
     {
+        "id": "Mouse1",
+        "englishName": "Mouse1",
+        "japaneseName": "ネズミ1",
         "name": "Mouse1",
         "tags": [
             "animals",
@@ -9255,6 +9738,9 @@
         "blocks": {}
     },
     {
+        "id": "Muffin",
+        "englishName": "Muffin",
+        "japaneseName": "マフィン",
         "name": "Muffin",
         "tags": [
             "food"
@@ -9295,6 +9781,9 @@
         "blocks": {}
     },
     {
+        "id": "Nano",
+        "englishName": "Nano",
+        "japaneseName": "ナノ",
         "name": "Nano",
         "tags": [
             "fantasy",
@@ -9354,6 +9843,9 @@
         "blocks": {}
     },
     {
+        "id": "Neigh Pony",
+        "englishName": "Neigh Pony",
+        "japaneseName": "ポニー",
         "name": "Neigh Pony",
         "tags": [
             "animals",
@@ -9386,6 +9878,9 @@
         "blocks": {}
     },
     {
+        "id": "Noor",
+        "englishName": "Noor",
+        "japaneseName": "ヌール",
         "name": "Noor",
         "tags": [
             "people",
@@ -9442,6 +9937,9 @@
         "blocks": {}
     },
     {
+        "id": "Octopus",
+        "englishName": "Octopus",
+        "japaneseName": "タコ",
         "name": "Octopus",
         "tags": [
             "animals",
@@ -9522,6 +10020,9 @@
         "blocks": {}
     },
     {
+        "id": "Orange",
+        "englishName": "Orange",
+        "japaneseName": "オレンジ",
         "name": "Orange",
         "tags": [
             "food",
@@ -9554,6 +10055,9 @@
         "blocks": {}
     },
     {
+        "id": "Orange2",
+        "englishName": "Orange2",
+        "japaneseName": "オレンジ2",
         "name": "Orange2",
         "tags": [
             "food",
@@ -9596,6 +10100,9 @@
         "blocks": {}
     },
     {
+        "id": "Outfielder",
+        "englishName": "Outfielder",
+        "japaneseName": "外野手",
         "name": "Outfielder",
         "tags": [
             "baseball",
@@ -9657,6 +10164,9 @@
         "blocks": {}
     },
     {
+        "id": "Owl",
+        "englishName": "Owl",
+        "japaneseName": "フクロウ",
         "name": "Owl",
         "tags": [
             "animals",
@@ -9708,6 +10218,9 @@
         "blocks": {}
     },
     {
+        "id": "Paddle",
+        "englishName": "Paddle",
+        "japaneseName": "パドル",
         "name": "Paddle",
         "tags": [
             "thing"
@@ -9739,6 +10252,9 @@
         "blocks": {}
     },
     {
+        "id": "Panther",
+        "englishName": "Panther",
+        "japaneseName": "クロヒョウ",
         "name": "Panther",
         "tags": [
             "animals",
@@ -9791,6 +10307,9 @@
         "blocks": {}
     },
     {
+        "id": "Pants",
+        "englishName": "Pants",
+        "japaneseName": "ズボン",
         "name": "Pants",
         "tags": [
             "fashion",
@@ -9833,6 +10352,9 @@
         "blocks": {}
     },
     {
+        "id": "Parrot",
+        "englishName": "Parrot",
+        "japaneseName": "オウム",
         "name": "Parrot",
         "tags": [
             "animals",
@@ -9879,6 +10401,9 @@
         "blocks": {}
     },
     {
+        "id": "Party Hats",
+        "englishName": "Party Hats",
+        "japaneseName": "パーティー帽子",
         "name": "Party Hats",
         "tags": [
             "fashion",
@@ -9929,6 +10454,9 @@
         "blocks": {}
     },
     {
+        "id": "Pencil",
+        "englishName": "Pencil",
+        "japaneseName": "鉛筆",
         "name": "Pencil",
         "tags": [
             "thing",
@@ -9970,6 +10498,9 @@
         "blocks": {}
     },
     {
+        "id": "Penguin",
+        "englishName": "Penguin",
+        "japaneseName": "ペンギン",
         "name": "Penguin",
         "tags": [
             "animals",
@@ -10027,6 +10558,9 @@
         "blocks": {}
     },
     {
+        "id": "Penguin 2",
+        "englishName": "Penguin 2",
+        "japaneseName": "ペンギン2",
         "name": "Penguin 2",
         "tags": [
             "animals",
@@ -10088,6 +10622,9 @@
         "blocks": {}
     },
     {
+        "id": "Pico",
+        "englishName": "Pico",
+        "japaneseName": "ピコ",
         "name": "Pico",
         "tags": [
             "fantasy",
@@ -10147,6 +10684,9 @@
         "blocks": {}
     },
     {
+        "id": "Pico Walking",
+        "englishName": "Pico Walking",
+        "japaneseName": "歩くピコ",
         "name": "Pico Walking",
         "tags": [
             "fantasy",
@@ -10206,6 +10746,9 @@
         "blocks": {}
     },
     {
+        "id": "Pitcher",
+        "englishName": "Pitcher",
+        "japaneseName": "ピッチャー",
         "name": "Pitcher",
         "tags": [
             "baseball",
@@ -10267,6 +10810,9 @@
         "blocks": {}
     },
     {
+        "id": "Planet2",
+        "englishName": "Planet2",
+        "japaneseName": "惑星2",
         "name": "Planet2",
         "tags": [
             "space"
@@ -10298,6 +10844,9 @@
         "blocks": {}
     },
     {
+        "id": "Polar Bear",
+        "englishName": "Polar Bear",
+        "japaneseName": "シロクマ",
         "name": "Polar Bear",
         "tags": [
             "animals",
@@ -10356,6 +10905,9 @@
         "blocks": {}
     },
     {
+        "id": "Potion",
+        "englishName": "Potion",
+        "japaneseName": "薬",
         "name": "Potion",
         "tags": [
             "fantasy",
@@ -10407,6 +10959,9 @@
         "blocks": {}
     },
     {
+        "id": "Prince",
+        "englishName": "Prince",
+        "japaneseName": "王子",
         "name": "Prince",
         "tags": [
             "people",
@@ -10440,6 +10995,9 @@
         "blocks": {}
     },
     {
+        "id": "Princess",
+        "englishName": "Princess",
+        "japaneseName": "王女",
         "name": "Princess",
         "tags": [
             "fantasy",
@@ -10511,6 +11069,9 @@
         "blocks": {}
     },
     {
+        "id": "Pufferfish",
+        "englishName": "Pufferfish",
+        "japaneseName": "フグ",
         "name": "Pufferfish",
         "tags": [
             "animals",
@@ -10573,6 +11134,9 @@
         "blocks": {}
     },
     {
+        "id": "Puppy",
+        "englishName": "Puppy",
+        "japaneseName": "子犬",
         "name": "Puppy",
         "tags": [
             "animals",
@@ -10633,6 +11197,9 @@
         "blocks": {}
     },
     {
+        "id": "Rabbit",
+        "englishName": "Rabbit",
+        "japaneseName": "ウサギ",
         "name": "Rabbit",
         "tags": [
             "animals",
@@ -10705,6 +11272,9 @@
         "blocks": {}
     },
     {
+        "id": "Radio",
+        "englishName": "Radio",
+        "japaneseName": "ラジオ",
         "name": "Radio",
         "tags": [
             "radio",
@@ -10775,6 +11345,9 @@
         "blocks": {}
     },
     {
+        "id": "Rainbow",
+        "englishName": "Rainbow",
+        "japaneseName": "虹",
         "name": "Rainbow",
         "tags": [
             "things",
@@ -10809,6 +11382,9 @@
         "blocks": {}
     },
     {
+        "id": "Referee",
+        "englishName": "Referee",
+        "japaneseName": "審判",
         "name": "Referee",
         "tags": [
             "sports",
@@ -10870,6 +11446,9 @@
         "blocks": {}
     },
     {
+        "id": "Reindeer",
+        "englishName": "Reindeer",
+        "japaneseName": "トナカイ",
         "name": "Reindeer",
         "tags": [
             "animals",
@@ -10903,6 +11482,9 @@
         "blocks": {}
     },
     {
+        "id": "Retro Robot",
+        "englishName": "Retro Robot",
+        "japaneseName": "レトロロボット",
         "name": "Retro Robot",
         "tags": [
             "robot"
@@ -10961,6 +11543,9 @@
         "blocks": {}
     },
     {
+        "id": "Ripley",
+        "englishName": "Ripley",
+        "japaneseName": "リプリー",
         "name": "Ripley",
         "tags": [
             "space",
@@ -11039,6 +11624,9 @@
         "blocks": {}
     },
     {
+        "id": "Robot",
+        "englishName": "Robot",
+        "japaneseName": "ロボット",
         "name": "Robot",
         "tags": [
             "space",
@@ -11117,6 +11705,9 @@
         "blocks": {}
     },
     {
+        "id": "Rocketship",
+        "englishName": "Rocketship",
+        "japaneseName": "ロケット",
         "name": "Rocketship",
         "tags": [
             "space",
@@ -11204,6 +11795,9 @@
         "blocks": {}
     },
     {
+        "id": "Rocks",
+        "englishName": "Rocks",
+        "japaneseName": "岩",
         "name": "Rocks",
         "tags": [
             "things",
@@ -11236,6 +11830,9 @@
         "blocks": {}
     },
     {
+        "id": "Rooster",
+        "englishName": "Rooster",
+        "japaneseName": "おんどり",
         "name": "Rooster",
         "tags": [
             "animals",
@@ -11297,6 +11894,9 @@
         "blocks": {}
     },
     {
+        "id": "Ruby",
+        "englishName": "Ruby",
+        "japaneseName": "ルビー",
         "name": "Ruby",
         "tags": [
             "people"
@@ -11337,6 +11937,9 @@
         "blocks": {}
     },
     {
+        "id": "Sailboat",
+        "englishName": "Sailboat",
+        "japaneseName": "ヨット",
         "name": "Sailboat",
         "tags": [
             "boat",
@@ -11369,6 +11972,9 @@
         "blocks": {}
     },
     {
+        "id": "Sam",
+        "englishName": "Sam",
+        "japaneseName": "サム",
         "name": "Sam",
         "tags": [
             "people"
@@ -11400,6 +12006,9 @@
         "blocks": {}
     },
     {
+        "id": "Sasha",
+        "englishName": "Sasha",
+        "japaneseName": "サーシャ",
         "name": "Sasha",
         "tags": [
             "people",
@@ -11456,6 +12065,9 @@
         "blocks": {}
     },
     {
+        "id": "Saxophone",
+        "englishName": "Saxophone",
+        "japaneseName": "サックス",
         "name": "Saxophone",
         "tags": [
             "music",
@@ -11560,6 +12172,9 @@
         "blocks": {}
     },
     {
+        "id": "Scarf",
+        "englishName": "Scarf",
+        "japaneseName": "マフラー",
         "name": "Scarf",
         "tags": [
             "fashion",
@@ -11610,6 +12225,9 @@
         "blocks": {}
     },
     {
+        "id": "Shark",
+        "englishName": "Shark",
+        "japaneseName": "サメ",
         "name": "Shark",
         "tags": [
             "animals",
@@ -11653,6 +12271,9 @@
         "blocks": {}
     },
     {
+        "id": "Shark 2",
+        "englishName": "Shark 2",
+        "japaneseName": "サメ2",
         "name": "Shark 2",
         "tags": [
             "animals",
@@ -11726,6 +12347,9 @@
         "blocks": {}
     },
     {
+        "id": "Shirt",
+        "englishName": "Shirt",
+        "japaneseName": "シャツ",
         "name": "Shirt",
         "tags": [
             "fashion",
@@ -11758,6 +12382,9 @@
         "blocks": {}
     },
     {
+        "id": "Shoes",
+        "englishName": "Shoes",
+        "japaneseName": "靴",
         "name": "Shoes",
         "tags": [
             "fashion",
@@ -11819,6 +12446,9 @@
         "blocks": {}
     },
     {
+        "id": "Shorts",
+        "englishName": "Shorts",
+        "japaneseName": "半ズボン",
         "name": "Shorts",
         "tags": [
             "fashion",
@@ -11871,6 +12501,9 @@
         "blocks": {}
     },
     {
+        "id": "Singer1",
+        "englishName": "Singer1",
+        "japaneseName": "歌手1",
         "name": "Singer1",
         "tags": [
             "people",
@@ -11903,6 +12536,9 @@
         "blocks": {}
     },
     {
+        "id": "Skeleton",
+        "englishName": "Skeleton",
+        "japaneseName": "ガイコツ",
         "name": "Skeleton",
         "tags": [
             "fantasy",
@@ -11966,6 +12602,9 @@
         "blocks": {}
     },
     {
+        "id": "Snake",
+        "englishName": "Snake",
+        "japaneseName": "ヘビ",
         "name": "Snake",
         "tags": [
             "animals",
@@ -12017,6 +12656,9 @@
         "blocks": {}
     },
     {
+        "id": "Snowflake",
+        "englishName": "Snowflake",
+        "japaneseName": "雪の結晶",
         "name": "Snowflake",
         "tags": [
             "winter"
@@ -12048,6 +12690,9 @@
         "blocks": {}
     },
     {
+        "id": "Snowman",
+        "englishName": "Snowman",
+        "japaneseName": "雪だるま",
         "name": "Snowman",
         "tags": [
             "fantasy",
@@ -12081,6 +12726,9 @@
         "blocks": {}
     },
     {
+        "id": "Soccer Ball",
+        "englishName": "Soccer Ball",
+        "japaneseName": "サッカーボール",
         "name": "Soccer Ball",
         "tags": [
             "sports",
@@ -12115,6 +12763,9 @@
         "blocks": {}
     },
     {
+        "id": "Speaker",
+        "englishName": "Speaker",
+        "japaneseName": "スピーカー",
         "name": "Speaker",
         "tags": [
             "music",
@@ -12204,6 +12855,9 @@
         "blocks": {}
     },
     {
+        "id": "Squirrel",
+        "englishName": "Squirrel",
+        "japaneseName": "リス",
         "name": "Squirrel",
         "tags": [
             "animals"
@@ -12235,6 +12889,9 @@
         "blocks": {}
     },
     {
+        "id": "Star",
+        "englishName": "Star",
+        "japaneseName": "星",
         "name": "Star",
         "tags": [
             "shapes",
@@ -12267,6 +12924,9 @@
         "blocks": {}
     },
     {
+        "id": "Starfish",
+        "englishName": "Starfish",
+        "japaneseName": "ヒトデ",
         "name": "Starfish",
         "tags": [
             "animals",
@@ -12311,6 +12971,9 @@
         "blocks": {}
     },
     {
+        "id": "Stop",
+        "englishName": "Stop",
+        "japaneseName": "止まれ",
         "name": "Stop",
         "tags": [
             "shapes",
@@ -12343,6 +13006,9 @@
         "blocks": {}
     },
     {
+        "id": "Strawberry",
+        "englishName": "Strawberry",
+        "japaneseName": "いちご",
         "name": "Strawberry",
         "tags": [
             "food",
@@ -12412,6 +13078,9 @@
         "blocks": {}
     },
     {
+        "id": "Sun",
+        "englishName": "Sun",
+        "japaneseName": "太陽",
         "name": "Sun",
         "tags": [
             "space",
@@ -12448,6 +13117,9 @@
         "blocks": {}
     },
     {
+        "id": "Sunglasses1",
+        "englishName": "Sunglasses1",
+        "japaneseName": "サングラス1",
         "name": "Sunglasses1",
         "tags": [
             "fashion",
@@ -12489,6 +13161,9 @@
         "blocks": {}
     },
     {
+        "id": "Taco",
+        "englishName": "Taco",
+        "japaneseName": "タコス",
         "name": "Taco",
         "tags": [
             "food",
@@ -12530,6 +13205,9 @@
         "blocks": {}
     },
     {
+        "id": "Takeout",
+        "englishName": "Takeout",
+        "japaneseName": "テイクアウト",
         "name": "Takeout",
         "tags": [
             "food",
@@ -12598,6 +13276,9 @@
         "blocks": {}
     },
     {
+        "id": "Tatiana",
+        "englishName": "Tatiana",
+        "japaneseName": "タチアナ",
         "name": "Tatiana",
         "tags": [
             "people",
@@ -12663,6 +13344,9 @@
         "blocks": {}
     },
     {
+        "id": "Taylor",
+        "englishName": "Taylor",
+        "japaneseName": "テイラー",
         "name": "Taylor",
         "tags": [
             "people",
@@ -12728,6 +13412,9 @@
         "blocks": {}
     },
     {
+        "id": "Ten80 Dance",
+        "englishName": "Ten80 Dance",
+        "japaneseName": "テンエイティのダンス",
         "name": "Ten80 Dance",
         "tags": [
             "people",
@@ -12868,6 +13555,9 @@
         "blocks": {}
     },
     {
+        "id": "Tennis Ball",
+        "englishName": "Tennis Ball",
+        "japaneseName": "テニスボール",
         "name": "Tennis Ball",
         "tags": [
             "ball",
@@ -12900,6 +13590,9 @@
         "blocks": {}
     },
     {
+        "id": "Tera",
+        "englishName": "Tera",
+        "japaneseName": "テラ",
         "name": "Tera",
         "tags": [
             "fantasy",
@@ -12959,6 +13652,9 @@
         "blocks": {}
     },
     {
+        "id": "Toucan",
+        "englishName": "Toucan",
+        "japaneseName": "オオハシ",
         "name": "Toucan",
         "tags": [
             "animals",
@@ -13010,6 +13706,9 @@
         "blocks": {}
     },
     {
+        "id": "Trampoline",
+        "englishName": "Trampoline",
+        "japaneseName": "トランポリン",
         "name": "Trampoline",
         "tags": [
             "sports"
@@ -13041,6 +13740,9 @@
         "blocks": {}
     },
     {
+        "id": "Tree1",
+        "englishName": "Tree1",
+        "japaneseName": "木1",
         "name": "Tree1",
         "tags": [
             "plants",
@@ -13074,6 +13776,9 @@
         "blocks": {}
     },
     {
+        "id": "Trees",
+        "englishName": "Trees",
+        "japaneseName": "木々",
         "name": "Trees",
         "tags": [
             "plants",
@@ -13116,6 +13821,9 @@
         "blocks": {}
     },
     {
+        "id": "Trisha",
+        "englishName": "Trisha",
+        "japaneseName": "トリシャ",
         "name": "Trisha",
         "tags": [
             "people",
@@ -13181,6 +13889,9 @@
         "blocks": {}
     },
     {
+        "id": "Truck",
+        "englishName": "Truck",
+        "japaneseName": "トラック",
         "name": "Truck",
         "tags": [
             "truck",
@@ -13233,6 +13944,9 @@
         "blocks": {}
     },
     {
+        "id": "Trumpet",
+        "englishName": "Trumpet",
+        "japaneseName": "トランペット",
         "name": "Trumpet",
         "tags": [
             "music",
@@ -13337,6 +14051,9 @@
         "blocks": {}
     },
     {
+        "id": "Unicorn",
+        "englishName": "Unicorn",
+        "japaneseName": "ユニコーン",
         "name": "Unicorn",
         "tags": [
             "fantasy",
@@ -13370,6 +14087,9 @@
         "blocks": {}
     },
     {
+        "id": "Unicorn 2",
+        "englishName": "Unicorn 2",
+        "japaneseName": "ユニコーン2",
         "name": "Unicorn 2",
         "tags": [
             "fantasy",
@@ -13405,6 +14125,9 @@
         "blocks": {}
     },
     {
+        "id": "Unicorn Running",
+        "englishName": "Unicorn Running",
+        "japaneseName": "走るユニコーン",
         "name": "Unicorn Running",
         "tags": [
             "fantasy",
@@ -13484,6 +14207,9 @@
         "blocks": {}
     },
     {
+        "id": "Wand",
+        "englishName": "Wand",
+        "japaneseName": "杖",
         "name": "Wand",
         "tags": [
             "fantasy",
@@ -13517,6 +14243,9 @@
         "blocks": {}
     },
     {
+        "id": "Wanda",
+        "englishName": "Wanda",
+        "japaneseName": "ワンダ",
         "name": "Wanda",
         "tags": [
             "people"
@@ -13548,6 +14277,9 @@
         "blocks": {}
     },
     {
+        "id": "Watermelon",
+        "englishName": "Watermelon",
+        "japaneseName": "スイカ",
         "name": "Watermelon",
         "tags": [
             "food",
@@ -13602,6 +14334,9 @@
         "blocks": {}
     },
     {
+        "id": "Winter Hat",
+        "englishName": "Winter Hat",
+        "japaneseName": "冬の帽子",
         "name": "Winter Hat",
         "tags": [
             "fashion",
@@ -13636,6 +14371,9 @@
         "blocks": {}
     },
     {
+        "id": "Witch",
+        "englishName": "Witch",
+        "japaneseName": "魔女",
         "name": "Witch",
         "tags": [
             "fantasy",
@@ -13699,6 +14437,9 @@
         "blocks": {}
     },
     {
+        "id": "Wizard",
+        "englishName": "Wizard",
+        "japaneseName": "魔法使い",
         "name": "Wizard",
         "tags": [
             "fantasy",
@@ -13753,6 +14494,9 @@
         "blocks": {}
     },
     {
+        "id": "Wizard Girl",
+        "englishName": "Wizard Girl",
+        "japaneseName": "魔法使いの女の子",
         "name": "Wizard Girl",
         "tags": [
             "people",
@@ -13789,6 +14533,9 @@
         "blocks": {}
     },
     {
+        "id": "Wizard Hat",
+        "englishName": "Wizard Hat",
+        "japaneseName": "魔法使いの帽子",
         "name": "Wizard Hat",
         "tags": [
             "fashion",
@@ -13822,6 +14569,9 @@
         "blocks": {}
     },
     {
+        "id": "Wizard-toad",
+        "englishName": "Wizard-toad",
+        "japaneseName": "魔法使いのヒキガエル",
         "name": "Wizard-toad",
         "tags": [
             "fantasy",
@@ -13877,6 +14627,9 @@
         "blocks": {}
     },
     {
+        "id": "Zebra",
+        "englishName": "Zebra",
+        "japaneseName": "シマウマ",
         "name": "Zebra",
         "tags": [
             "animals",
@@ -13920,6 +14673,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-A",
+        "englishName": "Block-A",
+        "japaneseName": "ブロックA",
         "name": "Block-A",
         "tags": [
             "alphabet",
@@ -13952,6 +14708,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-B",
+        "englishName": "Block-B",
+        "japaneseName": "ブロックB",
         "name": "Block-B",
         "tags": [
             "alphabet",
@@ -13984,6 +14743,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-C",
+        "englishName": "Block-C",
+        "japaneseName": "ブロックC",
         "name": "Block-C",
         "tags": [
             "alphabet",
@@ -14016,6 +14778,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-D",
+        "englishName": "Block-D",
+        "japaneseName": "ブロックD",
         "name": "Block-D",
         "tags": [
             "alphabet",
@@ -14048,6 +14813,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-E",
+        "englishName": "Block-E",
+        "japaneseName": "ブロックE",
         "name": "Block-E",
         "tags": [
             "alphabet",
@@ -14080,6 +14848,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-F",
+        "englishName": "Block-F",
+        "japaneseName": "ブロックF",
         "name": "Block-F",
         "tags": [
             "alphabet",
@@ -14112,6 +14883,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-G",
+        "englishName": "Block-G",
+        "japaneseName": "ブロックG",
         "name": "Block-G",
         "tags": [
             "alphabet",
@@ -14144,6 +14918,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-H",
+        "englishName": "Block-H",
+        "japaneseName": "ブロックH",
         "name": "Block-H",
         "tags": [
             "alphabet",
@@ -14176,6 +14953,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-I",
+        "englishName": "Block-I",
+        "japaneseName": "ブロックI",
         "name": "Block-I",
         "tags": [
             "alphabet",
@@ -14208,6 +14988,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-J",
+        "englishName": "Block-J",
+        "japaneseName": "ブロックJ",
         "name": "Block-J",
         "tags": [
             "alphabet",
@@ -14240,6 +15023,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-K",
+        "englishName": "Block-K",
+        "japaneseName": "ブロックK",
         "name": "Block-K",
         "tags": [
             "alphabet",
@@ -14272,6 +15058,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-L",
+        "englishName": "Block-L",
+        "japaneseName": "ブロックL",
         "name": "Block-L",
         "tags": [
             "alphabet",
@@ -14304,6 +15093,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-M",
+        "englishName": "Block-M",
+        "japaneseName": "ブロックM",
         "name": "Block-M",
         "tags": [
             "alphabet",
@@ -14336,6 +15128,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-N",
+        "englishName": "Block-N",
+        "japaneseName": "ブロックN",
         "name": "Block-N",
         "tags": [
             "alphabet",
@@ -14368,6 +15163,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-O",
+        "englishName": "Block-O",
+        "japaneseName": "ブロックO",
         "name": "Block-O",
         "tags": [
             "alphabet",
@@ -14400,6 +15198,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-P",
+        "englishName": "Block-P",
+        "japaneseName": "ブロックP",
         "name": "Block-P",
         "tags": [
             "alphabet",
@@ -14432,6 +15233,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-Q",
+        "englishName": "Block-Q",
+        "japaneseName": "ブロックQ",
         "name": "Block-Q",
         "tags": [
             "alphabet",
@@ -14464,6 +15268,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-R",
+        "englishName": "Block-R",
+        "japaneseName": "ブロックR",
         "name": "Block-R",
         "tags": [
             "alphabet",
@@ -14496,6 +15303,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-S",
+        "englishName": "Block-S",
+        "japaneseName": "ブロックS",
         "name": "Block-S",
         "tags": [
             "alphabet",
@@ -14528,6 +15338,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-T",
+        "englishName": "Block-T",
+        "japaneseName": "ブロックT",
         "name": "Block-T",
         "tags": [
             "alphabet",
@@ -14560,6 +15373,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-U",
+        "englishName": "Block-U",
+        "japaneseName": "ブロックU",
         "name": "Block-U",
         "tags": [
             "alphabet",
@@ -14592,6 +15408,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-V",
+        "englishName": "Block-V",
+        "japaneseName": "ブロックV",
         "name": "Block-V",
         "tags": [
             "alphabet",
@@ -14624,6 +15443,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-W",
+        "englishName": "Block-W",
+        "japaneseName": "ブロックW",
         "name": "Block-W",
         "tags": [
             "alphabet",
@@ -14656,6 +15478,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-X",
+        "englishName": "Block-X",
+        "japaneseName": "ブロックX",
         "name": "Block-X",
         "tags": [
             "alphabet",
@@ -14688,6 +15513,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-Y",
+        "englishName": "Block-Y",
+        "japaneseName": "ブロックY",
         "name": "Block-Y",
         "tags": [
             "alphabet",
@@ -14720,6 +15548,9 @@
         "blocks": {}
     },
     {
+        "id": "Block-Z",
+        "englishName": "Block-Z",
+        "japaneseName": "ブロックZ",
         "name": "Block-Z",
         "tags": [
             "alphabet",
@@ -14752,6 +15583,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-0",
+        "englishName": "Glow-0",
+        "japaneseName": "光る0",
         "name": "Glow-0",
         "tags": [
             "numbers",
@@ -14784,6 +15618,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-1",
+        "englishName": "Glow-1",
+        "japaneseName": "光る1",
         "name": "Glow-1",
         "tags": [
             "numbers",
@@ -14816,6 +15653,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-2",
+        "englishName": "Glow-2",
+        "japaneseName": "光る2",
         "name": "Glow-2",
         "tags": [
             "numbers",
@@ -14848,6 +15688,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-3",
+        "englishName": "Glow-3",
+        "japaneseName": "光る3",
         "name": "Glow-3",
         "tags": [
             "numbers",
@@ -14880,6 +15723,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-4",
+        "englishName": "Glow-4",
+        "japaneseName": "光る4",
         "name": "Glow-4",
         "tags": [
             "numbers",
@@ -14912,6 +15758,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-5",
+        "englishName": "Glow-5",
+        "japaneseName": "光る5",
         "name": "Glow-5",
         "tags": [
             "numbers",
@@ -14944,6 +15793,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-6",
+        "englishName": "Glow-6",
+        "japaneseName": "光る6",
         "name": "Glow-6",
         "tags": [
             "numbers",
@@ -14976,6 +15828,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-7",
+        "englishName": "Glow-7",
+        "japaneseName": "光る7",
         "name": "Glow-7",
         "tags": [
             "numbers",
@@ -15008,6 +15863,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-8",
+        "englishName": "Glow-8",
+        "japaneseName": "光る8",
         "name": "Glow-8",
         "tags": [
             "numbers",
@@ -15040,6 +15898,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-9",
+        "englishName": "Glow-9",
+        "japaneseName": "光る9",
         "name": "Glow-9",
         "tags": [
             "numbers",
@@ -15072,6 +15933,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-A",
+        "englishName": "Glow-A",
+        "japaneseName": "光るA",
         "name": "Glow-A",
         "tags": [
             "alphabet",
@@ -15104,6 +15968,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-B",
+        "englishName": "Glow-B",
+        "japaneseName": "光るB",
         "name": "Glow-B",
         "tags": [
             "alphabet",
@@ -15136,6 +16003,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-C",
+        "englishName": "Glow-C",
+        "japaneseName": "光るC",
         "name": "Glow-C",
         "tags": [
             "alphabet",
@@ -15168,6 +16038,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-D",
+        "englishName": "Glow-D",
+        "japaneseName": "光るD",
         "name": "Glow-D",
         "tags": [
             "alphabet",
@@ -15200,6 +16073,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-E",
+        "englishName": "Glow-E",
+        "japaneseName": "光るE",
         "name": "Glow-E",
         "tags": [
             "alphabet",
@@ -15232,6 +16108,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-F",
+        "englishName": "Glow-F",
+        "japaneseName": "光るF",
         "name": "Glow-F",
         "tags": [
             "alphabet",
@@ -15264,6 +16143,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-G",
+        "englishName": "Glow-G",
+        "japaneseName": "光るG",
         "name": "Glow-G",
         "tags": [
             "alphabet",
@@ -15296,6 +16178,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-H",
+        "englishName": "Glow-H",
+        "japaneseName": "光るH",
         "name": "Glow-H",
         "tags": [
             "alphabet",
@@ -15328,6 +16213,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-I",
+        "englishName": "Glow-I",
+        "japaneseName": "光るI",
         "name": "Glow-I",
         "tags": [
             "alphabet",
@@ -15360,6 +16248,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-J",
+        "englishName": "Glow-J",
+        "japaneseName": "光るJ",
         "name": "Glow-J",
         "tags": [
             "alphabet",
@@ -15392,6 +16283,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-K",
+        "englishName": "Glow-K",
+        "japaneseName": "光るK",
         "name": "Glow-K",
         "tags": [
             "alphabet",
@@ -15424,6 +16318,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-L",
+        "englishName": "Glow-L",
+        "japaneseName": "光るL",
         "name": "Glow-L",
         "tags": [
             "alphabet",
@@ -15456,6 +16353,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-M",
+        "englishName": "Glow-M",
+        "japaneseName": "光るM",
         "name": "Glow-M",
         "tags": [
             "alphabet",
@@ -15488,6 +16388,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-N",
+        "englishName": "Glow-N",
+        "japaneseName": "光るN",
         "name": "Glow-N",
         "tags": [
             "alphabet",
@@ -15520,6 +16423,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-O",
+        "englishName": "Glow-O",
+        "japaneseName": "光るO",
         "name": "Glow-O",
         "tags": [
             "alphabet",
@@ -15552,6 +16458,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-P",
+        "englishName": "Glow-P",
+        "japaneseName": "光るP",
         "name": "Glow-P",
         "tags": [
             "alphabet",
@@ -15584,6 +16493,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-Q",
+        "englishName": "Glow-Q",
+        "japaneseName": "光るQ",
         "name": "Glow-Q",
         "tags": [
             "alphabet",
@@ -15616,6 +16528,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-R",
+        "englishName": "Glow-R",
+        "japaneseName": "光るR",
         "name": "Glow-R",
         "tags": [
             "alphabet",
@@ -15648,6 +16563,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-S",
+        "englishName": "Glow-S",
+        "japaneseName": "光るS",
         "name": "Glow-S",
         "tags": [
             "alphabet",
@@ -15680,6 +16598,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-T",
+        "englishName": "Glow-T",
+        "japaneseName": "光るT",
         "name": "Glow-T",
         "tags": [
             "alphabet",
@@ -15712,6 +16633,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-U",
+        "englishName": "Glow-U",
+        "japaneseName": "光るU",
         "name": "Glow-U",
         "tags": [
             "alphabet",
@@ -15744,6 +16668,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-V",
+        "englishName": "Glow-V",
+        "japaneseName": "光るV",
         "name": "Glow-V",
         "tags": [
             "alphabet",
@@ -15776,6 +16703,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-W",
+        "englishName": "Glow-W",
+        "japaneseName": "光るW",
         "name": "Glow-W",
         "tags": [
             "alphabet",
@@ -15808,6 +16738,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-X",
+        "englishName": "Glow-X",
+        "japaneseName": "光るX",
         "name": "Glow-X",
         "tags": [
             "alphabet",
@@ -15840,6 +16773,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-Y",
+        "englishName": "Glow-Y",
+        "japaneseName": "光るY",
         "name": "Glow-Y",
         "tags": [
             "alphabet",
@@ -15872,6 +16808,9 @@
         "blocks": {}
     },
     {
+        "id": "Glow-Z",
+        "englishName": "Glow-Z",
+        "japaneseName": "光るZ",
         "name": "Glow-Z",
         "tags": [
             "alphabet",
@@ -15904,6 +16843,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-A",
+        "englishName": "Story-A",
+        "japaneseName": "物語A",
         "name": "Story-A",
         "tags": [
             "alphabet",
@@ -15954,6 +16896,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-B",
+        "englishName": "Story-B",
+        "japaneseName": "物語B",
         "name": "Story-B",
         "tags": [
             "alphabet",
@@ -16004,6 +16949,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-C",
+        "englishName": "Story-C",
+        "japaneseName": "物語C",
         "name": "Story-C",
         "tags": [
             "alphabet",
@@ -16054,6 +17002,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-D",
+        "englishName": "Story-D",
+        "japaneseName": "物語D",
         "name": "Story-D",
         "tags": [
             "alphabet",
@@ -16104,6 +17055,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-E",
+        "englishName": "Story-E",
+        "japaneseName": "物語E",
         "name": "Story-E",
         "tags": [
             "alphabet",
@@ -16154,6 +17108,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-F",
+        "englishName": "Story-F",
+        "japaneseName": "物語F",
         "name": "Story-F",
         "tags": [
             "alphabet",
@@ -16204,6 +17161,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-G",
+        "englishName": "Story-G",
+        "japaneseName": "物語G",
         "name": "Story-G",
         "tags": [
             "alphabet",
@@ -16254,6 +17214,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-H",
+        "englishName": "Story-H",
+        "japaneseName": "物語H",
         "name": "Story-H",
         "tags": [
             "alphabet",
@@ -16304,6 +17267,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-I",
+        "englishName": "Story-I",
+        "japaneseName": "物語I",
         "name": "Story-I",
         "tags": [
             "alphabet",
@@ -16354,6 +17320,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-J",
+        "englishName": "Story-J",
+        "japaneseName": "物語J",
         "name": "Story-J",
         "tags": [
             "alphabet",
@@ -16404,6 +17373,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-K",
+        "englishName": "Story-K",
+        "japaneseName": "物語K",
         "name": "Story-K",
         "tags": [
             "alphabet",
@@ -16454,6 +17426,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-L",
+        "englishName": "Story-L",
+        "japaneseName": "物語L",
         "name": "Story-L",
         "tags": [
             "alphabet",
@@ -16504,6 +17479,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-M",
+        "englishName": "Story-M",
+        "japaneseName": "物語M",
         "name": "Story-M",
         "tags": [
             "alphabet",
@@ -16554,6 +17532,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-N",
+        "englishName": "Story-N",
+        "japaneseName": "物語N",
         "name": "Story-N",
         "tags": [
             "alphabet",
@@ -16604,6 +17585,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-O",
+        "englishName": "Story-O",
+        "japaneseName": "物語O",
         "name": "Story-O",
         "tags": [
             "alphabet",
@@ -16654,6 +17638,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-P",
+        "englishName": "Story-P",
+        "japaneseName": "物語P",
         "name": "Story-P",
         "tags": [
             "alphabet",
@@ -16704,6 +17691,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-Q",
+        "englishName": "Story-Q",
+        "japaneseName": "物語Q",
         "name": "Story-Q",
         "tags": [
             "alphabet",
@@ -16754,6 +17744,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-R",
+        "englishName": "Story-R",
+        "japaneseName": "物語R",
         "name": "Story-R",
         "tags": [
             "alphabet",
@@ -16804,6 +17797,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-S",
+        "englishName": "Story-S",
+        "japaneseName": "物語S",
         "name": "Story-S",
         "tags": [
             "alphabet",
@@ -16854,6 +17850,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-T",
+        "englishName": "Story-T",
+        "japaneseName": "物語T",
         "name": "Story-T",
         "tags": [
             "alphabet",
@@ -16904,6 +17903,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-U",
+        "englishName": "Story-U",
+        "japaneseName": "物語U",
         "name": "Story-U",
         "tags": [
             "alphabet",
@@ -16954,6 +17956,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-V",
+        "englishName": "Story-V",
+        "japaneseName": "物語V",
         "name": "Story-V",
         "tags": [
             "alphabet",
@@ -17004,6 +18009,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-W",
+        "englishName": "Story-W",
+        "japaneseName": "物語W",
         "name": "Story-W",
         "tags": [
             "alphabet",
@@ -17054,6 +18062,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-X",
+        "englishName": "Story-X",
+        "japaneseName": "物語X",
         "name": "Story-X",
         "tags": [
             "alphabet",
@@ -17104,6 +18115,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-Y",
+        "englishName": "Story-Y",
+        "japaneseName": "物語Y",
         "name": "Story-Y",
         "tags": [
             "alphabet",
@@ -17154,6 +18168,9 @@
         "blocks": {}
     },
     {
+        "id": "Story-Z",
+        "englishName": "Story-Z",
+        "japaneseName": "物語Z",
         "name": "Story-Z",
         "tags": [
             "alphabet",

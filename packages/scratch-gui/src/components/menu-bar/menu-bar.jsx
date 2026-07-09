@@ -96,6 +96,7 @@ import explanationNormalIcon from './icon--explanation-normal.svg';
 import explanationShortIcon from './icon--explanation-short.svg';
 import aiMenuIcon from './icon--ai-menu.svg';
 import explanationLengthIcon from './icon--explanation-length.svg';
+import spriteAutoAddIcon from './icon--sprite-auto-add.svg';
 import check from './check.svg';
 
 import scratchLogo from './scratch-logo.svg';
@@ -108,6 +109,10 @@ import oldtimeyLogo from './oldtimey-logo.svg';
 import sharedMessages from '../../lib/shared-messages';
 
 import { AccountMenuOptionsPropTypes } from '../../lib/account-menu-options';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
+const API_STATUS_URL = `${API_BASE_URL}/api/status`;
+const SPRITE_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-sprite-auto-add`;
 
 const ariaMessages = defineMessages({
     tutorials: {
@@ -204,15 +209,43 @@ class MenuBar extends React.Component {
             'handleSetMode',
             'handleKeyPress',
             'handleRestoreOption',
+            'handleToggleSpriteAutoAdd',
             'getSaveToComputerHandler',
+            'loadAiMenuState',
             'restoreOptionMessage'
         ]);
+        this.state = {
+            spriteAutoAddEnabled: true,
+            spriteAutoAddLoading: true
+        };
     }
     componentDidMount() {
+        this._isMounted = true;
         document.addEventListener('keydown', this.handleKeyPress);
+        this.loadAiMenuState();
     }
     componentWillUnmount() {
+        this._isMounted = false;
         document.removeEventListener('keydown', this.handleKeyPress);
+    }
+    loadAiMenuState() {
+        fetch(API_STATUS_URL)
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                if (typeof data.sprite_auto_add_enabled === 'boolean') {
+                    this.setState({
+                        spriteAutoAddEnabled: data.sprite_auto_add_enabled,
+                        spriteAutoAddLoading: false
+                    });
+                } else {
+                    this.setState({spriteAutoAddLoading: false});
+                }
+            })
+            .catch(error => {
+                console.warn('Failed to load AI menu state:', error);
+                if (this._isMounted) this.setState({spriteAutoAddLoading: false});
+            });
     }
     handleClickNew() {
         // if the project is dirty, and user owns the project, we will autosave.
@@ -297,6 +330,23 @@ class MenuBar extends React.Component {
             restoreFun();
             this.props.onRequestCloseEdit();
         };
+    }
+    handleToggleSpriteAutoAdd() {
+        if (this.state.spriteAutoAddLoading) return;
+        this.setState({spriteAutoAddLoading: true});
+        fetch(SPRITE_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                this.setState({
+                    spriteAutoAddEnabled: data.sprite_auto_add_enabled === true,
+                    spriteAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to toggle sprite auto add:', error);
+                if (this._isMounted) this.setState({spriteAutoAddLoading: false});
+            });
     }
     handleKeyPress(event) {
         const modifier = bowser.mac ? event.metaKey : event.ctrlKey;
@@ -654,6 +704,31 @@ class MenuBar extends React.Component {
                                 place={this.props.isRtl ? 'left' : 'right'}
                                 onRequestClose={this.props.onRequestCloseAiMenu}
                             >
+                                <MenuSection>
+                                    <MenuItem
+                                        className={classNames({
+                                            [styles.disabled]: this.state.spriteAutoAddLoading
+                                        })}
+                                        onClick={this.handleToggleSpriteAutoAdd}
+                                    >
+                                        <span className={styles.aiToggleOption}>
+                                            <img
+                                                className={settingsMenuStyles.icon}
+                                                src={spriteAutoAddIcon}
+                                            />
+                                            <span className={styles.aiToggleLabel}>
+                                                {'スプライト自動追加'}
+                                            </span>
+                                            <span
+                                                className={classNames(styles.aiToggleSwitch, {
+                                                    [styles.aiToggleSwitchOn]: this.state.spriteAutoAddEnabled
+                                                })}
+                                            >
+                                                <span className={styles.aiToggleThumb} />
+                                            </span>
+                                        </span>
+                                    </MenuItem>
+                                </MenuSection>
                                 <MenuSection>
                                     <MenuItem>
                                         <span className={settingsMenuStyles.option}>

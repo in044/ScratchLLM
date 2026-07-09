@@ -92,6 +92,7 @@ export const renderMessageContent = text => {
 // Create a .env file in packages/scratch-gui/ with:
 //   REACT_APP_API_BASE_URL=https://your-domain.example.com
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
+const STATUS_URL = `${process.env.REACT_APP_API_BASE_URL}/api/status`;
 const SYNTAX_REPAIR_URL = `${process.env.REACT_APP_API_BASE_URL}/api/repair-scratch`;
 const SPRITE_PLAN_URL = `${process.env.REACT_APP_API_BASE_URL}/api/plan-sprites`;
 
@@ -177,6 +178,16 @@ const isDogSoundRequirement = asset => /犬|いぬ|イヌ|子犬|dog|puppy|bark|
 
 const isDogCostumeRequirement = asset => /犬|いぬ|イヌ|子犬|dog|puppy/iu.test(String(asset || '')) &&
     /コスチューム|見た目|姿|衣装|変身|変化|変える|costume|look|transform/iu.test(String(asset || ''));
+
+const emptySpritePlan = (disabled = false) => ({
+    requiredSprites: [],
+    sprites: [],
+    assetAdditions: [],
+    existingSpritesToReuse: [],
+    forbiddenSpriteAdditions: [],
+    reason: '',
+    disabled
+});
 
 export class ChatComponent extends React.Component {
 
@@ -266,13 +277,13 @@ export class ChatComponent extends React.Component {
 
     async _planRequiredSprites (userInput, projectJson) {
         if (!isAutomaticSpriteAddEnabled()) {
-            return {
-                requiredSprites: [],
-                existingSpritesToReuse: [],
-                forbiddenSpriteAdditions: [],
-                reason: ''
-            };
+            return emptySpritePlan(true);
         }
+        const spriteAutoAddEnabled = await this._isAutomaticSpriteAddCurrentlyEnabled();
+        if (!spriteAutoAddEnabled) {
+            return emptySpritePlan(true);
+        }
+
         try {
             const response = await fetch(SPRITE_PLAN_URL, {
                 method: 'POST',
@@ -287,7 +298,7 @@ export class ChatComponent extends React.Component {
                     existingSprites: buildExistingSpriteNames(projectJson)
                 })
             });
-            if (!response.ok) throw new Error(`Sprite planning returned ${response.status}.`);
+            if (response.ok === false) throw new Error(`Sprite planning returned ${response.status}.`);
             const data = await response.json();
             return {
                 requiredSprites: Array.isArray(data.requiredSprites) ? data.requiredSprites : [],
@@ -299,19 +310,30 @@ export class ChatComponent extends React.Component {
                 forbiddenSpriteAdditions: Array.isArray(data.forbiddenSpriteAdditions) ?
                     data.forbiddenSpriteAdditions :
                     [],
-                reason: typeof data.reason === 'string' ? data.reason : ''
+                reason: typeof data.reason === 'string' ? data.reason : '',
+                disabled: data.disabled === true
             };
         } catch (error) {
             console.warn('Automatic sprite planning was unavailable:', error);
-            return {
-                requiredSprites: [],
-                sprites: [],
-                assetAdditions: [],
-                existingSpritesToReuse: [],
-                forbiddenSpriteAdditions: [],
-                reason: ''
-            };
+            return emptySpritePlan(true);
         }
+    }
+
+    async _isAutomaticSpriteAddCurrentlyEnabled () {
+        if (!isAutomaticSpriteAddEnabled()) return false;
+
+        try {
+            const response = await fetch(STATUS_URL);
+            if (response.ok === false) throw new Error(`Status returned ${response.status}.`);
+            const data = await response.json();
+            if (typeof data.sprite_auto_add_enabled === 'boolean') {
+                return data.sprite_auto_add_enabled;
+            }
+        } catch (error) {
+            console.warn('Automatic sprite status was unavailable:', error);
+        }
+
+        return true;
     }
 
     async _applyPlannedSpriteAssets (spritePlan) {
@@ -382,10 +404,14 @@ export class ChatComponent extends React.Component {
         }
 
         const initialProjectJson = this.props.vm.toJSON();
-        const automaticSpriteAddEnabled = isAutomaticSpriteAddEnabled();
         const spritePlan = await this._planRequiredSprites(inputValue, initialProjectJson);
-        const inferredRequiredAssets = inferRequiredSpriteAssets(inputValue, initialProjectJson);
-        const directCostumeNames = inferDirectLibraryCostumes(inputValue, initialProjectJson);
+        const automaticSpriteAddEnabled = isAutomaticSpriteAddEnabled() && !spritePlan.disabled;
+        const inferredRequiredAssets = automaticSpriteAddEnabled ?
+            inferRequiredSpriteAssets(inputValue, initialProjectJson) :
+            [];
+        const directCostumeNames = automaticSpriteAddEnabled ?
+            inferDirectLibraryCostumes(inputValue, initialProjectJson) :
+            [];
         const directlyAddedAssetSummaries = [];
         let requiredSpritesFromPlan = spritePlan.requiredSprites;
         let unresolvedInferredRequiredAssets = inferredRequiredAssets;

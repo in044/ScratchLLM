@@ -60,7 +60,17 @@ app_state = {
     "approval_mode": False,
     "ai_enabled": True,
     "syntax_repair_enabled": env_flag('SCRATCH_SYNTAX_REPAIR_ENABLED', True),
+    "sprite_auto_add_enabled": env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True),
 }
+
+
+def get_public_app_state():
+    state = dict(app_state)
+    state['sprite_auto_add_enabled'] = (
+        env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True) and
+        state['sprite_auto_add_enabled']
+    )
+    return state
 
 # id -> {
 #   "input": str,
@@ -145,6 +155,8 @@ def sanitize_sprite_catalog(value):
         if not isinstance(item, dict):
             continue
         name = item.get('name')
+        sprite_id = item.get('id')
+        english_name = item.get('englishName')
         tags = item.get('tags', [])
         costumes = item.get('costumes', [])
         sounds = item.get('sounds', [])
@@ -172,8 +184,20 @@ def sanitize_sprite_catalog(value):
             if use_japanese_names and isinstance(japanese_name, str)
             else ''
         )
+        sanitized_id = (
+            sprite_id.strip()[:100]
+            if isinstance(sprite_id, str) and sprite_id.strip()
+            else sanitized_name
+        )
+        sanitized_english_name = (
+            english_name.strip()[:100]
+            if isinstance(english_name, str) and english_name.strip()
+            else sanitized_name
+        )
         catalog.append({
+            'id': sanitized_id,
             'name': sanitized_name,
+            'englishName': sanitized_english_name,
             'displayName': sanitized_display_name,
             'japaneseName': sanitized_japanese_name,
             'aliases': [
@@ -269,7 +293,12 @@ def build_sprite_requirement_messages(data):
         if item['sounds']:
             asset_parts.append(f'音: {", ".join(item["sounds"])}')
         asset_text = f'（{" / ".join(asset_parts)}）' if asset_parts else ''
-        return f'- {item["displayName"]}{asset_text}'
+        canonical_text = (
+            f' / ライブラリ名: {item["name"]}'
+            if item['displayName'] != item['name']
+            else ''
+        )
+        return f'- {item["displayName"]}{canonical_text}{asset_text}'
 
     catalog_text = '\n'.join(catalog_line(item) for item in catalog) if catalog else '未指定'
     prompt = f"""次のScratchプログラム変更依頼を、コード修正の観点から解析してください。
@@ -287,7 +316,7 @@ def build_sprite_requirement_messages(data):
 - 既存スプライトへコスチューム・音だけを追加すればよい場合は assetAdditions に入れ、sprites には入れない。
 - requiredSprites は説明用です。実際に追加する素材は必ず sprites または assetAdditions にも入れる。
 - 例: 「バナナから逃げるゲーム」は requiredSprites に「バナナ」、sprites に {{"spriteName":"Bananas"}} を入れる。
-- spriteName/sourceSpriteName はスプライト一覧にある名前だけを使用する。
+- spriteName/sourceSpriteName はスプライト一覧の「ライブラリ名」を使用する。表示が「日本語名(英語名)」の場合は、括弧内の英語名だけを使用する。
 - costumeNames/soundNames は、その sourceSpriteName の行に書かれたコスチューム名・音名だけを使用する。
 - 迷う場合は requiredSprites を空配列にする。
 
@@ -642,7 +671,7 @@ def admin_events():
         admin_queues.append(q)
 
     with state_lock:
-        initial = dict(app_state)
+        initial = get_public_app_state()
     with pending_lock:
         initial["pending"] = [
             {
@@ -705,7 +734,7 @@ def student_events(request_id):
 @app.route('/api/status')
 def get_status():
     with state_lock:
-        return jsonify(dict(app_state))
+        return jsonify(get_public_app_state())
 
 
 # ─────────────────────────────────────────────
@@ -753,6 +782,21 @@ def toggle_syntax_repair():
         new_val = app_state['syntax_repair_enabled']
     notify_admin('state_changed', {'syntax_repair_enabled': new_val})
     return jsonify({'syntax_repair_enabled': new_val})
+
+
+# ─────────────────────────────────────────────
+# スプライト自動追加 on/off トグル
+# ─────────────────────────────────────────────
+@app.route('/api/admin/toggle-sprite-auto-add', methods=['POST'])
+def toggle_sprite_auto_add():
+    with state_lock:
+        app_state['sprite_auto_add_enabled'] = not app_state['sprite_auto_add_enabled']
+        new_val = (
+            env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True) and
+            app_state['sprite_auto_add_enabled']
+        )
+    notify_admin('state_changed', {'sprite_auto_add_enabled': new_val})
+    return jsonify({'sprite_auto_add_enabled': new_val})
 
 
 # ─────────────────────────────────────────────
@@ -930,7 +974,13 @@ def repair_scratch():
 @app.route('/api/plan-sprites', methods=['POST'])
 def plan_sprites():
     try:
-        if not env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True):
+        with state_lock:
+            sprite_auto_add_enabled = (
+                env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True) and
+                app_state['sprite_auto_add_enabled']
+            )
+            ai_enabled = app_state['ai_enabled']
+        if not sprite_auto_add_enabled:
             return jsonify({
                 'requiredSprites': [],
                 'sprites': [],
@@ -941,8 +991,6 @@ def plan_sprites():
                 'disabled': True
             })
 
-        with state_lock:
-            ai_enabled = app_state['ai_enabled']
         if not ai_enabled:
             return jsonify({
                 'requiredSprites': [],
