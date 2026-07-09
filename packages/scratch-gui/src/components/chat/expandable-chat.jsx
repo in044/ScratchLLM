@@ -8,6 +8,13 @@ import chatIcon from './icon--chat.svg';
 import ChatComponent from './chat.jsx';
 
 const MIN_FLOATING_WIDTH = 300;
+const ACTIVE_TOUCH_OPTIONS = {passive: false};
+
+const getPrimaryPointer = event => {
+    if (event.touches && event.touches.length > 0) return event.touches[0];
+    if (event.changedTouches && event.changedTouches.length > 0) return event.changedTouches[0];
+    return event;
+};
 
 const ExpandableChat = props => {
     const [expanded, setExpanded] = useState(true);
@@ -65,15 +72,19 @@ const ExpandableChat = props => {
                 setIsDragging(true);
 
                 const doMove = moveEvent => {
+                    const pointer = getPrimaryPointer(moveEvent);
+                    if (!pointer) return;
+                    if (moveEvent.cancelable) moveEvent.preventDefault();
+
                     // Match sidebar width for docking zone
-                    if (moveEvent.clientX < 50) {
+                    if (pointer.clientX < 50) {
                         setIsHoveringDock(true);
                     } else {
                         setIsHoveringDock(false);
                     }
 
-                    const newLeft = startLeft + (moveEvent.clientX - startX);
-                    const newBottom = startBottom + (startY - moveEvent.clientY);
+                    const newLeft = startLeft + (pointer.clientX - startX);
+                    const newBottom = startBottom + (startY - pointer.clientY);
 
                     setDimensions(prev => ({
                         ...prev,
@@ -82,21 +93,28 @@ const ExpandableChat = props => {
                     }));
                 };
 
-                const stopMoveHandler = (upEvent) => {
+                const stopMoveHandler = upEvent => {
+                    const pointer = getPrimaryPointer(upEvent);
                     setIsDragging(false);
                     setIsHoveringDock(false);
 
-                    if (upEvent.clientX < 50 && props.onDock) {
+                    if (pointer && pointer.clientX < 50 && props.onDock) {
                         props.onDock();
                         setExpanded(false);
                     }
 
                     document.removeEventListener('mousemove', doMove);
                     document.removeEventListener('mouseup', stopMoveHandler);
+                    document.removeEventListener('touchmove', doMove);
+                    document.removeEventListener('touchend', stopMoveHandler);
+                    document.removeEventListener('touchcancel', stopMoveHandler);
                 };
 
                 document.addEventListener('mousemove', doMove);
                 document.addEventListener('mouseup', stopMoveHandler);
+                document.addEventListener('touchmove', doMove, ACTIVE_TOUCH_OPTIONS);
+                document.addEventListener('touchend', stopMoveHandler);
+                document.addEventListener('touchcancel', stopMoveHandler);
             }
         }
     }, [props.undockPosition]);
@@ -166,11 +184,14 @@ const ExpandableChat = props => {
     };
 
     const startResize = useCallback((direction) => (e) => {
+        const startPointer = getPrimaryPointer(e);
+        if (!startPointer) return;
+
         e.preventDefault();
         e.stopPropagation();
         setResizingDirection(direction);
-        const startX = e.clientX;
-        const startY = e.clientY;
+        const startX = startPointer.clientX;
+        const startY = startPointer.clientY;
         const startWidth = dimensions.width;
         const startHeight = dimensions.height;
         const startLeft = dimensions.left;
@@ -186,12 +207,16 @@ const ExpandableChat = props => {
         if (direction === 'corner-bl') document.body.style.cursor = 'sw-resize';
 
         const doDrag = dragEvent => {
+            const pointer = getPrimaryPointer(dragEvent);
+            if (!pointer) return;
+            if (dragEvent.cancelable) dragEvent.preventDefault();
+
             let newWidth = startWidth;
             let newHeight = startHeight;
             let newLeft = startLeft;
             let newBottom = startBottom;
-            const deltaX = dragEvent.clientX - startX;
-            const deltaY = startY - dragEvent.clientY;
+            const deltaX = pointer.clientX - startX;
+            const deltaY = startY - pointer.clientY;
 
             // Right (includes corner-tr and corner-br)
             if (direction === 'right' || direction === 'corner-tr' || direction === 'corner-br') {
@@ -219,7 +244,7 @@ const ExpandableChat = props => {
 
             // Bottom (includes corner-br and corner-bl)
             if (direction === 'bottom' || direction === 'corner-br' || direction === 'corner-bl') {
-                const dragDownAmount = dragEvent.clientY - startY;
+                const dragDownAmount = pointer.clientY - startY;
                 const proposedHeight = startHeight + dragDownAmount;
 
                 // Clamp height between 400 and 800
@@ -247,32 +272,44 @@ const ExpandableChat = props => {
             document.body.style.cursor = '';
             document.removeEventListener('mousemove', doDrag);
             document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchmove', doDrag);
+            document.removeEventListener('touchend', stopDrag);
+            document.removeEventListener('touchcancel', stopDrag);
         };
 
         document.addEventListener('mousemove', doDrag);
         document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchmove', doDrag, ACTIVE_TOUCH_OPTIONS);
+        document.addEventListener('touchend', stopDrag);
+        document.addEventListener('touchcancel', stopDrag);
     }, [dimensions]);
 
     const startMove = useCallback((e) => {
         if (e.target.closest('button')) return;
+        const startPointer = getPrimaryPointer(e);
+        if (!startPointer) return;
 
         e.preventDefault();
         setIsDragging(true);
-        const startX = e.clientX;
-        const startY = e.clientY;
+        const startX = startPointer.clientX;
+        const startY = startPointer.clientY;
         const startLeft = dimensions.left;
         const startBottom = dimensions.bottom;
 
         const doMove = moveEvent => {
+            const pointer = getPrimaryPointer(moveEvent);
+            if (!pointer) return;
+            if (moveEvent.cancelable) moveEvent.preventDefault();
+
             // [UPDATED] Update hover state based on position
-            if (moveEvent.clientX < 50) {
+            if (pointer.clientX < 50) {
                 setIsHoveringDock(true);
             } else {
                 setIsHoveringDock(false);
             }
 
-            const newLeft = startLeft + (moveEvent.clientX - startX);
-            let newBottom = startBottom + (startY - moveEvent.clientY);
+            const newLeft = startLeft + (pointer.clientX - startX);
+            let newBottom = startBottom + (startY - pointer.clientY);
 
             // Prevent overlapping with menu bar (48px height)
             // Calculate max bottom based on window height and menu bar
@@ -303,21 +340,28 @@ const ExpandableChat = props => {
         };
 
         // Revised stopMove with event access
-        const stopMoveHandler = (upEvent) => {
+        const stopMoveHandler = upEvent => {
+            const pointer = getPrimaryPointer(upEvent);
             setIsDragging(false);
             setIsHoveringDock(false); // Reset visualization
 
-            if (upEvent.clientX < 50 && props.onDock) {
+            if (pointer && pointer.clientX < 50 && props.onDock) {
                 props.onDock(); // Trigger dock
                 setExpanded(false); // Collapse
             }
 
             document.removeEventListener('mousemove', doMove);
             document.removeEventListener('mouseup', stopMoveHandler);
+            document.removeEventListener('touchmove', doMove);
+            document.removeEventListener('touchend', stopMoveHandler);
+            document.removeEventListener('touchcancel', stopMoveHandler);
         };
 
         document.addEventListener('mousemove', doMove);
         document.addEventListener('mouseup', stopMoveHandler);
+        document.addEventListener('touchmove', doMove, ACTIVE_TOUCH_OPTIONS);
+        document.addEventListener('touchend', stopMoveHandler);
+        document.addEventListener('touchcancel', stopMoveHandler);
     }, [dimensions, props.onDock]);
 
     // If chatModalVisible (sidebar) is open, hide this component
@@ -372,34 +416,42 @@ const ExpandableChat = props => {
                     <div
                         className={styles.resizeHandleCornerTr}
                         onMouseDown={startResize('corner-tr')}
+                        onTouchStart={startResize('corner-tr')}
                     />
                     <div
                         className={styles.resizeHandleCornerTl}
                         onMouseDown={startResize('corner-tl')}
+                        onTouchStart={startResize('corner-tl')}
                     />
                     <div
                         className={styles.resizeHandleCornerBr}
                         onMouseDown={startResize('corner-br')}
+                        onTouchStart={startResize('corner-br')}
                     />
                     <div
                         className={styles.resizeHandleCornerBl}
                         onMouseDown={startResize('corner-bl')}
+                        onTouchStart={startResize('corner-bl')}
                     />
                     <div
                         className={styles.resizeHandleTop}
                         onMouseDown={startResize('top')}
+                        onTouchStart={startResize('top')}
                     />
                     <div
                         className={styles.resizeHandleRight}
                         onMouseDown={startResize('right')}
+                        onTouchStart={startResize('right')}
                     />
                     <div
                         className={styles.resizeHandleLeft}
                         onMouseDown={startResize('left')}
+                        onTouchStart={startResize('left')}
                     />
                     <div
                         className={styles.resizeHandleBottom}
                         onMouseDown={startResize('bottom')}
+                        onTouchStart={startResize('bottom')}
                     />
                     <ChatComponent
                         onClose={toggleChat}

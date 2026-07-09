@@ -109,6 +109,10 @@ import oldtimeyLogo from './oldtimey-logo.svg';
 import sharedMessages from '../../lib/shared-messages';
 
 import { AccountMenuOptionsPropTypes } from '../../lib/account-menu-options';
+import {
+    getSpriteAutoAddPreference,
+    setSpriteAutoAddPreference
+} from '../../lib/user-preferences';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 const API_STATUS_URL = `${API_BASE_URL}/api/status`;
@@ -212,10 +216,11 @@ class MenuBar extends React.Component {
             'handleToggleSpriteAutoAdd',
             'getSaveToComputerHandler',
             'loadAiMenuState',
+            'syncSpriteAutoAddPreference',
             'restoreOptionMessage'
         ]);
         this.state = {
-            spriteAutoAddEnabled: true,
+            spriteAutoAddEnabled: getSpriteAutoAddPreference(),
             spriteAutoAddLoading: true
         };
     }
@@ -229,21 +234,49 @@ class MenuBar extends React.Component {
         document.removeEventListener('keydown', this.handleKeyPress);
     }
     loadAiMenuState() {
+        if (typeof fetch === 'undefined') {
+            this.setState({spriteAutoAddLoading: false});
+            return;
+        }
+        const preferredSpriteAutoAddEnabled = getSpriteAutoAddPreference();
         fetch(API_STATUS_URL)
             .then(response => response.ok ? response.json() : Promise.reject(response))
             .then(data => {
                 if (!this._isMounted) return;
                 if (typeof data.sprite_auto_add_enabled === 'boolean') {
-                    this.setState({
-                        spriteAutoAddEnabled: data.sprite_auto_add_enabled,
-                        spriteAutoAddLoading: false
-                    });
+                    if (data.sprite_auto_add_enabled !== preferredSpriteAutoAddEnabled) {
+                        this.syncSpriteAutoAddPreference();
+                    } else {
+                        this.setState({
+                            spriteAutoAddEnabled: data.sprite_auto_add_enabled,
+                            spriteAutoAddLoading: false
+                        });
+                    }
                 } else {
                     this.setState({spriteAutoAddLoading: false});
                 }
             })
             .catch(error => {
                 console.warn('Failed to load AI menu state:', error);
+                if (this._isMounted) this.setState({spriteAutoAddLoading: false});
+            });
+    }
+    syncSpriteAutoAddPreference() {
+        if (typeof fetch === 'undefined') {
+            this.setState({spriteAutoAddLoading: false});
+            return;
+        }
+        fetch(SPRITE_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                this.setState({
+                    spriteAutoAddEnabled: data.sprite_auto_add_enabled === true,
+                    spriteAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to sync sprite auto add preference:', error);
                 if (this._isMounted) this.setState({spriteAutoAddLoading: false});
             });
     }
@@ -333,11 +366,13 @@ class MenuBar extends React.Component {
     }
     handleToggleSpriteAutoAdd() {
         if (this.state.spriteAutoAddLoading) return;
+        if (typeof fetch === 'undefined') return;
         this.setState({spriteAutoAddLoading: true});
         fetch(SPRITE_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
             .then(response => response.ok ? response.json() : Promise.reject(response))
             .then(data => {
                 if (!this._isMounted) return;
+                setSpriteAutoAddPreference(data.sprite_auto_add_enabled === true);
                 this.setState({
                     spriteAutoAddEnabled: data.sprite_auto_add_enabled === true,
                     spriteAutoAddLoading: false

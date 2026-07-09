@@ -23,6 +23,8 @@
     background: #e6f0ff;
     box-sizing: border-box;
     flex-shrink: 0;
+    touch-action: none;
+    user-select: none;
 }
 
 .headerTitle {
@@ -466,6 +468,7 @@ textarea.input:disabled,
     z-index: 20;
     background-color: transparent;
     border-top-right-radius: 10px;
+    touch-action: none;
 }
 
 .resize-handle-corner-tl {
@@ -478,6 +481,7 @@ textarea.input:disabled,
     z-index: 20;
     background-color: transparent;
     border-top-left-radius: 10px;
+    touch-action: none;
 }
 
 .resize-handle-corner-br {
@@ -490,6 +494,7 @@ textarea.input:disabled,
     z-index: 20;
     background-color: transparent;
     border-bottom-right-radius: 10px;
+    touch-action: none;
 }
 
 .resize-handle-corner-bl {
@@ -502,6 +507,7 @@ textarea.input:disabled,
     z-index: 20;
     background-color: transparent;
     border-bottom-left-radius: 10px;
+    touch-action: none;
 }
 
 /* Hover effects for corners */
@@ -525,6 +531,7 @@ textarea.input:disabled,
     transition: background-color 0.2s;
     border-top-left-radius: 10px;
     /* Match container */
+    touch-action: none;
 }
 
 .resize-handle-top:hover {
@@ -544,6 +551,7 @@ textarea.input:disabled,
     transition: background-color 0.2s;
     border-bottom-right-radius: 10px;
     /* Match container */
+    touch-action: none;
 }
 
 .resize-handle-right:hover {
@@ -561,6 +569,7 @@ textarea.input:disabled,
     z-index: 10;
     background-color: transparent;
     transition: background-color 0.2s;
+    touch-action: none;
 }
 
 .resize-handle-left:hover {
@@ -578,6 +587,7 @@ textarea.input:disabled,
     z-index: 10;
     background-color: transparent;
     transition: background-color 0.2s;
+    touch-action: none;
 }
 
 .resize-handle-bottom:hover {

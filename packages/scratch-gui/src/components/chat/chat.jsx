@@ -40,6 +40,7 @@ import {
     inferRequiredSpriteAssets,
     isAutomaticSpriteAddEnabled
 } from '../../lib/automatic-sprite-selection';
+import {getSpriteAutoAddPreference} from '../../lib/user-preferences';
 
 export const markdownToSafeHtml = text => DOMPurify.sanitize(
     marked.parse(text, {
@@ -321,6 +322,7 @@ export class ChatComponent extends React.Component {
 
     async _isAutomaticSpriteAddCurrentlyEnabled () {
         if (!isAutomaticSpriteAddEnabled()) return false;
+        if (!getSpriteAutoAddPreference()) return false;
 
         try {
             const response = await fetch(STATUS_URL);
@@ -793,6 +795,7 @@ export class ChatComponent extends React.Component {
                     <div
                         className={styles.header}
                         onMouseDown={this.props.onDragHeader}
+                        onTouchStart={this.props.onDragHeader}
                         style={{ cursor: 'move' }}
                     >
                         <button
@@ -834,6 +837,7 @@ export class ChatComponent extends React.Component {
                 <div
                     className={styles.header}
                     onMouseDown={this.props.onDragHeader}
+                    onTouchStart={this.props.onDragHeader}
                     style={{ cursor: 'move' }}
                 >
                     <button

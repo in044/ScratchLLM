@@ -61,6 +61,13 @@ const messages = defineMessages({
 // Cache this value to only retrieve it once the first time.
 // Assume that it doesn't change for a session.
 let isRendererSupported = null;
+const ACTIVE_TOUCH_OPTIONS = {passive: false};
+
+const getPrimaryPointer = event => {
+    if (event.touches && event.touches.length > 0) return event.touches[0];
+    if (event.changedTouches && event.changedTouches.length > 0) return event.changedTouches[0];
+    return event;
+};
 
 const getMediaQueryMatches = minWidth => (
     typeof window !== 'undefined' &&
@@ -193,32 +200,42 @@ const GUIComponent = props => {
     const editorWrapperRef = useRef(null);
 
     const handleMouseDown = useCallback(e => {
+        const pointer = getPrimaryPointer(e);
+        if (!pointer) return;
+
         setIsDragging(true);
-        dragStartX.current = e.clientX;
+        dragStartX.current = pointer.clientX;
         dragStartWidth.current = chatPaneWidth;
         document.body.style.cursor = 'col-resize';
         e.preventDefault();
     }, [chatPaneWidth]);
 
     const handleUndock = useCallback(e => {
+        const pointer = getPrimaryPointer(e);
+        if (!pointer) return;
+
         e.preventDefault();
-        const startX = e.clientX;
-        const startY = e.clientY;
+        const startX = pointer.clientX;
+        const startY = pointer.clientY;
         const headerRect = e.currentTarget.getBoundingClientRect();
         const offsetX = startX - headerRect.left;
         const offsetY = startY - headerRect.top;
 
         const handleMouseMove = moveEvent => {
-            const dx = moveEvent.clientX - startX;
-            const dy = moveEvent.clientY - startY;
+            const movePointer = getPrimaryPointer(moveEvent);
+            if (!movePointer) return;
+            if (moveEvent.cancelable) moveEvent.preventDefault();
+
+            const dx = movePointer.clientX - startX;
+            const dy = movePointer.clientY - startY;
             if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                 cleanup();
 
                 const newPos = {
-                    left: moveEvent.clientX - offsetX,
-                    bottom: window.innerHeight - moveEvent.clientY,
-                    mouseX: moveEvent.clientX,
-                    mouseY: moveEvent.clientY,
+                    left: movePointer.clientX - offsetX,
+                    bottom: window.innerHeight - movePointer.clientY,
+                    mouseX: movePointer.clientX,
+                    mouseY: movePointer.clientY,
                     offsetX: offsetX,
                     offsetY: offsetY
                 };
@@ -234,10 +251,16 @@ const GUIComponent = props => {
         const cleanup = () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleMouseMove);
+            window.removeEventListener('touchend', handleMouseUp);
+            window.removeEventListener('touchcancel', handleMouseUp);
         };
 
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('touchmove', handleMouseMove, ACTIVE_TOUCH_OPTIONS);
+        window.addEventListener('touchend', handleMouseUp);
+        window.addEventListener('touchcancel', handleMouseUp);
     }, [onRequestCloseChatModal]);
 
     const handleDock = useCallback(() => {
@@ -258,7 +281,11 @@ const GUIComponent = props => {
         if (!isDragging) return;
 
         const handleMouseMove = e => {
-            const deltaX = e.clientX - dragStartX.current;
+            const pointer = getPrimaryPointer(e);
+            if (!pointer) return;
+            if (e.cancelable) e.preventDefault();
+
+            const deltaX = pointer.clientX - dragStartX.current;
             const newWidth = Math.max(300, Math.min(600, dragStartWidth.current + deltaX));
             setChatPaneWidth(newWidth);
         };
@@ -270,10 +297,16 @@ const GUIComponent = props => {
 
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('touchmove', handleMouseMove, ACTIVE_TOUCH_OPTIONS);
+        window.addEventListener('touchend', handleMouseUp);
+        window.addEventListener('touchcancel', handleMouseUp);
 
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleMouseMove);
+            window.removeEventListener('touchend', handleMouseUp);
+            window.removeEventListener('touchcancel', handleMouseUp);
         };
     }, [isDragging]);
 
@@ -428,6 +461,7 @@ const GUIComponent = props => {
                             <div
                                 className={styles.chatPaneHandle}
                                 onMouseDown={handleMouseDown}
+                                onTouchStart={handleMouseDown}
                             />
                         </Box>
                         <Box

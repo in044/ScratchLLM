@@ -1,3 +1,8 @@
+import {
+    getExplanationLengthPreference,
+    setExplanationLengthPreference
+} from '../lib/user-preferences';
+
 const ADD_MESSAGE = 'scratch-gui/chat-history/ADD_MESSAGE';
 const CLEAR_HISTORY = 'scratch-gui/chat-history/CLEAR_HISTORY';
 const SET_HAS_CONSENTED = 'scratch-gui/chat-history/SET_HAS_CONSENTED';
@@ -12,7 +17,7 @@ const initialState = {
     hasGlobalConsented: false,
     isLoading: false,
     pendingRequestId: null,
-    explanationLength: 'normal'
+    explanationLength: getExplanationLengthPreference()
 };
 
 const reducer = function (state, action) {
@@ -88,10 +93,13 @@ const setPendingRequestId = pendingRequestId => ({
     pendingRequestId
 });
 
-const setExplanationLength = explanationLength => ({
-    type: SET_EXPLANATION_LENGTH,
-    explanationLength
-});
+const setExplanationLength = explanationLength => {
+    setExplanationLengthPreference(explanationLength);
+    return {
+        type: SET_EXPLANATION_LENGTH,
+        explanationLength
+    };
+};
 
 export {
     reducer as default,

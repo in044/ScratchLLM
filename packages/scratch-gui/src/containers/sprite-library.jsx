@@ -8,6 +8,10 @@ import VM from '@scratch/scratch-vm';
 import randomizeSpritePosition from '../lib/randomize-sprite-position';
 import spriteTags from '../lib/libraries/sprite-tags';
 import {buildDisplaySpriteLibrary, isSpriteJapaneseNamesEnabled} from '../lib/automatic-sprite-selection';
+import {
+    getSpriteLibraryUseJapanesePreference,
+    setSpriteLibraryUseJapanesePreference
+} from '../lib/user-preferences';
 
 import LibraryComponent from '../components/library/library.jsx';
 import styles from './sprite-library.css';
@@ -44,7 +48,7 @@ class SpriteLibrary extends React.PureComponent {
             'handleUseJapaneseNames'
         ]);
         this.state = {
-            useJapaneseNames: isSpriteJapaneseNamesEnabled()
+            useJapaneseNames: isSpriteJapaneseNamesEnabled() && getSpriteLibraryUseJapanesePreference()
         };
     }
     handleItemSelect (item) {
@@ -69,9 +73,11 @@ class SpriteLibrary extends React.PureComponent {
         });
     }
     handleUseJapaneseNames () {
+        setSpriteLibraryUseJapanesePreference(true);
         this.setState({useJapaneseNames: true});
     }
     handleUseEnglishNames () {
+        setSpriteLibraryUseJapanesePreference(false);
         this.setState({useJapaneseNames: false});
     }
     renderLanguageToggle () {
