@@ -42,6 +42,12 @@ const booleanText = value => {
     const text = String(value);
     return text.startsWith('<') && text.endsWith('>') ? text : `<${text}>`;
 };
+const messageText = value => {
+    const text = String(value);
+    if (text.startsWith('(') && text.endsWith(')')) return text;
+    if (text.startsWith('<') && text.endsWith('>')) return text;
+    return `[${text}]`;
+};
 
 const parseCustomBlock = (line, definition = false) => {
     const normalizedLine = normalizeLine(line);
@@ -87,6 +93,19 @@ const parseCustomDefinition = line => parseCustomBlock(line, true);
 const parseCustomCall = line => parseCustomBlock(line, false);
 const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 
+const normalizeInlineReporterText = value => {
+    const text = String(value || '').trim();
+    if (/^(?:コスチューム|背景)の \[.+?\]$/u.test(text)) return `(${text})`;
+    return text;
+};
+
+const normalizeInlineReporterStatement = line => {
+    const text = String(line || '').trim();
+    const match = text.match(/^((?:コスチューム|背景)の \[(.+?)(?: v)?\])\s*と(言う|考える)$/u);
+    if (!match) return line;
+    return `(${match[1].replace(/\[(.+?)(?: v)?\]/u, '[$1 v]')}) と${match[3]}`;
+};
+
 const menuValueMap = {
     どこかの場所: '_random_',
     マウスのポインター: '_mouse_',
@@ -101,19 +120,121 @@ const menuValueMap = {
     最背面: 'back',
     手前に出す: 'forward',
     奥に下げる: 'backward',
+    端: '_edge_',
+    ステージ: '_stage_',
+    どれか: 'any',
+    どれかのキー: 'any',
     スペース: 'space',
     上向き矢印: 'up arrow',
     下向き矢印: 'down arrow',
     右向き矢印: 'right arrow',
     左向き矢印: 'left arrow',
+    色: 'color',
+    魚眼: 'fisheye',
+    渦巻き: 'whirl',
+    ピクセル化: 'pixelate',
+    モザイク: 'mosaic',
+    明るさ: 'brightness',
+    幽霊: 'ghost',
+    ピッチ: 'pitch',
+    左右にパン: 'pan',
+    できる: 'draggable',
+    できない: 'not draggable',
+    年: 'year',
+    月: 'month',
+    日: 'date',
+    曜日: 'dayofweek',
+    時: 'hour',
+    分: 'minute',
+    秒: 'second',
     音量: 'LOUDNESS',
-    タイマー: 'TIMER'
+    タイマー: 'TIMER',
+    絶対値: 'abs',
+    切り下げ: 'floor',
+    切り上げ: 'ceiling',
+    平方根: 'sqrt',
+    sin: 'sin',
+    cos: 'cos',
+    tan: 'tan',
+    asin: 'asin',
+    acos: 'acos',
+    atan: 'atan',
+    ln: 'ln',
+    log: 'log',
+    'e ^': 'e ^',
+    '10 ^': '10 ^'
 };
 
 const menuValue = value => {
     const unwrapped = unwrap(value);
+    if (/^[A-Z]$/u.test(unwrapped)) {
+        return unwrapped.toLowerCase();
+    }
     return menuValueMap[unwrapped] || unwrapped;
 };
+
+const numberNameMenuValueMap = {
+    番号: 'number',
+    名前: 'name',
+    number: 'number',
+    name: 'name'
+};
+
+const sensingPropertyValueMap = {
+    x座標: 'x position',
+    y座標: 'y position',
+    向き: 'direction',
+    コスチュームの番号: 'costume #',
+    コスチューム番号: 'costume #',
+    コスチューム名: 'costume name',
+    コスチュームの名前: 'costume name',
+    大きさ: 'size',
+    背景の番号: 'backdrop #',
+    背景番号: 'backdrop #',
+    背景名: 'backdrop name',
+    背景の名前: 'backdrop name',
+    音量: 'volume'
+};
+
+const reverseNumberNameMenuValueMap = Object.keys(numberNameMenuValueMap).reduce((result, key) => {
+    if (!result[numberNameMenuValueMap[key]]) result[numberNameMenuValueMap[key]] = key;
+    return result;
+}, {});
+
+const reverseSensingPropertyValueMap = Object.keys(sensingPropertyValueMap).reduce((result, key) => {
+    if (!result[sensingPropertyValueMap[key]]) result[sensingPropertyValueMap[key]] = key;
+    return result;
+}, {});
+
+const numberNameMenuValue = value => {
+    const unwrapped = unwrap(value);
+    return numberNameMenuValueMap[unwrapped] || menuValue(unwrapped);
+};
+
+const sensingPropertyMenuValue = value => {
+    const unwrapped = unwrap(value);
+    return sensingPropertyValueMap[unwrapped] || menuValue(unwrapped);
+};
+
+const reverseNumberNameMenu = value => reverseNumberNameMenuValueMap[value] || reverseMenu(value);
+const reverseSensingPropertyMenu = value => reverseSensingPropertyValueMap[value] || reverseMenu(value);
+
+const mathOperatorMenuValues = new Set([
+    'abs',
+    'floor',
+    'ceiling',
+    'sqrt',
+    'sin',
+    'cos',
+    'tan',
+    'asin',
+    'acos',
+    'atan',
+    'ln',
+    'log',
+    'e ^',
+    '10 ^'
+]);
 
 const blockSpecs = [
     {
@@ -273,27 +394,51 @@ const blockSpecs = [
     },
     {
         opcode: 'looks_sayforsecs',
-        patterns: [/^\[(.*?)\] と (.+?) 秒言う$/u],
-        build: (m, ctx) => ({inputs: {MESSAGE: stringInput(m[1]), SECS: valueBlockInput(m[2], ctx, true)}}),
-        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'こんにちは!')}] と ${roundInput(readInput(block, 'SECS', '2'))} 秒言う`
+        patterns: [
+            /^\[(.*?)\] と (.+?) 秒言う$/u,
+            /^(\(.+?\)) と (.+?) 秒言う$/u
+        ],
+        build: (m, ctx) => ({
+            inputs: {
+                MESSAGE: messageInput(m[1], ctx),
+                SECS: valueBlockInput(m[2], ctx, true)
+            }
+        }),
+        toText: (block, readInput) => `${messageText(readInput(block, 'MESSAGE', 'こんにちは!'))} と ${roundInput(readInput(block, 'SECS', '2'))} 秒言う`
     },
     {
         opcode: 'looks_say',
-        patterns: [/^\[(.*?)\] と言う$/u],
-        build: m => ({inputs: {MESSAGE: stringInput(m[1])}}),
-        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'こんにちは!')}] と言う`
+        patterns: [
+            /^\[(.*?)\] と言う$/u,
+            /^(\(.+?\)) と言う$/u,
+            /^(コスチュームの \[.+?\])\s*と言う$/u,
+            /^(背景の \[.+?\])\s*と言う$/u
+        ],
+        build: (m, ctx) => ({inputs: {MESSAGE: messageInput(m[1], ctx)}}),
+        toText: (block, readInput) => `${messageText(readInput(block, 'MESSAGE', 'こんにちは!'))} と言う`
     },
     {
         opcode: 'looks_thinkforsecs',
-        patterns: [/^\[(.*?)\] と (.+?) 秒考える$/u],
-        build: (m, ctx) => ({inputs: {MESSAGE: stringInput(m[1]), SECS: valueBlockInput(m[2], ctx, true)}}),
-        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'うーん...')}] と ${roundInput(readInput(block, 'SECS', '2'))} 秒考える`
+        patterns: [
+            /^\[(.*?)\] と (.+?) 秒考える$/u,
+            /^(\(.+?\)) と (.+?) 秒考える$/u
+        ],
+        build: (m, ctx) => ({
+            inputs: {
+                MESSAGE: messageInput(m[1], ctx),
+                SECS: valueBlockInput(m[2], ctx, true)
+            }
+        }),
+        toText: (block, readInput) => `${messageText(readInput(block, 'MESSAGE', 'うーん...'))} と ${roundInput(readInput(block, 'SECS', '2'))} 秒考える`
     },
     {
         opcode: 'looks_think',
-        patterns: [/^\[(.*?)\] と考える$/u],
-        build: m => ({inputs: {MESSAGE: stringInput(m[1])}}),
-        toText: (block, readInput) => `[${readInput(block, 'MESSAGE', 'うーん')}] と考える`
+        patterns: [
+            /^\[(.*?)\] と考える$/u,
+            /^(\(.+?\)) と考える$/u
+        ],
+        build: (m, ctx) => ({inputs: {MESSAGE: messageInput(m[1], ctx)}}),
+        toText: (block, readInput) => `${messageText(readInput(block, 'MESSAGE', 'うーん'))} と考える`
     },
     {opcode: 'looks_nextcostume', patterns: [/^次のコスチュームにする$/u], toText: () => '次のコスチュームにする'},
     {opcode: 'looks_nextbackdrop', patterns: [/^次の背景にする$/u], toText: () => '次の背景にする'},
@@ -306,14 +451,14 @@ const blockSpecs = [
     {
         opcode: 'looks_switchbackdropto',
         patterns: [/^背景を (.+?) にする$/u],
-        build: (m, ctx) => ({inputs: {BACKDROP: ctx.addShadow('looks_backdrops', 'BACKDROP', unwrap(m[1]))}}),
-        toText: (block, readInput) => `背景を (${readInput(block, 'BACKDROP', '背景1')} v) にする`
+        build: (m, ctx) => ({inputs: {BACKDROP: ctx.addShadow('looks_backdrops', 'BACKDROP', backdropMenuValue(m[1]))}}),
+        toText: (block, readInput) => `背景を (${backdropText(readInput(block, 'BACKDROP', '背景1'))} v) にする`
     },
     {
         opcode: 'looks_switchbackdroptoandwait',
         patterns: [/^背景を (.+?) にして待つ$/u],
-        build: (m, ctx) => ({inputs: {BACKDROP: ctx.addShadow('looks_backdrops', 'BACKDROP', unwrap(m[1]))}}),
-        toText: (block, readInput) => `背景を (${readInput(block, 'BACKDROP', '背景1')} v) にして待つ`
+        build: (m, ctx) => ({inputs: {BACKDROP: ctx.addShadow('looks_backdrops', 'BACKDROP', backdropMenuValue(m[1]))}}),
+        toText: (block, readInput) => `背景を (${backdropText(readInput(block, 'BACKDROP', '背景1'))} v) にして待つ`
     },
     {
         opcode: 'looks_changeeffectby',
@@ -439,15 +584,15 @@ const blockSpecs = [
         opcode: 'looks_costumenumbername',
         patterns: [/^\(コスチュームの \[(.+?)\]\)$/u],
         reporter: true,
-        build: m => ({fields: {NUMBER_NAME: [menuValue(m[1]), null]}}),
-        toText: block => `(コスチュームの [${reverseMenu(fieldValue(block, 'NUMBER_NAME'))} v])`
+        build: m => ({fields: {NUMBER_NAME: [numberNameMenuValue(m[1]), null]}}),
+        toText: block => `(コスチュームの [${reverseNumberNameMenu(fieldValue(block, 'NUMBER_NAME'))} v])`
     },
     {
         opcode: 'looks_backdropnumbername',
         patterns: [/^\(背景の \[(.+?)\]\)$/u],
         reporter: true,
-        build: m => ({fields: {NUMBER_NAME: [menuValue(m[1]), null]}}),
-        toText: block => `(背景の [${reverseMenu(fieldValue(block, 'NUMBER_NAME'))} v])`
+        build: m => ({fields: {NUMBER_NAME: [numberNameMenuValue(m[1]), null]}}),
+        toText: block => `(背景の [${reverseNumberNameMenu(fieldValue(block, 'NUMBER_NAME'))} v])`
     },
     {opcode: 'sound_volume', patterns: [/^\(音量\)$/u], reporter: true, toText: () => '(音量)'},
     {opcode: 'sensing_answer', patterns: [/^\(答え\)$/u], reporter: true, toText: () => '(答え)'},
@@ -476,10 +621,10 @@ const blockSpecs = [
         patterns: [/^\((.+?) の \[(.+?)\]\)$/u],
         reporter: true,
         build: (m, ctx) => ({
-            fields: {PROPERTY: [menuValue(m[2]), null]},
+            fields: {PROPERTY: [sensingPropertyMenuValue(m[2]), null]},
             inputs: {OBJECT: ctx.addShadow('sensing_of_object_menu', 'OBJECT', menuValue(m[1]))}
         }),
-        toText: (block, readInput) => `((${reverseMenu(readInput(block, 'OBJECT', 'ステージ'))} v) の [${reverseMenu(fieldValue(block, 'PROPERTY'))} v])`
+        toText: (block, readInput) => `((${reverseMenu(readInput(block, 'OBJECT', 'ステージ'))} v) の [${reverseSensingPropertyMenu(fieldValue(block, 'PROPERTY'))} v])`
     },
     {
         opcode: 'operator_random',
@@ -542,9 +687,9 @@ const blockSpecs = [
         reporter: true,
         build: (m, ctx) => {
             const list = ctx.list(unwrap(m[1]));
-            return {fields: {LIST: [list.name, list.id]}, inputs: {INDEX: valueBlockInput(m[2], ctx)}};
+            return {fields: {LIST: [list.name, list.id]}, inputs: {INDEX: listIndexInput(m[2], ctx)}};
         },
-        toText: (block, readInput) => `([${fieldValue(block, 'LIST')} v] の ${roundInput(readInput(block, 'INDEX', '1'))} 番目)`
+        toText: (block, readInput) => `([${fieldValue(block, 'LIST')} v] の ${listIndexText(roundInput(readInput(block, 'INDEX', '1')))} 番目)`
     },
     {
         opcode: 'data_itemnumoflist',
@@ -838,10 +983,10 @@ const blockSpecs = [
             const list = ctx.list(unwrap(m[1]));
             return {
                 fields: {LIST: [list.name, list.id]},
-                inputs: {INDEX: valueBlockInput(m[2], ctx)}
+                inputs: {INDEX: listIndexInput(m[2], ctx)}
             };
         },
-        toText: (block, readInput) => `[${fieldValue(block, 'LIST')} v] の ${roundInput(readInput(block, 'INDEX', '1'))} 番目を削除する`
+        toText: (block, readInput) => `[${fieldValue(block, 'LIST')} v] の ${listIndexText(roundInput(readInput(block, 'INDEX', '1')))} 番目を削除する`
     },
     {
         opcode: 'data_deletealloflist',
@@ -859,10 +1004,10 @@ const blockSpecs = [
             const list = ctx.list(unwrap(m[2]));
             return {
                 fields: {LIST: [list.name, list.id]},
-                inputs: {ITEM: valueBlockInput(m[1], ctx), INDEX: valueBlockInput(m[3], ctx)}
+                inputs: {ITEM: valueBlockInput(m[1], ctx), INDEX: listIndexInput(m[3], ctx)}
             };
         },
-        toText: (block, readInput) => `${roundInput(readInput(block, 'ITEM', 'thing'))} を [${fieldValue(block, 'LIST')} v] の ${roundInput(readInput(block, 'INDEX', '1'))} 番目に挿入する`
+        toText: (block, readInput) => `${roundInput(readInput(block, 'ITEM', 'thing'))} を [${fieldValue(block, 'LIST')} v] の ${listIndexText(roundInput(readInput(block, 'INDEX', '1')))} 番目に挿入する`
     },
     {
         opcode: 'data_replaceitemoflist',
@@ -871,10 +1016,10 @@ const blockSpecs = [
             const list = ctx.list(unwrap(m[1]));
             return {
                 fields: {LIST: [list.name, list.id]},
-                inputs: {INDEX: valueBlockInput(m[2], ctx), ITEM: valueBlockInput(m[3], ctx)}
+                inputs: {INDEX: listIndexInput(m[2], ctx), ITEM: valueBlockInput(m[3], ctx)}
             };
         },
-        toText: (block, readInput) => `[${fieldValue(block, 'LIST')} v] の ${roundInput(readInput(block, 'INDEX', '1'))} 番目を ${roundInput(readInput(block, 'ITEM', 'thing'))} で置き換える`
+        toText: (block, readInput) => `[${fieldValue(block, 'LIST')} v] の ${listIndexText(roundInput(readInput(block, 'INDEX', '1')))} 番目を ${roundInput(readInput(block, 'ITEM', 'thing'))} で置き換える`
     },
     {
         opcode: 'data_showlist',
@@ -1057,6 +1202,7 @@ const officialIdOpcodeOverrides = {
     'SENSING_OF_YPOSITION': 'motion_yposition',
     'SENSING_OF_DIRECTION': 'motion_direction',
     'SENSING_OF_COSTUMENUMBER': 'looks_costumenumbername',
+    'SENSING_OF_COSTUMENAME': 'looks_costumenumbername',
     'SENSING_OF_SIZE': 'looks_size',
     'SENSING_OF_BACKDROPNAME': 'looks_backdropnumbername',
     'SENSING_OF_BACKDROPNUMBER': 'looks_backdropnumbername',
@@ -1090,8 +1236,9 @@ const checkOfficialBlocks = (code, blocks, useFuzzyRepair = true) => {
     let stringArgumentUses = 0;
     const analysisCode = repairedCode.split('\n')
         .map(line => {
-            if (parseCustomDefinition(line)) return '⚑ が押されたとき';
-            const customCall = parseCustomCall(line);
+            const analysisLine = normalizeInlineReporterStatement(line);
+            if (parseCustomDefinition(analysisLine)) return '⚑ が押されたとき';
+            const customCall = parseCustomCall(analysisLine);
             if (customCall && customDefinitions.some(definition => definition.code === customCall.code)) {
                 return 'タイマーをリセット';
             }
@@ -1100,7 +1247,7 @@ const checkOfficialBlocks = (code, blocks, useFuzzyRepair = true) => {
                     booleanArgumentUses++;
                     return '<マウスが押された>';
                 })
-            ), line);
+            ), analysisLine);
             stringArgumentNames.forEach(name => {
                 stringArgumentUses += (withBooleanArguments.match(
                     new RegExp(`\\(${escapeRegExp(name)}\\)`, 'gu')
@@ -1374,6 +1521,14 @@ function findBinaryExpression (value) {
     return null;
 }
 
+function findMathOperatorExpression (value) {
+    const match = normalize(value).match(/^\((.+?) の \[(.+?)(?: v)?\]\)$/u);
+    if (!match) return null;
+    const operator = menuValue(match[2]);
+    if (!mathOperatorMenuValues.has(operator)) return null;
+    return {operator, value: match[1]};
+}
+
 function changeByValueInput (variableName, value, ctx) {
     const expression = findBinaryExpression(value);
     if (expression && expression.opcode === 'operator_add') {
@@ -1423,6 +1578,15 @@ function valueBlockInput (value, ctx, preferNumber = false, inferVariable = fals
         });
     }
 
+    const mathOperator = findMathOperatorExpression(text);
+    if (mathOperator) {
+        return addReporterBlock(ctx, 'operator_mathop', {
+            NUM: valueBlockInput(mathOperator.value, ctx, true, true)
+        }, {
+            OPERATOR: [mathOperator.operator, null]
+        });
+    }
+
     const expression = findBinaryExpression(text);
     if (expression) {
         return addReporterBlock(ctx, expression.opcode, {
@@ -1438,6 +1602,50 @@ function valueBlockInput (value, ctx, preferNumber = false, inferVariable = fals
     }
     return preferNumber ? primitiveNumber(unwrapped) : primitiveString(unwrapped);
 }
+
+function messageInput (value, ctx) {
+    return valueBlockInput(normalizeInlineReporterText(value), ctx);
+}
+
+const backdropMenuValueMap = {
+    次の背景: 'next backdrop',
+    前の背景: 'previous backdrop',
+    どれかの背景: 'random backdrop',
+    ランダムな背景: 'random backdrop'
+};
+
+const reverseBackdropMenuValueMap = {
+    'next backdrop': '次の背景',
+    'previous backdrop': '前の背景',
+    'random backdrop': 'どれかの背景'
+};
+
+const backdropMenuValue = value => {
+    const unwrapped = unwrap(value);
+    return backdropMenuValueMap[unwrapped] || unwrapped;
+};
+
+const backdropText = value => reverseBackdropMenuValueMap[value] || value;
+
+const listIndexMenuValueMap = {
+    最後: 'last',
+    すべて: 'all',
+    どれか: 'random',
+    ランダム: 'random'
+};
+
+const reverseListIndexMenuValueMap = {
+    last: '最後',
+    all: 'すべて',
+    random: 'どれか'
+};
+
+function listIndexInput (value, ctx) {
+    const unwrapped = unwrap(value);
+    return valueBlockInput(listIndexMenuValueMap[unwrapped] || unwrapped, ctx);
+}
+
+const listIndexText = value => reverseListIndexMenuValueMap[value] || value;
 
 const reverseMenu = value => {
     const found = Object.keys(menuValueMap).find(key => menuValueMap[key] === value);

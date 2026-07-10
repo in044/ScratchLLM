@@ -118,6 +118,76 @@ test('compiles comparison and nested logical conditions as Boolean blocks', () =
     expect(mouseBlock.parent).toBe(andId);
 });
 
+test('normalizes letter key dropdowns for keyboard events and conditions', () => {
+    const project = ScratchTextCompiler.compile([
+        '[W v] キーが押されたとき',
+        'もし <(A v) キーが押された> なら',
+        'x座標を (-10) ずつ変える',
+        'end'
+    ].join('\n'));
+
+    const hat = getBlocksByOpcode(project, 'event_whenkeypressed')[0];
+    const keyReporter = getBlocksByOpcode(project, 'sensing_keypressed')[0];
+    const keyShadowId = keyReporter.inputs.KEY_OPTION[1];
+    const keyShadow = project.targets[0].blocks[keyShadowId];
+
+    expect(hat.fields.KEY_OPTION[0]).toBe('w');
+    expect(keyShadow.fields.KEY_OPTION[0]).toBe('a');
+});
+
+test('normalizes fixed dropdown labels to Scratch VM values', () => {
+    const project = ScratchTextCompiler.compile([
+        '⚑ が押されたとき',
+        '[色 v] の効果を (25) にする',
+        '[左右にパン v] の効果を (10) にする',
+        'ドラッグ [できる v] ようにする',
+        '[どれかのキー v] キーが押されたとき',
+        'もし <(端 v) に触れた> なら',
+        '[端です] と言う',
+        'end',
+        '[年 v] を (現在の [年 v]) にする',
+        '[背景 v] を ((ステージ v) の [背景名 v]) にする',
+        '背景を (どれかの背景 v) にする',
+        '項目 を [リスト v] の 最後 番目に挿入する'
+    ].join('\n'));
+
+    const blocks = project.targets[0].blocks;
+    const looksEffect = getBlocksByOpcode(project, 'looks_seteffectto')[0];
+    const soundEffect = getBlocksByOpcode(project, 'sound_seteffectto')[0];
+    const dragMode = getBlocksByOpcode(project, 'sensing_setdragmode')[0];
+    const anyKeyHat = getBlocksByOpcode(project, 'event_whenkeypressed')
+        .find(block => block.fields.KEY_OPTION[0] === 'any');
+    const touching = getBlocksByOpcode(project, 'sensing_touchingobject')[0];
+    const current = getBlocksByOpcode(project, 'sensing_current')[0];
+    const sensingOf = getBlocksByOpcode(project, 'sensing_of')[0];
+    const backdrop = getBlocksByOpcode(project, 'looks_switchbackdropto')[0];
+    const insert = getBlocksByOpcode(project, 'data_insertatlist')[0];
+    const touchingShadow = blocks[touching.inputs.TOUCHINGOBJECTMENU[1]];
+    const sensingObjectShadow = blocks[sensingOf.inputs.OBJECT[1]];
+    const backdropShadow = blocks[backdrop.inputs.BACKDROP[1]];
+
+    expect(looksEffect.fields.EFFECT[0]).toBe('color');
+    expect(soundEffect.fields.EFFECT[0]).toBe('PAN');
+    expect(dragMode.fields.DRAG_MODE[0]).toBe('draggable');
+    expect(anyKeyHat).toBeTruthy();
+    expect(touchingShadow.fields.TOUCHINGOBJECTMENU[0]).toBe('_edge_');
+    expect(current.fields.CURRENTMENU[0]).toBe('year');
+    expect(sensingOf.fields.PROPERTY[0]).toBe('backdrop name');
+    expect(sensingObjectShadow.fields.OBJECT[0]).toBe('_stage_');
+    expect(backdropShadow.fields.BACKDROP[0]).toBe('random backdrop');
+    expect(insert.inputs.INDEX[1]).toEqual([10, 'last']);
+});
+
+test('normalizes math operator dropdown labels to Scratch VM values', () => {
+    const project = ScratchTextCompiler.compile([
+        '⚑ が押されたとき',
+        '[結果 v] を ((3) の [絶対値 v]) にする'
+    ].join('\n'));
+    const mathOp = getBlocksByOpcode(project, 'operator_mathop')[0];
+
+    expect(mathOp.fields.OPERATOR[0]).toBe('abs');
+});
+
 test('repairs extra round brackets around comparison expressions', () => {
     const project = ScratchTextCompiler.compile([
         'もし <((x座標) > (240))> なら',
@@ -157,6 +227,95 @@ test('compiles variables and arithmetic reporters inside value inputs', () => {
     expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain(
         'y座標を ((ジャンプ力) + (0)) ずつ変える'
     );
+});
+
+test('normalizes costume number menus to Scratch VM field values', () => {
+    const project = ScratchTextCompiler.compile([
+        '⚑ が押されたとき',
+        '[コスチューム番号 v] を (コスチュームの [番号 v]) にする',
+        '[コスチューム名 v] を (コスチュームの [名前 v]) にする',
+        '[他のコスチューム番号 v] を (Sprite1 の [コスチュームの番号 v]) にする',
+        '[他のコスチューム名 v] を (Sprite1 の [コスチュームの名前 v]) にする'
+    ].join('\n'));
+    const [costumeNumber, costumeName] = getBlocksByOpcode(project, 'looks_costumenumbername');
+    const [sensingOfNumber, sensingOfName] = getBlocksByOpcode(project, 'sensing_of');
+
+    expect(costumeNumber.fields.NUMBER_NAME[0]).toBe('number');
+    expect(costumeName.fields.NUMBER_NAME[0]).toBe('name');
+    expect(sensingOfNumber.fields.PROPERTY[0]).toBe('costume #');
+    expect(sensingOfName.fields.PROPERTY[0]).toBe('costume name');
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain(
+        '[コスチューム番号 v] を (コスチュームの [番号 v]) にする'
+    );
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain(
+        '[コスチューム名 v] を (コスチュームの [名前 v]) にする'
+    );
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain(
+        '[他のコスチューム番号 v] を ((Sprite1 v) の [コスチュームの番号 v]) にする'
+    );
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain(
+        '[他のコスチューム名 v] を ((Sprite1 v) の [コスチューム名 v]) にする'
+    );
+});
+
+test('compiles an inline costume number reporter inside a say block', () => {
+    const project = ScratchTextCompiler.compile([
+        '⚑ が押されたとき',
+        'コスチュームの [番号]と言う'
+    ].join('\n'));
+    const say = getBlocksByOpcode(project, 'looks_say')[0];
+    const costumeNumber = getBlocksByOpcode(project, 'looks_costumenumbername')[0];
+    const costumeNumberId = Object.keys(project.targets[0].blocks)
+        .find(id => project.targets[0].blocks[id] === costumeNumber);
+
+    expect(say.inputs.MESSAGE[1]).toBe(costumeNumberId);
+    expect(costumeNumber.fields.NUMBER_NAME[0]).toBe('number');
+    expect(ScratchTextCompiler.projectToScratchBlocks(project)).toContain(
+        '(コスチュームの [番号 v]) と言う'
+    );
+});
+
+test('applies an inline costume number say block to a named cat target', () => {
+    const baseProject = {
+        targets: [
+            {
+                ...ScratchTextCompiler.compileTarget('⚑ が押されたとき'),
+                isStage: false,
+                name: 'ネコ'
+            }
+        ]
+    };
+    const project = ScratchTextCompiler.compile([
+        '# ネコ',
+        '⚑ が押されたとき',
+        '(コスチュームの [番号 v]) と言う'
+    ].join('\n'), baseProject);
+
+    expect(ScratchTextCompiler.getDiagnostics()).toEqual([]);
+    expect(getBlocksByOpcode(project, 'looks_say')).toHaveLength(1);
+    expect(getBlocksByOpcode(project, 'looks_costumenumbername')).toHaveLength(1);
+});
+
+test('applies an inline costume name say block to a named cat target', () => {
+    const baseProject = {
+        targets: [
+            {
+                ...ScratchTextCompiler.compileTarget('⚑ が押されたとき'),
+                isStage: false,
+                name: 'ネコ'
+            }
+        ]
+    };
+    const project = ScratchTextCompiler.compile([
+        '# ネコ',
+        '⚑ が押されたとき',
+        '(コスチュームの [名前 v]) と言う'
+    ].join('\n'), baseProject);
+    const costumeName = getBlocksByOpcode(project, 'looks_costumenumbername')[0];
+
+    expect(ScratchTextCompiler.getDiagnostics()).toEqual([]);
+    expect(getBlocksByOpcode(project, 'looks_say')).toHaveLength(1);
+    expect(costumeName.fields.NUMBER_NAME[0]).toBe('name');
 });
 
 test('removes the current variable from an incorrectly compounded change-by value', () => {

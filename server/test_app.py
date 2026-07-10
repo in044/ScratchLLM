@@ -84,6 +84,42 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertIn('[右向き矢印 v] キーが押されたとき', SYSTEM_PROMPT)
         self.assertIn('<(左向き矢印 v) キーが押された>', SYSTEM_PROMPT)
 
+    def test_system_prompt_lists_dropdown_candidates(self):
+        self.assertIn('## ドロップダウン値', SYSTEM_PROMPT)
+        self.assertIn('各ブロック説明に書かれた候補', SYSTEM_PROMPT)
+        self.assertIn('現在プロジェクト依存ドロップダウン候補', SYSTEM_PROMPT)
+        self.assertIn('current_assets.targets[].costumes', SYSTEM_PROMPT)
+        self.assertIn('(コスチュームの [名前 v])', SYSTEM_PROMPT)
+        self.assertIn('((スプライト名 v) の [コスチューム名 v])', SYSTEM_PROMPT)
+        self.assertIn('メニュー候補:', SYSTEM_PROMPT)
+        fixed_candidates = (
+            '(どこかの場所 v)', '(マウスのポインター v)',
+            '[左右のみ v]', '[回転しない v]', '[自由に回転 v]',
+            '(次の背景 v)', '(前の背景 v)', '(どれかの背景 v)',
+            '[色 v]', '[魚眼 v]', '[渦巻き v]', '[ピクセル化 v]',
+            '[モザイク v]', '[明るさ v]', '[幽霊 v]',
+            '[最前面 v]', '[最背面 v]', '[手前に出す v]', '[奥に下げる v]',
+            '[番号 v]', '[名前 v]', '[ピッチ v]', '[左右にパン v]',
+            '[スペース v]', '[上向き矢印 v]', '[下向き矢印 v]',
+            '[右向き矢印 v]', '[左向き矢印 v]', '[どれかのキー v]',
+            '[音量 v]', '[タイマー v]', '[すべてを止める v]',
+            '[このスクリプト v]', '[スプライトの他のスクリプト v]',
+            '[自分自身 v]', '(端 v)', '[できる v]', '[できない v]',
+            '[年 v]', '[月 v]', '[日 v]', '[曜日 v]', '[時 v]', '[分 v]', '[秒 v]',
+            '[絶対値 v]', '[切り下げ v]', '[切り上げ v]', '[平方根 v]',
+            '[sin v]', '[cos v]', '[tan v]', '[asin v]', '[acos v]', '[atan v]',
+            '[ln v]', '[log v]', '[e ^ v]', '[10 ^ v]',
+            '`最後`', '`どれか`', '`すべて`'
+        )
+        for candidate in fixed_candidates:
+            with self.subTest(candidate=candidate):
+                self.assertIn(candidate, SYSTEM_PROMPT)
+        self.assertIn('[a v]` から `[z v]', SYSTEM_PROMPT)
+        self.assertIn('[0 v]` から `[9 v]', SYSTEM_PROMPT)
+        self.assertIn('<(どれかのキー v) キーが押された>', SYSTEM_PROMPT)
+        self.assertIn('自分以外のスプライト名', SYSTEM_PROMPT)
+        self.assertIn('矢印キーへ置き換えない', SYSTEM_PROMPT)
+
     def test_normalize_scratch_key_names_repairs_short_arrow_names(self):
         self.assertEqual(
             normalize_scratch_key_names(
