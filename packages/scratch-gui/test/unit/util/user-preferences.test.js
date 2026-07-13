@@ -1,8 +1,12 @@
 import {
+    getBackdropAutoAddPreference,
+    getBackdropLibraryUseJapanesePreference,
     getExplanationLengthPreference,
     getSpriteAutoAddPreference,
     getSpriteLibraryUseJapanesePreference,
     setExplanationLengthPreference,
+    setBackdropLibraryUseJapanesePreference,
+    setBackdropAutoAddPreference,
     setSpriteAutoAddPreference,
     setSpriteLibraryUseJapanesePreference
 } from '../../../src/lib/user-preferences';
@@ -32,6 +36,8 @@ describe('user preferences', () => {
     });
 
     test('uses the requested defaults', () => {
+        expect(getBackdropLibraryUseJapanesePreference()).toBe(true);
+        expect(getBackdropAutoAddPreference()).toBe(true);
         expect(getSpriteLibraryUseJapanesePreference()).toBe(true);
         expect(getExplanationLengthPreference()).toBe('normal');
         expect(getSpriteAutoAddPreference()).toBe(true);
@@ -41,6 +47,19 @@ describe('user preferences', () => {
         setSpriteLibraryUseJapanesePreference(false);
 
         expect(getSpriteLibraryUseJapanesePreference()).toBe(false);
+    });
+
+    test('persists backdrop library language', () => {
+        setBackdropLibraryUseJapanesePreference(false);
+
+        expect(getBackdropLibraryUseJapanesePreference()).toBe(false);
+    });
+
+    test('persists automatic backdrop add state independently', () => {
+        setBackdropAutoAddPreference(false);
+
+        expect(getBackdropAutoAddPreference()).toBe(false);
+        expect(getSpriteAutoAddPreference()).toBe(true);
     });
 
     test('persists explanation length', () => {

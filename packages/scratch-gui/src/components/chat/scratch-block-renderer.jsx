@@ -59,6 +59,11 @@ export const extractCustomBlockSignatures = text => {
     return signatures;
 };
 
+export const removeScratchEndMarkers = code => String(code || '')
+    .split(/\r?\n/gu)
+    .filter(line => !/^\s*end\s*$/iu.test(line))
+    .join('\n');
+
 export const applyCustomBlockOverrides = (code, customBlockSignatures) => code
     .split(/\r?\n/gu)
     .map(line => {
@@ -94,7 +99,8 @@ class ScratchBlockRenderer extends React.Component {
         }
 
         try {
-            const code = applyCustomBlockOverrides(this.props.code, this.props.customBlockSignatures);
+            const visibleCode = removeScratchEndMarkers(this.props.code);
+            const code = applyCustomBlockOverrides(visibleCode, this.props.customBlockSignatures);
             const doc = sb.parse(code, {
                 languages: ['ja', 'en'] // Prioritize Japanese
             });

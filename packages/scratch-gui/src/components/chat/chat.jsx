@@ -40,7 +40,17 @@ import {
     inferRequiredSpriteAssets,
     isAutomaticSpriteAddEnabled
 } from '../../lib/automatic-sprite-selection';
-import {getSpriteAutoAddPreference} from '../../lib/user-preferences';
+import {
+    addLibraryBackdrop,
+    buildBackdropCatalog,
+    buildExistingBackdropNames,
+    isAutomaticBackdropAddEnabled
+} from '../../lib/automatic-backdrop-selection';
+import {
+    getBackdropAutoAddPreference,
+    getBackdropLibraryUseJapanesePreference,
+    getSpriteAutoAddPreference
+} from '../../lib/user-preferences';
 
 export const markdownToSafeHtml = text => DOMPurify.sanitize(
     marked.parse(text, {
@@ -134,7 +144,7 @@ export const ensureExplanatoryScratchFence = (displayResponse, scratchCode) => {
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
 const STATUS_URL = `${process.env.REACT_APP_API_BASE_URL}/api/status`;
 const SYNTAX_REPAIR_URL = `${process.env.REACT_APP_API_BASE_URL}/api/repair-scratch`;
-const SPRITE_PLAN_URL = `${process.env.REACT_APP_API_BASE_URL}/api/plan-sprites`;
+const ASSET_PLAN_URL = `${process.env.REACT_APP_API_BASE_URL}/api/plan-assets`;
 
 export const buildLlmRequestPayload = ({
     userInput,
@@ -164,6 +174,11 @@ export const buildSpriteAssetsAddedMessage = assetSummaries => ({
             `${summary.targetName}に${formatAddedAssetName(sound)}の音を追加しました。`
         ))
     ]).join(''),
+    sender: 'bot'
+});
+
+export const buildBackdropsAddedMessage = backdrops => ({
+    text: `${backdrops.map(backdrop => getAddedAssetName(backdrop)).join('、')}の背景を追加しました。`,
     sender: 'bot'
 });
 
@@ -204,6 +219,17 @@ const buildAddedAssetContextLines = assetSummaries => assetSummaries.flatMap(sum
     })
 ]);
 
+const buildAddedBackdropContextLines = backdrops => backdrops.map(backdrop => {
+    const name = getAddedAssetName(backdrop);
+    const sourceName = getAddedAssetSourceName(backdrop);
+    const sourceText = sourceName && sourceName !== name ? `追加元は ${sourceName} です。` : '';
+    return [
+        `追加済み背景: Stageで使える背景名は「${name}」です。`,
+        sourceText,
+        'この名前はcurrentAssetsにあるので使用できます。'
+    ].join('');
+});
+
 export const getApiErrorMessage = error => {
     if (error && typeof error === 'object' && error.code === 'rate_limited') {
         return 'OpenAI APIの利用上限に達しました。少し時間をおいてから、もう一度試してください。';
@@ -223,9 +249,15 @@ const emptySpritePlan = (disabled = false) => ({
     requiredSprites: [],
     sprites: [],
     assetAdditions: [],
+    requiredBackdrops: [],
+    backdrops: [],
+    existingBackdropsToReuse: [],
+    forbiddenBackdropAdditions: [],
     existingSpritesToReuse: [],
     forbiddenSpriteAdditions: [],
     reason: '',
+    spriteAutoAddEnabled: false,
+    backdropAutoAddEnabled: false,
     disabled
 });
 
@@ -316,16 +348,13 @@ export class ChatComponent extends React.Component {
     }
 
     async _planRequiredSprites (userInput, projectJson) {
-        if (!isAutomaticSpriteAddEnabled()) {
-            return emptySpritePlan(true);
-        }
-        const spriteAutoAddEnabled = await this._isAutomaticSpriteAddCurrentlyEnabled();
-        if (!spriteAutoAddEnabled) {
+        const automaticAddState = await this._getAutomaticAssetAddState();
+        if (!automaticAddState.spriteAutoAddEnabled && !automaticAddState.backdropAutoAddEnabled) {
             return emptySpritePlan(true);
         }
 
         try {
-            const response = await fetch(SPRITE_PLAN_URL, {
+            const response = await fetch(ASSET_PLAN_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json; charset=UTF-8'
@@ -335,15 +364,27 @@ export class ChatComponent extends React.Component {
                     currentProgram: ScratchTextCompiler.projectToScratchBlocks(projectJson),
                     currentAssets: buildProjectAssetSummary(projectJson),
                     spriteCatalog: buildSpriteCatalog(),
-                    existingSprites: buildExistingSpriteNames(projectJson)
+                    existingSprites: buildExistingSpriteNames(projectJson),
+                    backdropCatalog: buildBackdropCatalog(),
+                    existingBackdrops: buildExistingBackdropNames(projectJson),
+                    spriteAutoAddEnabled: automaticAddState.spriteAutoAddEnabled,
+                    backdropAutoAddEnabled: automaticAddState.backdropAutoAddEnabled
                 })
             });
-            if (response.ok === false) throw new Error(`Sprite planning returned ${response.status}.`);
+            if (response.ok === false) throw new Error(`Material planning returned ${response.status}.`);
             const data = await response.json();
             return {
                 requiredSprites: Array.isArray(data.requiredSprites) ? data.requiredSprites : [],
                 sprites: Array.isArray(data.sprites) ? data.sprites : [],
                 assetAdditions: Array.isArray(data.assetAdditions) ? data.assetAdditions : [],
+                requiredBackdrops: Array.isArray(data.requiredBackdrops) ? data.requiredBackdrops : [],
+                backdrops: Array.isArray(data.backdrops) ? data.backdrops : [],
+                existingBackdropsToReuse: Array.isArray(data.existingBackdropsToReuse) ?
+                    data.existingBackdropsToReuse :
+                    [],
+                forbiddenBackdropAdditions: Array.isArray(data.forbiddenBackdropAdditions) ?
+                    data.forbiddenBackdropAdditions :
+                    [],
                 existingSpritesToReuse: Array.isArray(data.existingSpritesToReuse) ?
                     data.existingSpritesToReuse :
                     [],
@@ -351,34 +392,46 @@ export class ChatComponent extends React.Component {
                     data.forbiddenSpriteAdditions :
                     [],
                 reason: typeof data.reason === 'string' ? data.reason : '',
+                spriteAutoAddEnabled: automaticAddState.spriteAutoAddEnabled,
+                backdropAutoAddEnabled: automaticAddState.backdropAutoAddEnabled,
                 disabled: data.disabled === true
             };
         } catch (error) {
-            console.warn('Automatic sprite planning was unavailable:', error);
+            console.warn('Automatic material planning was unavailable:', error);
             return emptySpritePlan(true);
         }
     }
 
-    async _isAutomaticSpriteAddCurrentlyEnabled () {
-        if (!isAutomaticSpriteAddEnabled()) return false;
-        if (!getSpriteAutoAddPreference()) return false;
+    async _getAutomaticAssetAddState () {
+        const localSpriteEnabled = isAutomaticSpriteAddEnabled() && getSpriteAutoAddPreference();
+        const localBackdropEnabled = isAutomaticBackdropAddEnabled() && getBackdropAutoAddPreference();
+        if (!localSpriteEnabled && !localBackdropEnabled) {
+            return {
+                spriteAutoAddEnabled: false,
+                backdropAutoAddEnabled: false
+            };
+        }
 
         try {
             const response = await fetch(STATUS_URL);
             if (response.ok === false) throw new Error(`Status returned ${response.status}.`);
             const data = await response.json();
-            if (typeof data.sprite_auto_add_enabled === 'boolean') {
-                return data.sprite_auto_add_enabled;
-            }
+            return {
+                spriteAutoAddEnabled: localSpriteEnabled && data.sprite_auto_add_enabled !== false,
+                backdropAutoAddEnabled: localBackdropEnabled && data.backdrop_auto_add_enabled !== false
+            };
         } catch (error) {
-            console.warn('Automatic sprite status was unavailable:', error);
+            console.warn('Automatic asset status was unavailable:', error);
         }
 
-        return true;
+        return {
+            spriteAutoAddEnabled: localSpriteEnabled,
+            backdropAutoAddEnabled: localBackdropEnabled
+        };
     }
 
     async _applyPlannedSpriteAssets (spritePlan) {
-        if (!isAutomaticSpriteAddEnabled()) {
+        if (spritePlan.spriteAutoAddEnabled === false) {
             return {addedSpriteNames: [], reusedSpriteNames: [], addedAssetSummaries: []};
         }
         const addedSpriteNames = [];
@@ -430,6 +483,37 @@ export class ChatComponent extends React.Component {
         return {addedSpriteNames, reusedSpriteNames, addedAssetSummaries};
     }
 
+    async _applyPlannedBackdrops (spritePlan) {
+        if (spritePlan.backdropAutoAddEnabled === false) {
+            return {addedBackdrops: [], reusedBackdropNames: []};
+        }
+        const addedBackdrops = [];
+        const reusedBackdropNames = [];
+        const plannedBackdrops = Array.isArray(spritePlan.backdrops) ? spritePlan.backdrops : [];
+        for (const selection of plannedBackdrops) {
+            if (!selection || !selection.backdropName) continue;
+            try {
+                const result = await addLibraryBackdrop(
+                    this.props.vm,
+                    selection.backdropName,
+                    getBackdropLibraryUseJapanesePreference()
+                );
+                if (!result) continue;
+                if (result.added) {
+                    addedBackdrops.push({
+                        name: result.backdropName,
+                        sourceName: result.sourceBackdropName
+                    });
+                } else {
+                    reusedBackdropNames.push(result.backdropName);
+                }
+            } catch (error) {
+                console.warn(`Automatic backdrop addition failed for ${selection.backdropName}:`, error);
+            }
+        }
+        return {addedBackdrops, reusedBackdropNames};
+    }
+
     async handleSend() {
         const { inputValue } = this.state;
         if (inputValue.trim() === '' || this.props.isLoading) return;
@@ -446,7 +530,15 @@ export class ChatComponent extends React.Component {
 
         const initialProjectJson = this.props.vm.toJSON();
         const spritePlan = await this._planRequiredSprites(inputValue, initialProjectJson);
-        const automaticSpriteAddEnabled = isAutomaticSpriteAddEnabled() && !spritePlan.disabled;
+        const requiredBackdrops = Array.isArray(spritePlan.requiredBackdrops) ?
+            spritePlan.requiredBackdrops : [];
+        const existingBackdropsToReuse = Array.isArray(spritePlan.existingBackdropsToReuse) ?
+            spritePlan.existingBackdropsToReuse : [];
+        const forbiddenBackdropAdditions = Array.isArray(spritePlan.forbiddenBackdropAdditions) ?
+            spritePlan.forbiddenBackdropAdditions : [];
+        const automaticSpriteAddEnabled = spritePlan.spriteAutoAddEnabled !== false && !spritePlan.disabled;
+        const automaticBackdropAddEnabled = spritePlan.backdropAutoAddEnabled !== false && !spritePlan.disabled;
+        const automaticAssetAddEnabled = automaticSpriteAddEnabled || automaticBackdropAddEnabled;
         const inferredRequiredAssets = automaticSpriteAddEnabled ?
             inferRequiredSpriteAssets(inputValue, initialProjectJson) :
             [];
@@ -487,6 +579,7 @@ export class ChatComponent extends React.Component {
             }
         }
         const plannedAssets = await this._applyPlannedSpriteAssets(spritePlan);
+        const plannedBackdrops = await this._applyPlannedBackdrops(spritePlan);
         const addedSpriteNames = [
             ...plannedAssets.addedSpriteNames
         ];
@@ -500,7 +593,8 @@ export class ChatComponent extends React.Component {
             ...directlyAddedAssetSummaries,
             ...addedAssetSummaries
         ];
-        if (addedSpriteNames.length > 0 || allAddedAssetSummaries.length > 0) {
+        if (addedSpriteNames.length > 0 || allAddedAssetSummaries.length > 0 ||
+                plannedBackdrops.addedBackdrops.length > 0) {
             this.props.vm.refreshWorkspace();
         }
         if (addedSpriteNames.length > 0) {
@@ -508,6 +602,9 @@ export class ChatComponent extends React.Component {
         }
         if (allAddedAssetSummaries.length > 0) {
             this.props.onAddMessage(buildSpriteAssetsAddedMessage(allAddedAssetSummaries));
+        }
+        if (plannedBackdrops.addedBackdrops.length > 0) {
+            this.props.onAddMessage(buildBackdropsAddedMessage(plannedBackdrops.addedBackdrops));
         }
         const spriteNamesToReuse = Array.from(new Set([
             ...reusedSpriteNames,
@@ -518,19 +615,33 @@ export class ChatComponent extends React.Component {
                 `追加済みスプライト: ${addedSpriteNames.join('、')}` :
                 '',
             ...buildAddedAssetContextLines(allAddedAssetSummaries),
+            ...buildAddedBackdropContextLines(plannedBackdrops.addedBackdrops),
             spriteNamesToReuse.length > 0 ?
                 `既存スプライトを再利用: ${spriteNamesToReuse.join('、')}` :
                 '',
-            automaticSpriteAddEnabled &&
+            [...plannedBackdrops.reusedBackdropNames, ...existingBackdropsToReuse].length > 0 ?
+                `既存背景を再利用: ${Array.from(new Set([
+                    ...plannedBackdrops.reusedBackdropNames,
+                    ...existingBackdropsToReuse
+                ])).join('、')}` :
+                '',
+            automaticAssetAddEnabled &&
                     addedSpriteNames.length === 0 &&
                     directlyAddedAssetSummaries.length === 0 &&
                     plannedAssets.addedAssetSummaries.length === 0 &&
+                    plannedBackdrops.addedBackdrops.length === 0 &&
+                    plannedBackdrops.reusedBackdropNames.length === 0 &&
+                    existingBackdropsToReuse.length === 0 &&
                     requiredSpritesFromPlan.length === 0 &&
-                    unresolvedInferredRequiredAssets.length === 0 ?
-                '新規スプライト追加は不要' :
+                    unresolvedInferredRequiredAssets.length === 0 &&
+                    requiredBackdrops.length === 0 ?
+                '新規素材追加は不要' :
                 '',
             spritePlan.forbiddenSpriteAdditions.length > 0 ?
                 `追加しないスプライト: ${spritePlan.forbiddenSpriteAdditions.join('、')}` :
+                '',
+            forbiddenBackdropAdditions.length > 0 ?
+                `追加しない背景: ${forbiddenBackdropAdditions.join('、')}` :
                 ''
         ].filter(Boolean).join('\n');
         const llmUserInput = selectedSpriteContext ?
@@ -856,7 +967,8 @@ export class ChatComponent extends React.Component {
                     <div className={styles.body} style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#575E75' }}>
                         <p style={{ fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '20px' }}>
                             このAIチャット機能は、OpenAI社のサービスを利用しています。<br />
-                            お子様が安全に利用できるよう対策を行っていますが、未成年の方は保護者の方の監修の上でご利用ください。<br />
+                            13歳未満の方は利用できません。<br />
+                            13歳以上の未成年の方は、保護者の方の監修の上でご利用ください。<br />
                             <br />
                             <strong>個人情報（名前、住所、電話番号など）は絶対に入力しないでください。</strong>
                         </p>

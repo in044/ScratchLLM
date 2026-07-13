@@ -63,4 +63,13 @@ describe('MenuBar Component', () => {
         button.simulate('click');
         expect(onClickAbout).toHaveBeenCalledTimes(1);
     });
+
+    test('shows separate sprite and backdrop automatic addition controls', () => {
+        store.getState().scratchGui.menus.aiMenu = true;
+        const menuBar = mountWithIntl(getComponent());
+
+        expect(menuBar.text()).toContain('スプライト自動追加');
+        expect(menuBar.text()).toContain('背景自動追加');
+        store.getState().scratchGui.menus.aiMenu = false;
+    });
 });

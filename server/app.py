@@ -61,6 +61,7 @@ app_state = {
     "ai_enabled": True,
     "syntax_repair_enabled": env_flag('SCRATCH_SYNTAX_REPAIR_ENABLED', True),
     "sprite_auto_add_enabled": env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True),
+    "backdrop_auto_add_enabled": env_flag('SCRATCH_AUTO_BACKDROP_ADD_ENABLED', True),
 }
 
 
@@ -69,6 +70,10 @@ def get_public_app_state():
     state['sprite_auto_add_enabled'] = (
         env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True) and
         state['sprite_auto_add_enabled']
+    )
+    state['backdrop_auto_add_enabled'] = (
+        env_flag('SCRATCH_AUTO_BACKDROP_ADD_ENABLED', True) and
+        state['backdrop_auto_add_enabled']
     )
     return state
 
@@ -86,7 +91,12 @@ admin_queues_lock = Lock()
 
 LLM_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-5.6-terra')
 SYNTAX_REPAIR_MODEL = os.environ.get('OPENAI_SYNTAX_REPAIR_MODEL', 'gpt-5.6-luna')
-SPRITE_REQUIREMENT_MODEL = os.environ.get('OPENAI_SPRITE_REQUIREMENT_MODEL', 'gpt-5.6-luna')
+ASSET_PLANNING_MODEL = os.environ.get(
+    'OPENAI_ASSET_PLANNING_MODEL',
+    os.environ.get('OPENAI_SPRITE_REQUIREMENT_MODEL', 'gpt-5.6-luna')
+)
+# Compatibility name for existing imports and deployments.
+SPRITE_REQUIREMENT_MODEL = ASSET_PLANNING_MODEL
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), 'scratch_system_prompt.txt')
 with open(PROMPT_PATH, encoding='utf-8') as prompt_file:
     # Recreate the leading and trailing newlines from the original JS template literal.
@@ -129,6 +139,13 @@ def require_string(data, name, max_length):
         raise BadRequest(f'{name} must be a non-empty string.')
     if len(value) > max_length:
         raise BadRequest(f'{name} is too long.')
+    return value
+
+
+def optional_boolean(data, name, default=True):
+    value = data.get(name, default)
+    if not isinstance(value, bool):
+        raise BadRequest(f'{name} must be a boolean.')
     return value
 
 
@@ -237,6 +254,60 @@ def sanitize_optional_sprite_catalog(value):
     return sanitize_sprite_catalog(value)
 
 
+def sanitize_backdrop_catalog(value):
+    if not isinstance(value, list):
+        raise BadRequest('backdropCatalog must be an array.')
+    use_japanese_names = env_flag('SCRATCH_BACKDROP_JAPANESE_NAMES_ENABLED', True)
+    catalog = []
+    for item in value[:500]:
+        if not isinstance(item, dict):
+            continue
+        name = item.get('name')
+        if not isinstance(name, str) or not name.strip():
+            continue
+        tags = item.get('tags', [])
+        aliases = item.get('aliases', [])
+        display_name = item.get('displayName')
+        japanese_name = item.get('japaneseName')
+        if not isinstance(tags, list):
+            tags = []
+        if not isinstance(aliases, list):
+            aliases = []
+        sanitized_name = name.strip()[:100]
+        catalog.append({
+            'name': sanitized_name,
+            'displayName': (
+                display_name.strip()[:120]
+                if use_japanese_names and isinstance(display_name, str) and display_name.strip()
+                else sanitized_name
+            ),
+            'japaneseName': (
+                japanese_name.strip()[:60]
+                if use_japanese_names and isinstance(japanese_name, str)
+                else ''
+            ),
+            'aliases': [
+                alias.strip()[:120]
+                for alias in aliases[:10]
+                if use_japanese_names and isinstance(alias, str) and alias.strip()
+            ],
+            'tags': [
+                tag.strip()[:50]
+                for tag in tags[:20]
+                if isinstance(tag, str) and tag.strip()
+            ]
+        })
+    if not catalog:
+        raise BadRequest('backdropCatalog must contain at least one backdrop.')
+    return catalog
+
+
+def sanitize_optional_backdrop_catalog(value):
+    if value is None:
+        return []
+    return sanitize_backdrop_catalog(value)
+
+
 def sanitize_current_assets(value):
     if value is None:
         return {'targets': []}
@@ -284,12 +355,28 @@ def sanitize_existing_sprites(value):
     ]
 
 
+def sanitize_existing_backdrops(value):
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise BadRequest('existingBackdrops must be an array.')
+    return [
+        item.strip()[:100]
+        for item in value[:100]
+        if isinstance(item, str) and item.strip()
+    ]
+
+
 def build_sprite_requirement_messages(data):
     user_input = require_string(data, 'userInput', 10000)
     current_program = require_string(data, 'currentProgram', 200000)
     current_assets = sanitize_current_assets(data.get('currentAssets'))
     catalog = sanitize_optional_sprite_catalog(data.get('spriteCatalog'))
+    backdrop_catalog = sanitize_optional_backdrop_catalog(data.get('backdropCatalog'))
     existing_sprites = sanitize_existing_sprites(data.get('existingSprites'))
+    existing_backdrops = sanitize_existing_backdrops(data.get('existingBackdrops'))
+    sprite_auto_add_enabled = optional_boolean(data, 'spriteAutoAddEnabled')
+    backdrop_auto_add_enabled = optional_boolean(data, 'backdropAutoAddEnabled')
 
     def catalog_line(item):
         asset_parts = []
@@ -306,10 +393,22 @@ def build_sprite_requirement_messages(data):
         return f'- {item["displayName"]}{canonical_text}{asset_text}'
 
     catalog_text = '\n'.join(catalog_line(item) for item in catalog) if catalog else '未指定'
+    backdrop_catalog_text = '\n'.join(
+        f'- {item["displayName"]}' + (
+            f' / ライブラリ名: {item["name"]}'
+            if item['displayName'] != item['name'] else ''
+        ) + (
+            f'（タグ: {", ".join(item["tags"])}）'
+            if item['tags'] else ''
+        )
+        for item in backdrop_catalog
+    ) if backdrop_catalog else '未指定'
     prompt = f"""次のScratchプログラム変更依頼を、コード修正の観点から解析してください。
-目的は「Scratchライブラリから自動追加すべきスプライト・コスチューム・音が本当に必要か」を保守的に判定することです。
+目的は「Scratchライブラリから自動追加すべきスプライト・背景・コスチューム・音が本当に必要か」を保守的に判定することです。
 
 ルール:
+- スプライト・コスチューム・音の自動追加は {"有効" if sprite_auto_add_enabled else "無効"}。無効の場合は requiredSprites、sprites、assetAdditions、existingSpritesToReuse、forbiddenSpriteAdditions をすべて空配列にする。
+- 背景の自動追加は {"有効" if backdrop_auto_add_enabled else "無効"}。無効の場合は requiredBackdrops、backdrops、existingBackdropsToReuse、forbiddenBackdropAdditions をすべて空配列にする。
 - 既存スプライトの動作変更、入力キー、条件、変数、見た目変更、説明依頼では新規スプライトを要求しない。
 - ユーザーが明示した新しい登場物・キャラクター・物体が、既存スプライトだけでは実現できない場合だけ requiredSprites に入れる。
 - ユーザーが明示したコスチューム・見た目素材・音が現在の素材にない場合も、requiredSprites に「犬の音」「走るコスチューム」のような必要素材の短い説明を入れる。
@@ -320,10 +419,16 @@ def build_sprite_requirement_messages(data):
 - スプライトを新しく画面に登場させる必要がある場合は sprites に入れる。
 - 既存スプライトへコスチューム・音だけを追加すればよい場合は assetAdditions に入れ、sprites には入れない。
 - requiredSprites は説明用です。実際に追加する素材は必ず sprites または assetAdditions にも入れる。
+- ユーザーが場所、場面、舞台、景色、世界観を明示し、現在の背景では不足する場合だけ requiredBackdrops と backdrops に入れる。
+- 単なるプログラム修正、座標、移動、ジャンプ、変数、説明依頼では背景を追加しない。
+- 現在の背景で実現できる場合は existingBackdropsToReuse に入れ、backdrops には入れない。
+- requiredBackdrops は説明用です。実際に追加する背景は必ず backdrops にも入れる。
+- backdropName は背景一覧の「ライブラリ名」を使用する。日本語表示名を backdropName に入れない。
+- 例: 「宇宙を背景にして」は requiredBackdrops に「宇宙の背景」、backdrops に {{"backdropName":"Galaxy"}} を入れる。
 - 例: 「バナナから逃げるゲーム」は requiredSprites に「バナナ」、sprites に {{"spriteName":"Bananas"}} を入れる。
 - spriteName/sourceSpriteName はスプライト一覧の「ライブラリ名」を使用する。表示が「日本語名(英語名)」の場合は、括弧内の英語名だけを使用する。
 - costumeNames/soundNames は、その sourceSpriteName の行に書かれたコスチューム名・音名だけを使用する。
-- 迷う場合は requiredSprites を空配列にする。
+- 迷う場合は requiredSprites を空配列にし、requiredBackdrops も空配列にする。
 
 現在のプログラム:
 ```scratch
@@ -338,6 +443,12 @@ def build_sprite_requirement_messages(data):
 
 スプライト一覧:
 {catalog_text}
+
+現在の背景一覧:
+{json.dumps(existing_backdrops, ensure_ascii=False)}
+
+背景一覧:
+{backdrop_catalog_text}
 
 ユーザーの依頼:
 {user_input}
@@ -355,6 +466,10 @@ JSONだけを返してください。
       "soundNames": ["追加する音名"]
     }}
   ],
+  "requiredBackdrops": ["新しく必要な背景の短い説明"],
+  "backdrops": [{{"backdropName": "追加する背景のライブラリ名"}}],
+  "existingBackdropsToReuse": ["再利用する既存背景名"],
+  "forbiddenBackdropAdditions": ["追加してはいけない背景"],
   "existingSpritesToReuse": ["再利用する既存スプライト名"],
   "forbiddenSpriteAdditions": ["追加してはいけないもの"],
   "reason": "短い理由"
@@ -362,7 +477,7 @@ JSONだけを返してください。
     return [
         {
             'role': 'system',
-            'content': 'あなたはScratchコード修正のための素材要求ゲートです。JSONだけを返します。'
+            'content': 'あなたはScratchコード修正のための素材計画ゲートです。JSONだけを返します。'
         },
         {'role': 'user', 'content': prompt}
     ]
@@ -376,6 +491,10 @@ def parse_sprite_requirement(content):
             'requiredSprites': [],
             'sprites': [],
             'assetAdditions': [],
+            'requiredBackdrops': [],
+            'backdrops': [],
+            'existingBackdropsToReuse': [],
+            'forbiddenBackdropAdditions': [],
             'existingSpritesToReuse': [],
             'forbiddenSpriteAdditions': [],
             'reason': ''
@@ -410,6 +529,15 @@ def parse_sprite_requirement(content):
             'costumes': set(item.get('costumes', []) if isinstance(item.get('costumes'), list) else []),
             'sounds': set(item.get('sounds', []) if isinstance(item.get('sounds'), list) else [])
         }
+
+    backdrop_catalog = plan.get('_backdropCatalog')
+    if not isinstance(backdrop_catalog, list):
+        backdrop_catalog = []
+    valid_backdrop_names = {
+        item.get('name')
+        for item in backdrop_catalog
+        if isinstance(item, dict) and isinstance(item.get('name'), str)
+    }
 
     def sprite_list():
         value = plan.get('sprites')
@@ -472,11 +600,36 @@ def parse_sprite_requirement(content):
             })
         return result
 
+    def backdrop_list():
+        value = plan.get('backdrops')
+        if not isinstance(value, list):
+            return []
+        result = []
+        added = set()
+        for item in value[:10]:
+            if not isinstance(item, dict):
+                continue
+            backdrop_name = item.get('backdropName')
+            if not isinstance(backdrop_name, str) or not backdrop_name.strip():
+                continue
+            backdrop_name = backdrop_name.strip()[:100]
+            if valid_backdrop_names and backdrop_name not in valid_backdrop_names:
+                continue
+            if backdrop_name in added:
+                continue
+            result.append({'backdropName': backdrop_name})
+            added.add(backdrop_name)
+        return result
+
     reason = plan.get('reason')
     return {
         'requiredSprites': string_list('requiredSprites'),
         'sprites': sprite_list(),
         'assetAdditions': asset_additions(),
+        'requiredBackdrops': string_list('requiredBackdrops'),
+        'backdrops': backdrop_list(),
+        'existingBackdropsToReuse': string_list('existingBackdropsToReuse'),
+        'forbiddenBackdropAdditions': string_list('forbiddenBackdropAdditions'),
         'existingSpritesToReuse': string_list('existingSpritesToReuse'),
         'forbiddenSpriteAdditions': string_list('forbiddenSpriteAdditions'),
         'reason': reason.strip()[:500] if isinstance(reason, str) else ''
@@ -551,7 +704,42 @@ def infer_sprites_from_required_sprites(required_sprites, catalog, existing_spri
     return result
 
 
-def parse_sprite_requirement_with_catalog(content, catalog):
+def infer_backdrops_from_required_backdrops(required_backdrops, catalog, existing_backdrops):
+    if not catalog:
+        return []
+    existing_normalized = {
+        normalize_catalog_match_text(name)
+        for name in existing_backdrops
+        if isinstance(name, str)
+    }
+    result = []
+    added = set()
+    for required in required_backdrops[:10]:
+        normalized_required = normalize_catalog_match_text(required)
+        if not normalized_required:
+            continue
+        for item in catalog:
+            if not isinstance(item, dict):
+                continue
+            name = item.get('name')
+            if not isinstance(name, str) or not name.strip() or name in added:
+                continue
+            if normalize_catalog_match_text(name) in existing_normalized:
+                continue
+            terms = catalog_match_terms(item)
+            if any(
+                normalized_required == term or
+                normalized_required in term or
+                term in normalized_required
+                for term in terms
+            ):
+                result.append({'backdropName': name.strip()[:100]})
+                added.add(name)
+                break
+    return result
+
+
+def parse_sprite_requirement_with_catalog(content, catalog, backdrop_catalog=None, existing_backdrops=None):
     try:
         plan = json.loads(content or '{}')
     except json.JSONDecodeError:
@@ -559,12 +747,19 @@ def parse_sprite_requirement_with_catalog(content, catalog):
     if not isinstance(plan, dict):
         plan = {}
     plan['_catalog'] = catalog
+    plan['_backdropCatalog'] = backdrop_catalog or []
     parsed = parse_sprite_requirement(json.dumps(plan, ensure_ascii=False))
     if not parsed['sprites'] and not parsed['assetAdditions']:
         parsed['sprites'] = infer_sprites_from_required_sprites(
             parsed['requiredSprites'],
             catalog,
             parsed['existingSpritesToReuse']
+        )
+    if not parsed['backdrops']:
+        parsed['backdrops'] = infer_backdrops_from_required_backdrops(
+            parsed['requiredBackdrops'],
+            backdrop_catalog or [],
+            existing_backdrops or parsed['existingBackdropsToReuse']
         )
     return parsed
 
@@ -810,6 +1005,21 @@ def toggle_sprite_auto_add():
 
 
 # ─────────────────────────────────────────────
+# 背景自動追加 on/off トグル
+# ─────────────────────────────────────────────
+@app.route('/api/admin/toggle-backdrop-auto-add', methods=['POST'])
+def toggle_backdrop_auto_add():
+    with state_lock:
+        app_state['backdrop_auto_add_enabled'] = not app_state['backdrop_auto_add_enabled']
+        new_val = (
+            env_flag('SCRATCH_AUTO_BACKDROP_ADD_ENABLED', True) and
+            app_state['backdrop_auto_add_enabled']
+        )
+    notify_admin('state_changed', {'backdrop_auto_add_enabled': new_val})
+    return jsonify({'backdrop_auto_add_enabled': new_val})
+
+
+# ─────────────────────────────────────────────
 # 承認
 # ─────────────────────────────────────────────
 @app.route('/api/admin/approve/<request_id>', methods=['POST'])
@@ -979,22 +1189,36 @@ def repair_scratch():
 
 
 # ─────────────────────────────────────────────
-# プログラム修正用スプライト要求計画
+# プログラム修正用の素材計画
 # ─────────────────────────────────────────────
+@app.route('/api/plan-assets', methods=['POST'])
 @app.route('/api/plan-sprites', methods=['POST'])
 def plan_sprites():
     try:
+        data = parse_json_request()
+        requested_sprite_auto_add = optional_boolean(data, 'spriteAutoAddEnabled')
+        requested_backdrop_auto_add = optional_boolean(data, 'backdropAutoAddEnabled')
         with state_lock:
             sprite_auto_add_enabled = (
                 env_flag('SCRATCH_AUTO_SPRITE_ADD_ENABLED', True) and
-                app_state['sprite_auto_add_enabled']
+                app_state['sprite_auto_add_enabled'] and
+                requested_sprite_auto_add
+            )
+            backdrop_auto_add_enabled = (
+                env_flag('SCRATCH_AUTO_BACKDROP_ADD_ENABLED', True) and
+                app_state['backdrop_auto_add_enabled'] and
+                requested_backdrop_auto_add
             )
             ai_enabled = app_state['ai_enabled']
-        if not sprite_auto_add_enabled:
+        if not sprite_auto_add_enabled and not backdrop_auto_add_enabled:
             return jsonify({
                 'requiredSprites': [],
                 'sprites': [],
                 'assetAdditions': [],
+                'requiredBackdrops': [],
+                'backdrops': [],
+                'existingBackdropsToReuse': [],
+                'forbiddenBackdropAdditions': [],
                 'existingSpritesToReuse': [],
                 'forbiddenSpriteAdditions': [],
                 'reason': '',
@@ -1006,10 +1230,13 @@ def plan_sprites():
                 'requiredSprites': [],
                 'sprites': [],
                 'assetAdditions': [],
+                'requiredBackdrops': [],
+                'backdrops': [],
                 'disabled': True
             }), 503
 
-        data = parse_json_request()
+        data['spriteAutoAddEnabled'] = sprite_auto_add_enabled
+        data['backdropAutoAddEnabled'] = backdrop_auto_add_enabled
         messages = build_sprite_requirement_messages(data)
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
@@ -1024,20 +1251,27 @@ def plan_sprites():
                 'flagged': True
             }), 400
         response = client.chat.completions.create(
-            model=SPRITE_REQUIREMENT_MODEL,
+            model=ASSET_PLANNING_MODEL,
             messages=messages,
             response_format={'type': 'json_object'}
         )
         content = response.choices[0].message.content
         catalog = sanitize_optional_sprite_catalog(data.get('spriteCatalog'))
-        return jsonify(parse_sprite_requirement_with_catalog(content, catalog))
+        backdrop_catalog = sanitize_optional_backdrop_catalog(data.get('backdropCatalog'))
+        existing_backdrops = sanitize_existing_backdrops(data.get('existingBackdrops'))
+        return jsonify(parse_sprite_requirement_with_catalog(
+            content,
+            catalog,
+            backdrop_catalog,
+            existing_backdrops
+        ))
     except BadRequest as e:
         return jsonify({'error': e.description}), 400
     except Exception as e:
         if is_rate_limit_error(e):
-            print(f"Rate limited while planning sprites: {e}")
+            print(f"Rate limited while planning assets: {e}")
             return rate_limit_response()
-        print(f"Error planning sprites: {e}")
+        print(f"Error planning assets: {e}")
         return jsonify({'error': str(e)}), 500
 
 

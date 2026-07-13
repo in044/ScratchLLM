@@ -65,7 +65,11 @@ const baseConfig = new ScratchWebpackConfigBuilder(
         'process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED':
             `"${process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED || ''}"`,
         'process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED':
-            `"${process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED || ''}"`
+            `"${process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED || ''}"`,
+        'process.env.REACT_APP_BACKDROP_JAPANESE_NAMES_ENABLED':
+            `"${process.env.REACT_APP_BACKDROP_JAPANESE_NAMES_ENABLED || ''}"`,
+        'process.env.REACT_APP_AUTO_BACKDROP_ADD_ENABLED':
+            `"${process.env.REACT_APP_AUTO_BACKDROP_ADD_ENABLED || ''}"`
     }))
     .addPlugin(new webpack.NormalModuleReplacementPlugin(
         /scratch-audio[\\/]src[\\/]StartAudioContext\.js$/,

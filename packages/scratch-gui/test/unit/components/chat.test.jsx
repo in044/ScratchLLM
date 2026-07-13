@@ -4,10 +4,12 @@ import {shallow} from 'enzyme';
 import ScratchBlockRenderer, {
     applyCustomArgumentColors,
     applyCustomBlockOverrides,
-    extractCustomBlockSignatures
+    extractCustomBlockSignatures,
+    removeScratchEndMarkers
 } from '../../../src/components/chat/scratch-block-renderer.jsx';
 import {
     ChatComponent,
+    buildBackdropsAddedMessage,
     buildLlmRequestPayload,
     buildSpriteAssetsAddedMessage,
     buildSpriteAddedMessage,
@@ -85,9 +87,28 @@ describe('Chat message rendering', () => {
         expect(applyCustomBlockOverrides('定義 重力を設定する (重力)', signatures))
             .toBe('定義 重力を設定する (重力)');
     });
+
+    test('removes standalone end markers from explanatory Scratch blocks', () => {
+        expect(removeScratchEndMarkers(
+            'もし <マウスに触れた> なら\n  [pop v] の音を鳴らす\nend\n(1) 秒待つ'
+        )).toBe(
+            'もし <マウスに触れた> なら\n  [pop v] の音を鳴らす\n(1) 秒待つ'
+        );
+        expect(removeScratchEndMarkers('[end v] と言う')).toBe('[end v] と言う');
+    });
 });
 
 describe('Automatic sprite notification', () => {
+    test('builds a bot message after a backdrop is added', () => {
+        expect(buildBackdropsAddedMessage([{
+            name: '銀河',
+            sourceName: 'Galaxy'
+        }])).toEqual({
+            text: '銀河の背景を追加しました。',
+            sender: 'bot'
+        });
+    });
+
     test('builds a bot message after library sprites are added', () => {
         expect(buildSpriteAddedMessage(['Butterfly 2', 'Bat'])).toEqual({
             text: 'Butterfly 2、Batを追加しました。',
@@ -154,6 +175,7 @@ describe('Chat request lifecycle', () => {
     const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0));
     let originalFetch;
     let originalEventSource;
+    let preferenceStore;
 
     const makeChatWrapper = ({
         onAddMessage = jest.fn(),
@@ -199,6 +221,21 @@ describe('Chat request lifecycle', () => {
     beforeEach(() => {
         originalFetch = global.fetch;
         originalEventSource = global.EventSource;
+        preferenceStore = {};
+        Object.defineProperty(window, 'localStorage', {
+            configurable: true,
+            value: {
+                getItem: jest.fn(key => (
+                    Object.prototype.hasOwnProperty.call(preferenceStore, key) ? preferenceStore[key] : null
+                )),
+                removeItem: jest.fn(key => {
+                    delete preferenceStore[key];
+                }),
+                setItem: jest.fn((key, value) => {
+                    preferenceStore[key] = String(value);
+                })
+            }
+        });
     });
 
     afterEach(() => {
@@ -338,14 +375,17 @@ describe('Chat request lifecycle', () => {
         expect(onSetIsLoading).toHaveBeenCalledWith(false);
     });
 
-    test('skips sprite planning when server-side automatic sprite add is off', async () => {
+    test('skips material planning when server-side automatic add is off', async () => {
         const onAddMessage = jest.fn();
 
         global.fetch = jest.fn(url => {
             if (String(url).includes('/api/status')) {
                 return Promise.resolve({
                     ok: true,
-                    json: () => Promise.resolve({sprite_auto_add_enabled: false})
+                    json: () => Promise.resolve({
+                        sprite_auto_add_enabled: false,
+                        backdrop_auto_add_enabled: false
+                    })
                 });
             }
             return Promise.resolve({
@@ -367,7 +407,7 @@ describe('Chat request lifecycle', () => {
         await flushPromises();
 
         expect(global.fetch.mock.calls.map(call => call[0]).some(url => (
-            String(url).includes('/api/plan-sprites')
+            String(url).includes('/api/plan-assets')
         ))).toBe(false);
         expect(global.fetch.mock.calls.map(call => call[0]).some(url => (
             String(url).includes('/api/llm')
@@ -376,6 +416,79 @@ describe('Chat request lifecycle', () => {
             text: '返答です。',
             sender: 'bot'
         });
+    });
+
+    test('sends the bilingual backdrop catalog to material planning', async () => {
+        global.fetch = jest.fn(url => {
+            if (String(url).includes('/api/status')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({sprite_auto_add_enabled: true})
+                });
+            }
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({})
+            });
+        });
+        const wrapper = makeChatWrapper();
+
+        await wrapper.instance()._planRequiredSprites('宇宙を背景にして', wrapper.instance().props.vm.toJSON());
+
+        const planCall = global.fetch.mock.calls.find(call => String(call[0]).includes('/api/plan-assets'));
+        const payload = JSON.parse(planCall[1].body);
+        expect(payload.backdropCatalog.find(backdrop => backdrop.name === 'Galaxy')).toMatchObject({
+            displayName: '銀河（Galaxy）',
+            japaneseName: '銀河'
+        });
+        expect(payload.existingBackdrops).toEqual([]);
+        expect(payload.spriteAutoAddEnabled).toBe(true);
+        expect(payload.backdropAutoAddEnabled).toBe(true);
+    });
+
+    test('goes directly to the program LLM only when both automatic additions are off', async () => {
+        window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'false');
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{message: {content: '直接返答です。'}}]
+            })
+        }));
+        const wrapper = makeChatWrapper();
+        wrapper.setState({inputValue: 'ネコを動かして'});
+
+        await wrapper.instance().handleSend();
+        await flushPromises();
+
+        const urls = global.fetch.mock.calls.map(call => String(call[0]));
+        expect(urls.some(url => url.includes('/api/status'))).toBe(false);
+        expect(urls.some(url => url.includes('/api/plan-assets'))).toBe(false);
+        expect(urls.some(url => url.includes('/api/llm'))).toBe(true);
+    });
+
+    test('calls material planning when only backdrop automatic addition is on', async () => {
+        window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'true');
+        global.fetch = jest.fn(url => {
+            if (String(url).includes('/api/status')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({
+                        sprite_auto_add_enabled: true,
+                        backdrop_auto_add_enabled: true
+                    })
+                });
+            }
+            return Promise.resolve({ok: true, json: () => Promise.resolve({})});
+        });
+        const wrapper = makeChatWrapper();
+
+        await wrapper.instance()._planRequiredSprites('宇宙を背景にして', wrapper.instance().props.vm.toJSON());
+
+        const planCall = global.fetch.mock.calls.find(call => String(call[0]).includes('/api/plan-assets'));
+        const payload = JSON.parse(planCall[1].body);
+        expect(payload.spriteAutoAddEnabled).toBe(false);
+        expect(payload.backdropAutoAddEnabled).toBe(true);
     });
 
     test('does not request a dog sprite after directly adding a dog sound', async () => {
@@ -640,6 +753,72 @@ describe('Chat request lifecycle', () => {
             text: 'ネコにdog1の音を追加しました。',
             sender: 'bot'
         });
+    });
+
+    test('adds a planned backdrop before sending its actual name to the program LLM', async () => {
+        const onAddMessage = jest.fn();
+        const projectJson = {
+            targets: [{
+                id: 'stage-id',
+                isStage: true,
+                name: 'Stage',
+                variables: {},
+                lists: {},
+                blocks: {},
+                comments: {},
+                costumes: [{name: '背景1', assetId: 'existing'}],
+                sounds: []
+            }]
+        };
+        const addBackdrop = jest.fn((md5ext, backdrop) => {
+            projectJson.targets[0].costumes.push({
+                ...backdrop,
+                assetId: md5ext.split('.')[0]
+            });
+            return Promise.resolve();
+        });
+
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{message: {content: '返答です。'}}]
+            })
+        }));
+
+        const wrapper = makeChatWrapper({
+            onAddMessage,
+            projectJson,
+            vmOverrides: {addBackdrop}
+        });
+        const instance = wrapper.instance();
+        instance._planRequiredSprites = jest.fn(() => Promise.resolve({
+            requiredSprites: [],
+            sprites: [],
+            assetAdditions: [],
+            requiredBackdrops: ['宇宙の背景'],
+            backdrops: [{backdropName: 'Galaxy'}],
+            existingBackdropsToReuse: [],
+            forbiddenBackdropAdditions: [],
+            existingSpritesToReuse: [],
+            forbiddenSpriteAdditions: []
+        }));
+        wrapper.setState({inputValue: '宇宙を背景にして'});
+
+        await instance.handleSend();
+        await flushPromises();
+
+        expect(addBackdrop).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({name: '銀河'})
+        );
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: '銀河の背景を追加しました。',
+            sender: 'bot'
+        });
+        const payload = JSON.parse(global.fetch.mock.calls[0][1].body);
+        expect(payload.userInput).toContain('追加済み背景');
+        expect(payload.userInput).toContain('「銀河」');
+        expect(payload.userInput).toContain('Galaxy');
+        expect(payload.currentAssets.targets[0].costumes).toContain('銀河');
     });
 
     test('reuses the imported program repair for the matching explanatory Scratch fence', async () => {

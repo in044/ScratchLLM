@@ -96,7 +96,8 @@ import explanationNormalIcon from './icon--explanation-normal.svg';
 import explanationShortIcon from './icon--explanation-short.svg';
 import aiMenuIcon from './icon--ai-menu.svg';
 import explanationLengthIcon from './icon--explanation-length.svg';
-import spriteAutoAddIcon from './icon--sprite-auto-add.svg';
+import spriteAutoAddIcon from '../action-menu/icon--sprite.svg';
+import backdropAutoAddIcon from '../action-menu/icon--backdrop.svg';
 import check from './check.svg';
 
 import scratchLogo from './scratch-logo.svg';
@@ -110,13 +111,16 @@ import sharedMessages from '../../lib/shared-messages';
 
 import { AccountMenuOptionsPropTypes } from '../../lib/account-menu-options';
 import {
+    getBackdropAutoAddPreference,
     getSpriteAutoAddPreference,
+    setBackdropAutoAddPreference,
     setSpriteAutoAddPreference
 } from '../../lib/user-preferences';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 const API_STATUS_URL = `${API_BASE_URL}/api/status`;
 const SPRITE_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-sprite-auto-add`;
+const BACKDROP_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-backdrop-auto-add`;
 
 const ariaMessages = defineMessages({
     tutorials: {
@@ -214,14 +218,18 @@ class MenuBar extends React.Component {
             'handleKeyPress',
             'handleRestoreOption',
             'handleToggleSpriteAutoAdd',
+            'handleToggleBackdropAutoAdd',
             'getSaveToComputerHandler',
             'loadAiMenuState',
             'syncSpriteAutoAddPreference',
+            'syncBackdropAutoAddPreference',
             'restoreOptionMessage'
         ]);
         this.state = {
             spriteAutoAddEnabled: getSpriteAutoAddPreference(),
-            spriteAutoAddLoading: true
+            spriteAutoAddLoading: true,
+            backdropAutoAddEnabled: getBackdropAutoAddPreference(),
+            backdropAutoAddLoading: true
         };
     }
     componentDidMount() {
@@ -235,10 +243,14 @@ class MenuBar extends React.Component {
     }
     loadAiMenuState() {
         if (typeof fetch === 'undefined') {
-            this.setState({spriteAutoAddLoading: false});
+            this.setState({
+                spriteAutoAddLoading: false,
+                backdropAutoAddLoading: false
+            });
             return;
         }
         const preferredSpriteAutoAddEnabled = getSpriteAutoAddPreference();
+        const preferredBackdropAutoAddEnabled = getBackdropAutoAddPreference();
         fetch(API_STATUS_URL)
             .then(response => response.ok ? response.json() : Promise.reject(response))
             .then(data => {
@@ -255,10 +267,27 @@ class MenuBar extends React.Component {
                 } else {
                     this.setState({spriteAutoAddLoading: false});
                 }
+                if (typeof data.backdrop_auto_add_enabled === 'boolean') {
+                    if (data.backdrop_auto_add_enabled !== preferredBackdropAutoAddEnabled) {
+                        this.syncBackdropAutoAddPreference();
+                    } else {
+                        this.setState({
+                            backdropAutoAddEnabled: data.backdrop_auto_add_enabled,
+                            backdropAutoAddLoading: false
+                        });
+                    }
+                } else {
+                    this.setState({backdropAutoAddLoading: false});
+                }
             })
             .catch(error => {
                 console.warn('Failed to load AI menu state:', error);
-                if (this._isMounted) this.setState({spriteAutoAddLoading: false});
+                if (this._isMounted) {
+                    this.setState({
+                        spriteAutoAddLoading: false,
+                        backdropAutoAddLoading: false
+                    });
+                }
             });
     }
     syncSpriteAutoAddPreference() {
@@ -278,6 +307,25 @@ class MenuBar extends React.Component {
             .catch(error => {
                 console.warn('Failed to sync sprite auto add preference:', error);
                 if (this._isMounted) this.setState({spriteAutoAddLoading: false});
+            });
+    }
+    syncBackdropAutoAddPreference() {
+        if (typeof fetch === 'undefined') {
+            this.setState({backdropAutoAddLoading: false});
+            return;
+        }
+        fetch(BACKDROP_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                this.setState({
+                    backdropAutoAddEnabled: data.backdrop_auto_add_enabled === true,
+                    backdropAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to sync backdrop auto add preference:', error);
+                if (this._isMounted) this.setState({backdropAutoAddLoading: false});
             });
     }
     handleClickNew() {
@@ -381,6 +429,25 @@ class MenuBar extends React.Component {
             .catch(error => {
                 console.warn('Failed to toggle sprite auto add:', error);
                 if (this._isMounted) this.setState({spriteAutoAddLoading: false});
+            });
+    }
+    handleToggleBackdropAutoAdd() {
+        if (this.state.backdropAutoAddLoading) return;
+        if (typeof fetch === 'undefined') return;
+        this.setState({backdropAutoAddLoading: true});
+        fetch(BACKDROP_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                setBackdropAutoAddPreference(data.backdrop_auto_add_enabled === true);
+                this.setState({
+                    backdropAutoAddEnabled: data.backdrop_auto_add_enabled === true,
+                    backdropAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to toggle backdrop auto add:', error);
+                if (this._isMounted) this.setState({backdropAutoAddLoading: false});
             });
     }
     handleKeyPress(event) {
@@ -757,6 +824,29 @@ class MenuBar extends React.Component {
                                             <span
                                                 className={classNames(styles.aiToggleSwitch, {
                                                     [styles.aiToggleSwitchOn]: this.state.spriteAutoAddEnabled
+                                                })}
+                                            >
+                                                <span className={styles.aiToggleThumb} />
+                                            </span>
+                                        </span>
+                                    </MenuItem>
+                                    <MenuItem
+                                        className={classNames({
+                                            [styles.disabled]: this.state.backdropAutoAddLoading
+                                        })}
+                                        onClick={this.handleToggleBackdropAutoAdd}
+                                    >
+                                        <span className={styles.aiToggleOption}>
+                                            <img
+                                                className={settingsMenuStyles.icon}
+                                                src={backdropAutoAddIcon}
+                                            />
+                                            <span className={styles.aiToggleLabel}>
+                                                {'背景自動追加'}
+                                            </span>
+                                            <span
+                                                className={classNames(styles.aiToggleSwitch, {
+                                                    [styles.aiToggleSwitchOn]: this.state.backdropAutoAddEnabled
                                                 })}
                                             >
                                                 <span className={styles.aiToggleThumb} />

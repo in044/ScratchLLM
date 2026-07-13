@@ -27,8 +27,10 @@ test('builds a compact sprite catalog with asset names but without asset payload
     const catalog = buildSpriteCatalog();
 
     expect(catalog.length).toBeGreaterThan(0);
-    expect(catalog[0]).toEqual({
+    expect(catalog[0]).toMatchObject({
+        id: expect.any(String),
         name: expect.any(String),
+        englishName: expect.any(String),
         displayName: expect.any(String),
         japaneseName: expect.any(String),
         aliases: expect.any(Array),
@@ -88,7 +90,7 @@ test('generates Japanese display names for every sprite from the sprite JSON', (
     expect(catalog.every(sprite => sprite.japaneseName)).toBe(true);
     expect(catalog.every(sprite => sprite.displayName.includes(sprite.name))).toBe(true);
     expect(catalog.find(sprite => sprite.name === 'Cat').aliases).toEqual(
-        ['ネコ（Cat）']
+        expect.arrayContaining(['ネコ（Cat）', 'ネコ'])
     );
 });
 

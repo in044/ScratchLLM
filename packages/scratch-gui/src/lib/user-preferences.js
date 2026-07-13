@@ -1,6 +1,8 @@
 const EXPLANATION_LENGTH_KEY = 'scratch-llm.explanationLength';
 const SPRITE_LIBRARY_LANGUAGE_KEY = 'scratch-llm.spriteLibraryLanguage';
+const BACKDROP_LIBRARY_LANGUAGE_KEY = 'scratch-llm.backdropLibraryLanguage';
 const SPRITE_AUTO_ADD_KEY = 'scratch-llm.spriteAutoAddEnabled';
+const BACKDROP_AUTO_ADD_KEY = 'scratch-llm.backdropAutoAddEnabled';
 
 const EXPLANATION_LENGTHS = ['long', 'normal', 'short'];
 
@@ -60,6 +62,22 @@ const setSpriteLibraryUseJapanesePreference = useJapaneseNames => {
     writeValue(SPRITE_LIBRARY_LANGUAGE_KEY, String(useJapaneseNames === true));
 };
 
+const getBackdropLibraryUseJapanesePreference = () => (
+    readBoolean(BACKDROP_LIBRARY_LANGUAGE_KEY, true)
+);
+
+const setBackdropLibraryUseJapanesePreference = useJapaneseNames => {
+    writeValue(BACKDROP_LIBRARY_LANGUAGE_KEY, String(useJapaneseNames === true));
+};
+
+const getBackdropAutoAddPreference = () => (
+    readBoolean(BACKDROP_AUTO_ADD_KEY, true)
+);
+
+const setBackdropAutoAddPreference = enabled => {
+    writeValue(BACKDROP_AUTO_ADD_KEY, String(enabled === true));
+};
+
 const getSpriteAutoAddPreference = () => (
     readBoolean(SPRITE_AUTO_ADD_KEY, true)
 );
@@ -69,10 +87,14 @@ const setSpriteAutoAddPreference = enabled => {
 };
 
 export {
+    getBackdropAutoAddPreference,
     getExplanationLengthPreference,
+    getBackdropLibraryUseJapanesePreference,
     getSpriteAutoAddPreference,
     getSpriteLibraryUseJapanesePreference,
     setExplanationLengthPreference,
+    setBackdropLibraryUseJapanesePreference,
+    setBackdropAutoAddPreference,
     setSpriteAutoAddPreference,
     setSpriteLibraryUseJapanesePreference
 };

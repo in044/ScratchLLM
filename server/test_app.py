@@ -231,6 +231,68 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertIn('requiredSprites', messages[-1]['content'])
         self.assertIn('実際に追加する素材は必ず sprites または assetAdditions', messages[-1]['content'])
 
+    def test_material_requirement_prompt_includes_backdrop_catalog(self):
+        messages = build_sprite_requirement_messages({
+            'userInput': '宇宙を背景にして',
+            'currentProgram': '# Stage\n# ブロックなし',
+            'currentAssets': {
+                'targets': [{'name': 'Stage', 'costumes': ['背景1'], 'sounds': []}]
+            },
+            'backdropCatalog': [{
+                'name': 'Galaxy',
+                'displayName': '銀河（Galaxy）',
+                'japaneseName': '銀河',
+                'aliases': ['銀河'],
+                'tags': ['space', 'stars']
+            }],
+            'existingBackdrops': ['背景1']
+        })
+
+        prompt = messages[-1]['content']
+        self.assertIn('銀河（Galaxy） / ライブラリ名: Galaxy', prompt)
+        self.assertIn('requiredBackdrops', prompt)
+        self.assertIn('backdropName', prompt)
+        self.assertIn('単なるプログラム修正', prompt)
+
+    def test_parse_material_requirement_accepts_only_catalog_backdrops(self):
+        parsed = parse_sprite_requirement_with_catalog(
+            json.dumps({
+                'requiredBackdrops': ['宇宙の背景'],
+                'backdrops': [
+                    {'backdropName': 'Galaxy'},
+                    {'backdropName': 'Not Real'},
+                    {'backdropName': 'Galaxy'}
+                ],
+                'reason': '宇宙が舞台'
+            }, ensure_ascii=False),
+            [],
+            [{
+                'name': 'Galaxy',
+                'displayName': '銀河（Galaxy）',
+                'japaneseName': '銀河',
+                'aliases': ['銀河'],
+                'tags': ['space']
+            }]
+        )
+
+        self.assertEqual(parsed['requiredBackdrops'], ['宇宙の背景'])
+        self.assertEqual(parsed['backdrops'], [{'backdropName': 'Galaxy'}])
+
+    def test_parse_material_requirement_infers_backdrop_from_japanese_name(self):
+        parsed = parse_sprite_requirement_with_catalog(
+            json.dumps({'requiredBackdrops': ['銀河']}, ensure_ascii=False),
+            [],
+            [{
+                'name': 'Galaxy',
+                'displayName': '銀河（Galaxy）',
+                'japaneseName': '銀河',
+                'aliases': ['銀河'],
+                'tags': ['space']
+            }]
+        )
+
+        self.assertEqual(parsed['backdrops'], [{'backdropName': 'Galaxy'}])
+
     def test_parse_sprite_requirement_normalizes_json(self):
         self.assertEqual(
             parse_sprite_requirement(
@@ -241,6 +303,10 @@ class PromptSecurityTest(unittest.TestCase):
                 'requiredSprites': ['敵'],
                 'sprites': [],
                 'assetAdditions': [],
+                'requiredBackdrops': [],
+                'backdrops': [],
+                'existingBackdropsToReuse': [],
+                'forbiddenBackdropAdditions': [],
                 'existingSpritesToReuse': ['ネコ'],
                 'forbiddenSpriteAdditions': ['矢印'],
                 'reason': '既存で移動できる'
@@ -282,6 +348,10 @@ class PromptSecurityTest(unittest.TestCase):
                     'costumeNames': ['dog1-a'],
                     'soundNames': ['dog1']
                 }],
+                'requiredBackdrops': [],
+                'backdrops': [],
+                'existingBackdropsToReuse': [],
+                'forbiddenBackdropAdditions': [],
                 'existingSpritesToReuse': [],
                 'forbiddenSpriteAdditions': [],
                 'reason': '犬の音が必要'
@@ -311,6 +381,10 @@ class PromptSecurityTest(unittest.TestCase):
                 'requiredSprites': ['バナナ'],
                 'sprites': [{'spriteName': 'Bananas'}],
                 'assetAdditions': [],
+                'requiredBackdrops': [],
+                'backdrops': [],
+                'existingBackdropsToReuse': [],
+                'forbiddenBackdropAdditions': [],
                 'existingSpritesToReuse': [],
                 'forbiddenSpriteAdditions': [],
                 'reason': '新しい敵が必要'
@@ -382,6 +456,10 @@ class PromptSecurityTest(unittest.TestCase):
             'requiredSprites': [],
             'sprites': [],
             'assetAdditions': [],
+            'requiredBackdrops': [],
+            'backdrops': [],
+            'existingBackdropsToReuse': [],
+            'forbiddenBackdropAdditions': [],
             'existingSpritesToReuse': ['ネコ'],
             'forbiddenSpriteAdditions': ['矢印'],
             'reason': 'キーボード入力だから'
@@ -423,18 +501,60 @@ class PromptSecurityTest(unittest.TestCase):
             'requiredSprites': ['バナナ'],
             'sprites': [{'spriteName': 'Bananas'}],
             'assetAdditions': [],
+            'requiredBackdrops': [],
+            'backdrops': [],
+            'existingBackdropsToReuse': [],
+            'forbiddenBackdropAdditions': [],
             'existingSpritesToReuse': [],
             'forbiddenSpriteAdditions': [],
             'reason': 'バナナが敵として必要'
         })
         client.chat.completions.create.assert_called_once()
 
+    def test_plan_sprites_endpoint_returns_validated_backdrop_plan(self):
+        client = MagicMock()
+        client.moderations.create.return_value = SimpleNamespace(
+            results=[SimpleNamespace(flagged=False)]
+        )
+        client.chat.completions.create.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=(
+                '{"requiredBackdrops":["宇宙の背景"],'
+                '"backdrops":[{"backdropName":"Galaxy"},{"backdropName":"Not Real"}],'
+                '"reason":"宇宙が舞台"}'
+            )))]
+        )
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            with patch('openai.OpenAI', return_value=client):
+                response = app.test_client().post('/api/plan-sprites', json={
+                    'userInput': '宇宙を背景にして',
+                    'currentProgram': '# Stage\n# ブロックなし',
+                    'currentAssets': {
+                        'targets': [{'name': 'Stage', 'costumes': ['背景1'], 'sounds': []}]
+                    },
+                    'backdropCatalog': [{
+                        'name': 'Galaxy',
+                        'displayName': '銀河（Galaxy）',
+                        'japaneseName': '銀河',
+                        'aliases': ['銀河'],
+                        'tags': ['space']
+                    }],
+                    'existingBackdrops': ['背景1']
+                })
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body['requiredBackdrops'], ['宇宙の背景'])
+        self.assertEqual(body['backdrops'], [{'backdropName': 'Galaxy'}])
+        self.assertEqual(body['reason'], '宇宙が舞台')
+
     def test_plan_sprites_endpoint_can_be_disabled_by_environment(self):
         client = MagicMock()
 
         with patch.dict(os.environ, {
             'OPENAI_API_KEY': 'test-key',
-            'SCRATCH_AUTO_SPRITE_ADD_ENABLED': 'off'
+            'SCRATCH_AUTO_SPRITE_ADD_ENABLED': 'off',
+            'SCRATCH_AUTO_BACKDROP_ADD_ENABLED': 'off'
         }):
             with patch('openai.OpenAI', return_value=client):
                 response = app.test_client().post('/api/plan-sprites', json={
@@ -448,6 +568,10 @@ class PromptSecurityTest(unittest.TestCase):
             'requiredSprites': [],
             'sprites': [],
             'assetAdditions': [],
+            'requiredBackdrops': [],
+            'backdrops': [],
+            'existingBackdropsToReuse': [],
+            'forbiddenBackdropAdditions': [],
             'existingSpritesToReuse': [],
             'forbiddenSpriteAdditions': [],
             'reason': '',
@@ -458,7 +582,9 @@ class PromptSecurityTest(unittest.TestCase):
     def test_plan_sprites_endpoint_can_be_disabled_by_runtime_toggle(self):
         client = MagicMock()
         original_value = app_state['sprite_auto_add_enabled']
+        original_backdrop_value = app_state['backdrop_auto_add_enabled']
         app_state['sprite_auto_add_enabled'] = False
+        app_state['backdrop_auto_add_enabled'] = False
 
         try:
             with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
@@ -470,12 +596,17 @@ class PromptSecurityTest(unittest.TestCase):
                     })
         finally:
             app_state['sprite_auto_add_enabled'] = original_value
+            app_state['backdrop_auto_add_enabled'] = original_backdrop_value
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {
             'requiredSprites': [],
             'sprites': [],
             'assetAdditions': [],
+            'requiredBackdrops': [],
+            'backdrops': [],
+            'existingBackdropsToReuse': [],
+            'forbiddenBackdropAdditions': [],
             'existingSpritesToReuse': [],
             'forbiddenSpriteAdditions': [],
             'reason': '',
@@ -497,6 +628,34 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertEqual(response.get_json(), {'sprite_auto_add_enabled': False})
         self.assertEqual(status_response.status_code, 200)
         self.assertFalse(status_response.get_json()['sprite_auto_add_enabled'])
+
+    def test_backdrop_auto_add_toggle_endpoint_updates_status(self):
+        original_value = app_state['backdrop_auto_add_enabled']
+        app_state['backdrop_auto_add_enabled'] = True
+
+        try:
+            response = app.test_client().post('/api/admin/toggle-backdrop-auto-add')
+            status_response = app.test_client().get('/api/status')
+        finally:
+            app_state['backdrop_auto_add_enabled'] = original_value
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {'backdrop_auto_add_enabled': False})
+        self.assertEqual(status_response.status_code, 200)
+        self.assertFalse(status_response.get_json()['backdrop_auto_add_enabled'])
+
+    def test_material_prompt_disables_only_the_requested_asset_category(self):
+        messages = build_sprite_requirement_messages({
+            'userInput': '宇宙を背景にして',
+            'currentProgram': '# Stage\n# ブロックなし',
+            'currentAssets': {'targets': []},
+            'spriteAutoAddEnabled': False,
+            'backdropAutoAddEnabled': True
+        })
+
+        prompt = messages[-1]['content']
+        self.assertIn('スプライト・コスチューム・音の自動追加は 無効', prompt)
+        self.assertIn('背景の自動追加は 有効', prompt)
 
     def test_rate_limit_errors_are_detected(self):
         error = Exception("Error code: 429 - {'error': {'message': 'Too Many Requests'}}")
