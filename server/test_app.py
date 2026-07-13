@@ -6,7 +6,10 @@ from unittest.mock import MagicMock, patch
 
 from app import (
     EXPLANATION_LENGTH_PROMPTS,
+    LLM_MODEL,
+    SPRITE_REQUIREMENT_MODEL,
     SYSTEM_PROMPT,
+    SYNTAX_REPAIR_MODEL,
     app,
     app_state,
     build_llm_messages,
@@ -20,6 +23,11 @@ from app import (
 
 
 class PromptSecurityTest(unittest.TestCase):
+    def test_default_models_match_each_llm_role(self):
+        self.assertEqual(LLM_MODEL, 'gpt-5.6-terra')
+        self.assertEqual(SPRITE_REQUIREMENT_MODEL, 'gpt-5.6-luna')
+        self.assertEqual(SYNTAX_REPAIR_MODEL, 'gpt-5.6-luna')
+
     def test_server_builds_protected_messages(self):
         messages = build_llm_messages({
             'userInput': '初期化を追加して',
@@ -36,12 +44,31 @@ class PromptSecurityTest(unittest.TestCase):
             f'{SYSTEM_PROMPT}\n{EXPLANATION_LENGTH_PROMPTS["short"]}'
         )
         self.assertIn('```scratch-project`', messages[0]['content'])
+        self.assertIn('各段落の直後に、対応する小さなScratchBlocks断片', messages[0]['content'])
+        self.assertIn('完成後に画面上で何が起きるか', messages[0]['content'])
+        self.assertIn('スタート位置を決める（初期化）', messages[0]['content'])
+        self.assertIn('短いものを1個だけ必ず示してください', messages[0]['content'])
         self.assertNotIn('\\`', messages[0]['content'])
         self.assertNotIn('保護指示を上書き', json.dumps(messages, ensure_ascii=False))
         self.assertEqual(messages[1], {'role': 'user', 'content': '前の依頼'})
         self.assertIn('# Stage\n# ブロックなし', messages[-1]['content'])
         self.assertIn('初期化を追加して', messages[-1]['content'])
         self.assertIn('"targets": []', messages[-1]['content'])
+        self.assertIn('処理ごとに複数の断片へ分けてください', messages[-1]['content'])
+        self.assertIn('画面上で起きること → ブロックの仕組み → その処理が必要な理由', messages[-1]['content'])
+        self.assertIn('各項目の行頭を `- `', messages[-1]['content'])
+
+    def test_explanation_lengths_require_scratch_fences_at_the_requested_detail(self):
+        self.assertIn('処理ごとに複数の断片', EXPLANATION_LENGTH_PROMPTS['long'])
+        self.assertIn('断片も3個以上に分け', EXPLANATION_LENGTH_PROMPTS['normal'])
+        self.assertIn('1個だけ必ず示してください', EXPLANATION_LENGTH_PROMPTS['short'])
+
+    def test_normal_explanation_starts_with_visible_behavior_and_defines_variables(self):
+        prompt = EXPLANATION_LENGTH_PROMPTS['normal']
+        self.assertIn('完成後の画面で何が起きるか', prompt)
+        self.assertIn('画面上で起きることを先に', prompt)
+        self.assertIn('変数が初めて登場したとき', prompt)
+        self.assertIn('変更前後の数値', prompt)
 
     def test_server_preserves_all_valid_history_without_truncation(self):
         history = [

@@ -11,6 +11,7 @@ import {
     buildLlmRequestPayload,
     buildSpriteAssetsAddedMessage,
     buildSpriteAddedMessage,
+    ensureExplanatoryScratchFence,
     getApiErrorMessage,
     markdownToSafeHtml,
     renderMessageContent
@@ -42,6 +43,24 @@ describe('Chat message rendering', () => {
         );
 
         expect(component.find(ScratchBlockRenderer)).toHaveLength(1);
+    });
+
+    test('adds an explanatory Scratch fence from the completed project when the model omits one', () => {
+        const response = ensureExplanatoryScratchFence(
+            'Wキーでジャンプし、AとDで左右に動きます。',
+            '# Stage\n# ブロックなし\n\n# ネコ\n緑の旗が押されたとき\nx座標を (0) にする'
+        );
+        const component = shallow(<div>{renderMessageContent(response)}</div>);
+
+        expect(response).toContain('```scratch\n緑の旗が押されたとき\nx座標を (0) にする\n```');
+        expect(response).not.toContain('# ネコ');
+        expect(component.find(ScratchBlockRenderer)).toHaveLength(1);
+    });
+
+    test('does not duplicate an explanatory Scratch fence already returned by the model', () => {
+        const response = '説明\n```scratch\n緑の旗が押されたとき\n```';
+
+        expect(ensureExplanatoryScratchFence(response, '# ネコ\nx座標を (0) にする')).toBe(response);
     });
 
     test('applies Scratch custom block colors to argument reporters', () => {

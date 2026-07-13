@@ -89,6 +89,45 @@ export const renderMessageContent = text => {
 };
 /* eslint-enable react/no-danger */
 
+const firstTargetCode = scratchCode => {
+    const lines = String(scratchCode || '').split(/\r?\n/gu);
+    let inTarget = false;
+    let section = [];
+
+    const completedSection = () => {
+        const code = section.join('\n').trim();
+        return code && code !== '# ブロックなし' ? code : '';
+    };
+
+    for (const line of lines) {
+        if (line.trim() === '# ブロックなし') continue;
+        if (/^#\s+\S/gu.test(line)) {
+            const code = completedSection();
+            if (code) return code;
+            inTarget = true;
+            section = [];
+            continue;
+        }
+        if (inTarget) section.push(line);
+    }
+
+    return completedSection();
+};
+
+export const ensureExplanatoryScratchFence = (displayResponse, scratchCode) => {
+    const response = String(displayResponse || '').trim();
+    if (/```(?:scratch|scratchblocks)[ \t]*\r?\n/iu.test(response)) return response;
+
+    const explanatoryCode = firstTargetCode(scratchCode);
+    if (!explanatoryCode) return response;
+
+    return [
+        response,
+        '重要な処理をブロックで見ると、次のようになります。',
+        `\`\`\`scratch\n${explanatoryCode}\n\`\`\``
+    ].filter(Boolean).join('\n\n');
+};
+
 // API base URL is loaded from the .env file via REACT_APP_API_BASE_URL.
 // Create a .env file in packages/scratch-gui/ with:
 //   REACT_APP_API_BASE_URL=https://your-domain.example.com
@@ -702,6 +741,7 @@ export class ChatComponent extends React.Component {
             .replace(/```json\s*[\s\S]*?```/giu, '')
             .replace('[SCRATCH-PROJECT-JSON]', '')
             .trim();
+        displayResponse = ensureExplanatoryScratchFence(displayResponse, scratchCode);
         const currentProject = typeof projectJson === 'string' ?
             JSON.parse(projectJson) :
             projectJson;
