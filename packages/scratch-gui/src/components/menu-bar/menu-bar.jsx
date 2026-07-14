@@ -98,6 +98,8 @@ import aiMenuIcon from './icon--ai-menu.svg';
 import explanationLengthIcon from './icon--explanation-length.svg';
 import spriteAutoAddIcon from '../action-menu/icon--sprite.svg';
 import backdropAutoAddIcon from '../action-menu/icon--backdrop.svg';
+import costumeAutoAddIcon from '../gui/icon--costumes.svg';
+import soundAutoAddIcon from '../gui/icon--sounds.svg';
 import check from './check.svg';
 
 import scratchLogo from './scratch-logo.svg';
@@ -112,8 +114,12 @@ import sharedMessages from '../../lib/shared-messages';
 import { AccountMenuOptionsPropTypes } from '../../lib/account-menu-options';
 import {
     getBackdropAutoAddPreference,
+    getCostumeAutoAddPreference,
+    getSoundAutoAddPreference,
     getSpriteAutoAddPreference,
     setBackdropAutoAddPreference,
+    setCostumeAutoAddPreference,
+    setSoundAutoAddPreference,
     setSpriteAutoAddPreference
 } from '../../lib/user-preferences';
 
@@ -121,6 +127,8 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 const API_STATUS_URL = `${API_BASE_URL}/api/status`;
 const SPRITE_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-sprite-auto-add`;
 const BACKDROP_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-backdrop-auto-add`;
+const COSTUME_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-costume-auto-add`;
+const SOUND_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-sound-auto-add`;
 
 const ariaMessages = defineMessages({
     tutorials: {
@@ -219,17 +227,25 @@ class MenuBar extends React.Component {
             'handleRestoreOption',
             'handleToggleSpriteAutoAdd',
             'handleToggleBackdropAutoAdd',
+            'handleToggleCostumeAutoAdd',
+            'handleToggleSoundAutoAdd',
             'getSaveToComputerHandler',
             'loadAiMenuState',
             'syncSpriteAutoAddPreference',
             'syncBackdropAutoAddPreference',
+            'syncCostumeAutoAddPreference',
+            'syncSoundAutoAddPreference',
             'restoreOptionMessage'
         ]);
         this.state = {
             spriteAutoAddEnabled: getSpriteAutoAddPreference(),
             spriteAutoAddLoading: true,
             backdropAutoAddEnabled: getBackdropAutoAddPreference(),
-            backdropAutoAddLoading: true
+            backdropAutoAddLoading: true,
+            costumeAutoAddEnabled: getCostumeAutoAddPreference(),
+            costumeAutoAddLoading: true,
+            soundAutoAddEnabled: getSoundAutoAddPreference(),
+            soundAutoAddLoading: true
         };
     }
     componentDidMount() {
@@ -245,12 +261,16 @@ class MenuBar extends React.Component {
         if (typeof fetch === 'undefined') {
             this.setState({
                 spriteAutoAddLoading: false,
-                backdropAutoAddLoading: false
+                backdropAutoAddLoading: false,
+                costumeAutoAddLoading: false,
+                soundAutoAddLoading: false
             });
             return;
         }
         const preferredSpriteAutoAddEnabled = getSpriteAutoAddPreference();
         const preferredBackdropAutoAddEnabled = getBackdropAutoAddPreference();
+        const preferredCostumeAutoAddEnabled = getCostumeAutoAddPreference();
+        const preferredSoundAutoAddEnabled = getSoundAutoAddPreference();
         fetch(API_STATUS_URL)
             .then(response => response.ok ? response.json() : Promise.reject(response))
             .then(data => {
@@ -279,13 +299,39 @@ class MenuBar extends React.Component {
                 } else {
                     this.setState({backdropAutoAddLoading: false});
                 }
+                if (typeof data.costume_auto_add_enabled === 'boolean') {
+                    if (data.costume_auto_add_enabled !== preferredCostumeAutoAddEnabled) {
+                        this.syncCostumeAutoAddPreference();
+                    } else {
+                        this.setState({
+                            costumeAutoAddEnabled: data.costume_auto_add_enabled,
+                            costumeAutoAddLoading: false
+                        });
+                    }
+                } else {
+                    this.setState({costumeAutoAddLoading: false});
+                }
+                if (typeof data.sound_auto_add_enabled === 'boolean') {
+                    if (data.sound_auto_add_enabled !== preferredSoundAutoAddEnabled) {
+                        this.syncSoundAutoAddPreference();
+                    } else {
+                        this.setState({
+                            soundAutoAddEnabled: data.sound_auto_add_enabled,
+                            soundAutoAddLoading: false
+                        });
+                    }
+                } else {
+                    this.setState({soundAutoAddLoading: false});
+                }
             })
             .catch(error => {
                 console.warn('Failed to load AI menu state:', error);
                 if (this._isMounted) {
                     this.setState({
                         spriteAutoAddLoading: false,
-                        backdropAutoAddLoading: false
+                        backdropAutoAddLoading: false,
+                        costumeAutoAddLoading: false,
+                        soundAutoAddLoading: false
                     });
                 }
             });
@@ -326,6 +372,44 @@ class MenuBar extends React.Component {
             .catch(error => {
                 console.warn('Failed to sync backdrop auto add preference:', error);
                 if (this._isMounted) this.setState({backdropAutoAddLoading: false});
+            });
+    }
+    syncCostumeAutoAddPreference() {
+        if (typeof fetch === 'undefined') {
+            this.setState({costumeAutoAddLoading: false});
+            return;
+        }
+        fetch(COSTUME_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                this.setState({
+                    costumeAutoAddEnabled: data.costume_auto_add_enabled === true,
+                    costumeAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to sync costume auto add preference:', error);
+                if (this._isMounted) this.setState({costumeAutoAddLoading: false});
+            });
+    }
+    syncSoundAutoAddPreference() {
+        if (typeof fetch === 'undefined') {
+            this.setState({soundAutoAddLoading: false});
+            return;
+        }
+        fetch(SOUND_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                this.setState({
+                    soundAutoAddEnabled: data.sound_auto_add_enabled === true,
+                    soundAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to sync sound auto add preference:', error);
+                if (this._isMounted) this.setState({soundAutoAddLoading: false});
             });
     }
     handleClickNew() {
@@ -448,6 +532,42 @@ class MenuBar extends React.Component {
             .catch(error => {
                 console.warn('Failed to toggle backdrop auto add:', error);
                 if (this._isMounted) this.setState({backdropAutoAddLoading: false});
+            });
+    }
+    handleToggleCostumeAutoAdd() {
+        if (this.state.costumeAutoAddLoading || typeof fetch === 'undefined') return;
+        this.setState({costumeAutoAddLoading: true});
+        fetch(COSTUME_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                setCostumeAutoAddPreference(data.costume_auto_add_enabled === true);
+                this.setState({
+                    costumeAutoAddEnabled: data.costume_auto_add_enabled === true,
+                    costumeAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to toggle costume auto add:', error);
+                if (this._isMounted) this.setState({costumeAutoAddLoading: false});
+            });
+    }
+    handleToggleSoundAutoAdd() {
+        if (this.state.soundAutoAddLoading || typeof fetch === 'undefined') return;
+        this.setState({soundAutoAddLoading: true});
+        fetch(SOUND_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => {
+                if (!this._isMounted) return;
+                setSoundAutoAddPreference(data.sound_auto_add_enabled === true);
+                this.setState({
+                    soundAutoAddEnabled: data.sound_auto_add_enabled === true,
+                    soundAutoAddLoading: false
+                });
+            })
+            .catch(error => {
+                console.warn('Failed to toggle sound auto add:', error);
+                if (this._isMounted) this.setState({soundAutoAddLoading: false});
             });
     }
     handleKeyPress(event) {
@@ -807,51 +927,108 @@ class MenuBar extends React.Component {
                                 onRequestClose={this.props.onRequestCloseAiMenu}
                             >
                                 <MenuSection>
-                                    <MenuItem
-                                        className={classNames({
-                                            [styles.disabled]: this.state.spriteAutoAddLoading
-                                        })}
-                                        onClick={this.handleToggleSpriteAutoAdd}
-                                    >
-                                        <span className={styles.aiToggleOption}>
+                                    <MenuItem>
+                                        <span className={settingsMenuStyles.option}>
                                             <img
                                                 className={settingsMenuStyles.icon}
                                                 src={spriteAutoAddIcon}
                                             />
-                                            <span className={styles.aiToggleLabel}>
-                                                {'スプライト自動追加'}
-                                            </span>
-                                            <span
-                                                className={classNames(styles.aiToggleSwitch, {
-                                                    [styles.aiToggleSwitchOn]: this.state.spriteAutoAddEnabled
-                                                })}
-                                            >
-                                                <span className={styles.aiToggleThumb} />
-                                            </span>
-                                        </span>
-                                    </MenuItem>
-                                    <MenuItem
-                                        className={classNames({
-                                            [styles.disabled]: this.state.backdropAutoAddLoading
-                                        })}
-                                        onClick={this.handleToggleBackdropAutoAdd}
-                                    >
-                                        <span className={styles.aiToggleOption}>
+                                            <span>{'自動追加'}</span>
+                                            <span className={settingsMenuStyles.submenuLabel} />
                                             <img
-                                                className={settingsMenuStyles.icon}
-                                                src={backdropAutoAddIcon}
+                                                className={settingsMenuStyles.expandCaret}
+                                                src={dropdownCaret}
                                             />
-                                            <span className={styles.aiToggleLabel}>
-                                                {'背景自動追加'}
-                                            </span>
-                                            <span
-                                                className={classNames(styles.aiToggleSwitch, {
-                                                    [styles.aiToggleSwitchOn]: this.state.backdropAutoAddEnabled
-                                                })}
-                                            >
-                                                <span className={styles.aiToggleThumb} />
-                                            </span>
                                         </span>
+                                        <Submenu place={this.props.isRtl ? 'left' : 'right'}>
+                                            <MenuItem
+                                                className={classNames({
+                                                    [styles.disabled]: this.state.spriteAutoAddLoading
+                                                })}
+                                                onClick={this.handleToggleSpriteAutoAdd}
+                                            >
+                                                <span className={styles.aiToggleOption}>
+                                                    <img
+                                                        className={settingsMenuStyles.icon}
+                                                        src={spriteAutoAddIcon}
+                                                    />
+                                                    <span className={styles.aiToggleLabel}>{'スプライト'}</span>
+                                                    <span
+                                                        className={classNames(styles.aiToggleSwitch, {
+                                                            [styles.aiToggleSwitchOn]:
+                                                                this.state.spriteAutoAddEnabled
+                                                        })}
+                                                    >
+                                                        <span className={styles.aiToggleThumb} />
+                                                    </span>
+                                                </span>
+                                            </MenuItem>
+                                            <MenuItem
+                                                className={classNames({
+                                                    [styles.disabled]: this.state.backdropAutoAddLoading
+                                                })}
+                                                onClick={this.handleToggleBackdropAutoAdd}
+                                            >
+                                                <span className={styles.aiToggleOption}>
+                                                    <img
+                                                        className={settingsMenuStyles.icon}
+                                                        src={backdropAutoAddIcon}
+                                                    />
+                                                    <span className={styles.aiToggleLabel}>{'背景'}</span>
+                                                    <span
+                                                        className={classNames(styles.aiToggleSwitch, {
+                                                            [styles.aiToggleSwitchOn]:
+                                                                this.state.backdropAutoAddEnabled
+                                                        })}
+                                                    >
+                                                        <span className={styles.aiToggleThumb} />
+                                                    </span>
+                                                </span>
+                                            </MenuItem>
+                                            <MenuItem
+                                                className={classNames({
+                                                    [styles.disabled]: this.state.costumeAutoAddLoading
+                                                })}
+                                                onClick={this.handleToggleCostumeAutoAdd}
+                                            >
+                                                <span className={styles.aiToggleOption}>
+                                                    <img
+                                                        className={settingsMenuStyles.icon}
+                                                        src={costumeAutoAddIcon}
+                                                    />
+                                                    <span className={styles.aiToggleLabel}>{'コスチューム'}</span>
+                                                    <span
+                                                        className={classNames(styles.aiToggleSwitch, {
+                                                            [styles.aiToggleSwitchOn]:
+                                                                this.state.costumeAutoAddEnabled
+                                                        })}
+                                                    >
+                                                        <span className={styles.aiToggleThumb} />
+                                                    </span>
+                                                </span>
+                                            </MenuItem>
+                                            <MenuItem
+                                                className={classNames({
+                                                    [styles.disabled]: this.state.soundAutoAddLoading
+                                                })}
+                                                onClick={this.handleToggleSoundAutoAdd}
+                                            >
+                                                <span className={styles.aiToggleOption}>
+                                                    <img
+                                                        className={settingsMenuStyles.icon}
+                                                        src={soundAutoAddIcon}
+                                                    />
+                                                    <span className={styles.aiToggleLabel}>{'音'}</span>
+                                                    <span
+                                                        className={classNames(styles.aiToggleSwitch, {
+                                                            [styles.aiToggleSwitchOn]: this.state.soundAutoAddEnabled
+                                                        })}
+                                                    >
+                                                        <span className={styles.aiToggleThumb} />
+                                                    </span>
+                                                </span>
+                                            </MenuItem>
+                                        </Submenu>
                                     </MenuItem>
                                 </MenuSection>
                                 <MenuSection>

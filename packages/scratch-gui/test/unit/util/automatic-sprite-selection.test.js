@@ -4,16 +4,24 @@ import {
     addMissingLibrarySpriteAssets,
     addLibrarySprite,
     buildDisplaySpriteLibrary,
+    buildDisplayCostumeLibrary,
+    buildDisplaySoundLibrary,
+    buildCostumeCatalog,
     buildExistingSpriteNames,
     buildProjectAssetSummary,
     buildSpriteCatalog,
+    buildSoundCatalog,
     findExistingLibrarySpriteName,
     formatLibrarySpriteName,
     getTargetDisplayName,
     inferDirectLibraryCostumes,
     inferRequiredSpriteAssets,
+    isAutomaticCostumeAddEnabled,
+    isAutomaticSoundAddEnabled,
+    isCostumeJapaneseNamesEnabled,
     isAutomaticSpriteAddEnabled,
     isSpriteJapaneseNamesEnabled,
+    isSoundJapaneseNamesEnabled,
     isDefaultScratchCatTarget,
     findLibrarySprite
 } from '../../../src/lib/automatic-sprite-selection';
@@ -21,6 +29,10 @@ import {
 afterEach(() => {
     delete process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED;
     delete process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED;
+    delete process.env.REACT_APP_AUTO_COSTUME_ADD_ENABLED;
+    delete process.env.REACT_APP_AUTO_SOUND_ADD_ENABLED;
+    delete process.env.REACT_APP_COSTUME_JAPANESE_NAMES_ENABLED;
+    delete process.env.REACT_APP_SOUND_JAPANESE_NAMES_ENABLED;
 });
 
 test('builds a compact sprite catalog with asset names but without asset payloads', () => {
@@ -40,6 +52,30 @@ test('builds a compact sprite catalog with asset names but without asset payload
     });
     expect(catalog[0].costumes.every(costume => typeof costume === 'string')).toBe(true);
     expect(catalog[0].assetId).toBeUndefined();
+});
+
+test('builds complete costume and sound planning catalogs without asset payloads', () => {
+    const costumeCatalog = buildCostumeCatalog();
+    const soundCatalog = buildSoundCatalog();
+
+    expect(costumeCatalog.find(costume => costume.name === 'Abby-a')).toMatchObject({tags: expect.any(Array)});
+    expect(soundCatalog.find(sound => sound.name === 'A Bass')).toMatchObject({tags: expect.any(Array)});
+    expect(costumeCatalog[0].md5ext).toBeUndefined();
+    expect(soundCatalog[0].md5ext).toBeUndefined();
+    expect(costumeCatalog.filter(costume => !costume.japaneseName).map(costume => costume.name)).toEqual([]);
+    expect(soundCatalog.filter(sound => !sound.japaneseName).map(sound => sound.name)).toEqual([]);
+});
+
+test('switches costume and sound library display names between Japanese and English', () => {
+    const dogCostumeJa = buildDisplayCostumeLibrary(true).find(costume => costume.libraryName === 'Dog1-a');
+    const dogCostumeEn = buildDisplayCostumeLibrary(false).find(costume => costume.libraryName === 'Dog1-a');
+    const barkJa = buildDisplaySoundLibrary(true).find(sound => sound.libraryName === 'Bark');
+    const barkEn = buildDisplaySoundLibrary(false).find(sound => sound.libraryName === 'Bark');
+
+    expect(dogCostumeJa.name).toBe('イヌ1 1');
+    expect(dogCostumeEn.name).toBe('Dog1-a');
+    expect(barkJa.name).toBe('イヌの鳴き声');
+    expect(barkEn.name).toBe('Bark');
 });
 
 test('builds display names for the sprite library while preserving the original library name', () => {
@@ -82,6 +118,30 @@ test('can disable automatic sprite addition from the environment', () => {
     expect(isAutomaticSpriteAddEnabled()).toBe(false);
     delete process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED;
     expect(isAutomaticSpriteAddEnabled()).toBe(true);
+});
+
+test('can disable automatic costume and sound addition independently', () => {
+    process.env.REACT_APP_AUTO_COSTUME_ADD_ENABLED = 'off';
+    process.env.REACT_APP_AUTO_SOUND_ADD_ENABLED = 'false';
+
+    expect(isAutomaticCostumeAddEnabled()).toBe(false);
+    expect(isAutomaticSoundAddEnabled()).toBe(false);
+    expect(isAutomaticSpriteAddEnabled()).toBe(true);
+});
+
+test('keeps automatic addition checks safe when process is unavailable in the browser', () => {
+    const originalProcess = global.process;
+    try {
+        global.process = undefined;
+        expect(isAutomaticSpriteAddEnabled()).toBe(true);
+        expect(isAutomaticCostumeAddEnabled()).toBe(true);
+        expect(isAutomaticSoundAddEnabled()).toBe(true);
+        expect(isSpriteJapaneseNamesEnabled()).toBe(true);
+        expect(isCostumeJapaneseNamesEnabled()).toBe(true);
+        expect(isSoundJapaneseNamesEnabled()).toBe(true);
+    } finally {
+        global.process = originalProcess;
+    }
 });
 
 test('generates Japanese display names for every sprite from the sprite JSON', () => {
@@ -285,13 +345,13 @@ test('adds a library costume to the editing target', async () => {
 
     await expect(addLibraryCostumeToEditingTarget(vm, 'Dog1-a')).resolves.toEqual({
         targetName: 'ネコ',
-        costumeName: 'Dog1-a',
+        costumeName: 'イヌ1 1',
         sourceCostumeName: 'Dog1-a'
     });
     expect(vm.addCostume).toHaveBeenCalledWith(
         '35cd78a8a71546a16c530d0b2d7d5a7f.svg',
         expect.objectContaining({
-            name: 'Dog1-a',
+            name: 'イヌ1 1',
             md5: '35cd78a8a71546a16c530d0b2d7d5a7f.svg'
         }),
         'cat-id',
@@ -361,11 +421,11 @@ test('adds a library sound to the editing target', async () => {
 
     await expect(addLibrarySoundToEditingTarget(vm, 'Dog1')).resolves.toEqual({
         targetName: 'ネコ',
-        soundName: 'Dog1'
+        soundName: 'イヌの鳴き声1'
     });
     expect(vm.addSound).toHaveBeenCalledWith(
         expect.objectContaining({
-            name: 'Dog1',
+            name: 'イヌの鳴き声1',
             md5: 'b15adefc3c12f758b6dc6a045362532f.wav'
         }),
         'cat-id'
@@ -395,17 +455,57 @@ test('adds missing costumes and sounds from a reused library sprite', async () =
     };
 
     await expect(addMissingLibrarySpriteAssets(vm, 'ネコ', 'Cat', 'ネコ')).resolves.toEqual({
-        costumes: ['cat-b'],
-        sounds: ['Meow']
+        costumes: ['ネコ 2'],
+        sounds: ['ネコの鳴き声1']
     });
     expect(vm.addCostume).toHaveBeenCalledWith(
         '0fb9be3e8397c983338cb71dc84d0b25.svg',
-        expect.objectContaining({name: 'cat-b'}),
+        expect.objectContaining({name: 'ネコ 2'}),
         'cat-id',
         2
     );
     expect(vm.addSound).toHaveBeenCalledWith(
-        expect.objectContaining({name: 'Meow', md5: '83c36d806dc92327b9e7049a565c6bff.wav'}),
+        expect.objectContaining({name: 'ネコの鳴き声1', md5: '83c36d806dc92327b9e7049a565c6bff.wav'}),
         'cat-id'
+    );
+});
+
+test('uses the runtime target ID when serialized project targets have no IDs', async () => {
+    const runtimeTarget = {
+        id: 'runtime-cat-id',
+        isStage: false,
+        isOriginal: true,
+        getName: () => 'Cat'
+    };
+    const vm = {
+        runtime: {targets: [runtimeTarget]},
+        toJSON: jest.fn(() => ({
+            targets: [{
+                isStage: false,
+                name: 'Cat',
+                costumes: [
+                    {name: 'cat-a', assetId: 'bcf454acf82e4504149f7ffe07081dbc'},
+                    {name: 'cat-b', assetId: '0fb9be3e8397c983338cb71dc84d0b25'}
+                ],
+                sounds: [{name: 'Meow'}]
+            }]
+        })),
+        addCostume: jest.fn(() => Promise.resolve()),
+        addSound: jest.fn(() => Promise.resolve())
+    };
+
+    await expect(addMissingLibrarySpriteAssets(
+        vm,
+        'ネコ',
+        'Dog1',
+        '',
+        {costumes: [], sounds: ['dog1']}
+    )).resolves.toEqual({
+        costumes: [],
+        sounds: ['イヌの鳴き声1']
+    });
+    expect(vm.addSound).toHaveBeenCalledWith(
+        expect.objectContaining({name: 'イヌの鳴き声1'}),
+        'runtime-cat-id'
     );
 });

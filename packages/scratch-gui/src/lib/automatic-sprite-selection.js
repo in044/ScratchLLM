@@ -1,6 +1,10 @@
 import spriteLibraryContent from './libraries/sprites.json';
 import costumeLibraryContent from './libraries/costumes.json';
 import soundLibraryContent from './libraries/sounds.json';
+import {
+    getCostumeJapaneseName,
+    getSoundJapaneseName
+} from './libraries/asset-japanese-names';
 import randomizeSpritePosition from './randomize-sprite-position';
 
 const isEnvFlagEnabled = (value, defaultValue = true) => {
@@ -11,7 +15,9 @@ const isEnvFlagEnabled = (value, defaultValue = true) => {
 };
 
 export const isSpriteJapaneseNamesEnabled = () => isEnvFlagEnabled(
-    process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED,
+    typeof process === 'undefined' ?
+        '' :
+        process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED,
     true
 );
 
@@ -44,7 +50,37 @@ export const getFormattedSpriteDisplayName = libraryName => {
 };
 
 export const isAutomaticSpriteAddEnabled = () => isEnvFlagEnabled(
-    process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED,
+    typeof process === 'undefined' ?
+        '' :
+        process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED,
+    true
+);
+
+export const isAutomaticCostumeAddEnabled = () => isEnvFlagEnabled(
+    typeof process === 'undefined' ?
+        '' :
+        process.env.REACT_APP_AUTO_COSTUME_ADD_ENABLED,
+    true
+);
+
+export const isAutomaticSoundAddEnabled = () => isEnvFlagEnabled(
+    typeof process === 'undefined' ?
+        '' :
+        process.env.REACT_APP_AUTO_SOUND_ADD_ENABLED,
+    true
+);
+
+export const isCostumeJapaneseNamesEnabled = () => isEnvFlagEnabled(
+    typeof process === 'undefined' ?
+        '' :
+        process.env.REACT_APP_COSTUME_JAPANESE_NAMES_ENABLED,
+    true
+);
+
+export const isSoundJapaneseNamesEnabled = () => isEnvFlagEnabled(
+    typeof process === 'undefined' ?
+        '' :
+        process.env.REACT_APP_SOUND_JAPANESE_NAMES_ENABLED,
     true
 );
 
@@ -85,6 +121,48 @@ export const buildSpriteCatalog = () => {
         };
     });
 };
+
+export const buildCostumeCatalog = () => costumeLibraryContent.map(costume => {
+    const japaneseName = isCostumeJapaneseNamesEnabled() ? getCostumeJapaneseName(costume.name) : '';
+    return {
+        name: costume.name,
+        displayName: japaneseName ? `${japaneseName}（${costume.name}）` : costume.name,
+        japaneseName,
+        aliases: japaneseName ? [japaneseName] : [],
+        tags: costume.tags || []
+    };
+});
+
+export const buildSoundCatalog = () => soundLibraryContent.map(sound => {
+    const japaneseName = isSoundJapaneseNamesEnabled() ? getSoundJapaneseName(sound.name) : '';
+    return {
+        name: sound.name,
+        displayName: japaneseName ? `${japaneseName}（${sound.name}）` : sound.name,
+        japaneseName,
+        aliases: japaneseName ? [japaneseName] : [],
+        tags: sound.tags || []
+    };
+});
+
+export const buildDisplayCostumeLibrary = (
+    useJapaneseNames = isCostumeJapaneseNamesEnabled()
+) => costumeLibraryContent.map(costume => ({
+    ...costume,
+    libraryName: costume.name,
+    name: useJapaneseNames && isCostumeJapaneseNamesEnabled() ?
+        getCostumeJapaneseName(costume.name) || costume.name :
+        costume.name
+}));
+
+export const buildDisplaySoundLibrary = (
+    useJapaneseNames = isSoundJapaneseNamesEnabled()
+) => soundLibraryContent.map(sound => ({
+    ...sound,
+    libraryName: sound.name,
+    name: useJapaneseNames && isSoundJapaneseNamesEnabled() ?
+        getSoundJapaneseName(sound.name) || sound.name :
+        sound.name
+}));
 
 export const buildDisplaySpriteLibrary = (useJapaneseNames = isSpriteJapaneseNamesEnabled()) => (
     spriteLibraryContent.map(sprite => ({
@@ -171,17 +249,23 @@ const findLibrarySound = name => (
     soundLibraryContent.find(sound => sound.name === name) || null
 );
 
-export const addLibraryCostumeToEditingTarget = async (vm, costumeName) => {
+export const addLibraryCostumeToTarget = async (vm, targetName, costumeName, useJapaneseNames = true) => {
     const source = findLibraryCostume(costumeName);
-    if (!source || !vm || !vm.editingTarget || typeof vm.addCostume !== 'function') {
+    if (!source || !vm || typeof vm.addCostume !== 'function' || typeof vm.toJSON !== 'function') {
         return null;
     }
 
-    const targetId = vm.editingTarget.id;
-    const project = typeof vm.toJSON === 'function' ? vm.toJSON() : null;
-    const target = targetId ?
-        getProjectTargets(project).find(candidate => candidate && candidate.id === targetId) :
-        null;
+    const project = vm.toJSON();
+    const target = targetName ?
+        findProjectTargetByDisplayName(project, targetName) :
+        getProjectTargets(project).find(candidate => (
+            candidate && vm.editingTarget && candidate.id === vm.editingTarget.id
+        )) || findProjectTargetByDisplayName(project, getRuntimeTargetName(vm.editingTarget));
+    const runtimeTarget = targetName ?
+        findRuntimeSpriteTarget(vm, targetName, project) :
+        vm.editingTarget;
+    if (!target || !runtimeTarget || !runtimeTarget.id || runtimeTarget.isStage) return null;
+    const targetId = runtimeTarget.id;
     const existingCostumeIds = targetAssetIds(target && target.costumes);
     const existingCostumeNames = targetAssetNames(target && target.costumes);
     const sourceId = assetIdForLibraryMatch(source);
@@ -190,8 +274,11 @@ export const addLibraryCostumeToEditingTarget = async (vm, costumeName) => {
         return null;
     }
 
+    const requestedName = useJapaneseNames && isCostumeJapaneseNamesEnabled() ?
+        getCostumeJapaneseName(source.name) || source.name :
+        source.name;
     await vm.addCostume(source.md5ext, {
-        name: source.name,
+        name: requestedName,
         md5: source.md5ext,
         rotationCenterX: source.rotationCenterX,
         rotationCenterY: source.rotationCenterY,
@@ -199,35 +286,44 @@ export const addLibraryCostumeToEditingTarget = async (vm, costumeName) => {
         skinId: null
     }, targetId, 2);
 
-    const updatedProject = typeof vm.toJSON === 'function' ? vm.toJSON() : null;
-    const updatedTarget = findTargetById(updatedProject, targetId);
+    const updatedProject = vm.toJSON();
+    const updatedTarget = findTargetById(updatedProject, targetId) ||
+        findProjectTargetByDisplayName(updatedProject, getTargetDisplayName(target)) ||
+        findProjectTargetByDisplayName(updatedProject, getRuntimeTargetName(runtimeTarget));
     const addedCostumeName = findAddedAssetName(
         target && target.costumes,
         updatedTarget && updatedTarget.costumes,
         source,
-        source.name
+        requestedName
     );
-    const targetName = target ?
-        getTargetDisplayName(target) :
-        (typeof vm.editingTarget.getName === 'function' ? vm.editingTarget.getName() : vm.editingTarget.name);
     return {
-        targetName,
+        targetName: getTargetDisplayName(target),
         costumeName: addedCostumeName,
         sourceCostumeName: source.name
     };
 };
 
-export const addLibrarySoundToEditingTarget = async (vm, soundName) => {
+export const addLibraryCostumeToEditingTarget = (vm, costumeName, useJapaneseNames = true) => (
+    addLibraryCostumeToTarget(vm, '', costumeName, useJapaneseNames)
+);
+
+export const addLibrarySoundToTarget = async (vm, targetName, soundName, useJapaneseNames = true) => {
     const source = findLibrarySound(soundName);
-    if (!source || !vm || !vm.editingTarget || typeof vm.addSound !== 'function') {
+    if (!source || !vm || typeof vm.addSound !== 'function' || typeof vm.toJSON !== 'function') {
         return null;
     }
 
-    const targetId = vm.editingTarget.id;
-    const project = typeof vm.toJSON === 'function' ? vm.toJSON() : null;
-    const target = targetId ?
-        getProjectTargets(project).find(candidate => candidate && candidate.id === targetId) :
-        null;
+    const project = vm.toJSON();
+    const target = targetName ?
+        findProjectTargetByDisplayName(project, targetName) :
+        getProjectTargets(project).find(candidate => (
+            candidate && vm.editingTarget && candidate.id === vm.editingTarget.id
+        )) || findProjectTargetByDisplayName(project, getRuntimeTargetName(vm.editingTarget));
+    const runtimeTarget = targetName ?
+        findRuntimeSpriteTarget(vm, targetName, project) :
+        vm.editingTarget;
+    if (!target || !runtimeTarget || !runtimeTarget.id || runtimeTarget.isStage) return null;
+    const targetId = runtimeTarget.id;
     const existingSoundIds = targetAssetIds(target && target.sounds);
     const existingSoundNames = targetAssetNames(target && target.sounds);
     const sourceId = assetIdForLibraryMatch(source);
@@ -236,22 +332,26 @@ export const addLibrarySoundToEditingTarget = async (vm, soundName) => {
         return null;
     }
 
+    const requestedName = useJapaneseNames && isSoundJapaneseNamesEnabled() ?
+        getSoundJapaneseName(source.name) || source.name :
+        source.name;
     await vm.addSound({
         format: source.dataFormat,
         md5: source.md5ext,
         rate: source.rate,
         sampleCount: source.sampleCount,
-        name: source.name
+        name: requestedName
     }, targetId);
 
-    const targetName = target ?
-        getTargetDisplayName(target) :
-        (typeof vm.editingTarget.getName === 'function' ? vm.editingTarget.getName() : vm.editingTarget.name);
     return {
-        targetName,
-        soundName: source.name
+        targetName: getTargetDisplayName(target),
+        soundName: requestedName
     };
 };
+
+export const addLibrarySoundToEditingTarget = (vm, soundName, useJapaneseNames = true) => (
+    addLibrarySoundToTarget(vm, '', soundName, useJapaneseNames)
+);
 
 export const isDefaultScratchCatTarget = target => {
     if (!target || target.isStage) return false;
@@ -367,6 +467,50 @@ export const findProjectTargetByDisplayName = (project, targetName) => {
     }) || null;
 };
 
+const getRuntimeSpriteTargets = vm => (
+    vm && vm.runtime && Array.isArray(vm.runtime.targets) ?
+        vm.runtime.targets.filter(target => target && !target.isStage && target.isOriginal !== false) :
+        []
+);
+
+const getRuntimeTargetName = target => {
+    if (!target) return '';
+    if (typeof target.getName === 'function') return target.getName();
+    if (target.sprite && target.sprite.name) return target.sprite.name;
+    return target.name || '';
+};
+
+const findRuntimeSpriteTarget = (vm, targetName, project = vm && vm.toJSON && vm.toJSON()) => {
+    const normalizedTargetName = normalizeSpriteName(targetName);
+    const runtimeTargets = getRuntimeSpriteTargets(vm);
+
+    const directMatch = runtimeTargets.find(target => (
+        normalizeSpriteName(getRuntimeTargetName(target)) === normalizedTargetName
+    ));
+    if (directMatch) return directMatch;
+
+    const projectTarget = findProjectTargetByDisplayName(project, targetName);
+    if (projectTarget) {
+        const projectName = normalizeSpriteName(projectTarget.name);
+        const nameMatch = runtimeTargets.find(target => (
+            normalizeSpriteName(getRuntimeTargetName(target)) === projectName
+        ));
+        if (nameMatch) return nameMatch;
+
+        const projectSpriteTargets = getProjectTargets(project).filter(target => target && !target.isStage);
+        const projectTargetIndex = projectSpriteTargets.indexOf(projectTarget);
+        if (projectTargetIndex >= 0 && runtimeTargets[projectTargetIndex]) {
+            return runtimeTargets[projectTargetIndex];
+        }
+
+        // Keep compatibility with VM-shaped test doubles and older integrations
+        // which include the runtime target ID in their serialized project.
+        if (projectTarget.id) return projectTarget;
+    }
+
+    return null;
+};
+
 const targetAssetIds = (assets = []) => new Set(
     (assets || []).map(assetIdForLibraryMatch).filter(Boolean)
 );
@@ -409,7 +553,10 @@ export const addMissingLibrarySpriteAssets = async (
     const project = vm.toJSON();
     const target = findProjectTargetByDisplayName(project, targetName) ||
         findProjectTargetByDisplayName(project, findExistingLibrarySpriteName(project, libraryName, japaneseName));
-    if (!target || !target.id) return {costumes: [], sounds: []};
+    const runtimeTarget = findRuntimeSpriteTarget(vm, targetName, project) ||
+        findRuntimeSpriteTarget(vm, getTargetDisplayName(target), project);
+    if (!target || !runtimeTarget || !runtimeTarget.id) return {costumes: [], sounds: []};
+    const targetId = runtimeTarget.id;
 
     const existingCostumeIds = targetAssetIds(target.costumes);
     const existingCostumeNames = targetAssetNames(target.costumes);
@@ -425,16 +572,20 @@ export const addMissingLibrarySpriteAssets = async (
         if ((assetId && existingCostumeIds.has(assetId)) || (assetName && existingCostumeNames.has(assetName))) {
             continue;
         }
+        const requestedCostumeName = assetFilter.useJapaneseCostumeNames !== false &&
+            isCostumeJapaneseNamesEnabled() ?
+            getCostumeJapaneseName(costume.name) || costume.name :
+            costume.name;
         const vmCostume = {
-            name: costume.name,
+            name: requestedCostumeName,
             md5: costume.md5ext,
             rotationCenterX: costume.rotationCenterX,
             rotationCenterY: costume.rotationCenterY,
             bitmapResolution: costume.bitmapResolution,
             skinId: null
         };
-        await vm.addCostume(costume.md5ext, vmCostume, target.id, 2);
-        addedCostumes.push(costume.name);
+        await vm.addCostume(costume.md5ext, vmCostume, targetId, 2);
+        addedCostumes.push(requestedCostumeName);
         if (assetId) existingCostumeIds.add(assetId);
         if (assetName) existingCostumeNames.add(assetName);
     }
@@ -453,14 +604,18 @@ export const addMissingLibrarySpriteAssets = async (
         if ((assetId && existingSoundIds.has(assetId)) || (assetName && existingSoundNames.has(assetName))) {
             continue;
         }
+        const requestedSoundName = assetFilter.useJapaneseSoundNames !== false &&
+            isSoundJapaneseNamesEnabled() ?
+            getSoundJapaneseName(sound.name) || sound.name :
+            sound.name;
         await vm.addSound({
             format: sound.format || sound.dataFormat,
             md5: sound.md5ext,
             rate: sound.rate,
             sampleCount: sound.sampleCount,
-            name: sound.name
-        }, target.id);
-        addedSounds.push(sound.name);
+            name: requestedSoundName
+        }, targetId);
+        addedSounds.push(requestedSoundName);
         if (assetId) existingSoundIds.add(assetId);
         if (assetName) existingSoundNames.add(assetName);
     }

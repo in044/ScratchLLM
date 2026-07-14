@@ -64,10 +64,18 @@ const baseConfig = new ScratchWebpackConfigBuilder(
         'process.env.REACT_APP_API_BASE_URL': `"${process.env.REACT_APP_API_BASE_URL || ''}"`,
         'process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED':
             `"${process.env.REACT_APP_AUTO_SPRITE_ADD_ENABLED || ''}"`,
+        'process.env.REACT_APP_AUTO_COSTUME_ADD_ENABLED':
+            `"${process.env.REACT_APP_AUTO_COSTUME_ADD_ENABLED || ''}"`,
+        'process.env.REACT_APP_AUTO_SOUND_ADD_ENABLED':
+            `"${process.env.REACT_APP_AUTO_SOUND_ADD_ENABLED || ''}"`,
         'process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED':
             `"${process.env.REACT_APP_SPRITE_JAPANESE_NAMES_ENABLED || ''}"`,
         'process.env.REACT_APP_BACKDROP_JAPANESE_NAMES_ENABLED':
             `"${process.env.REACT_APP_BACKDROP_JAPANESE_NAMES_ENABLED || ''}"`,
+        'process.env.REACT_APP_COSTUME_JAPANESE_NAMES_ENABLED':
+            `"${process.env.REACT_APP_COSTUME_JAPANESE_NAMES_ENABLED || ''}"`,
+        'process.env.REACT_APP_SOUND_JAPANESE_NAMES_ENABLED':
+            `"${process.env.REACT_APP_SOUND_JAPANESE_NAMES_ENABLED || ''}"`,
         'process.env.REACT_APP_AUTO_BACKDROP_ADD_ENABLED':
             `"${process.env.REACT_APP_AUTO_BACKDROP_ADD_ENABLED || ''}"`
     }))

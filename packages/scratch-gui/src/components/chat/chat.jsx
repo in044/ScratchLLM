@@ -29,15 +29,21 @@ import ScratchTextCompiler from '../../lib/scratch-text-compiler';
 import validateScratchProject from '../../lib/scratch-project-validator';
 import {
     addLibraryCostumeToEditingTarget,
+    addLibraryCostumeToTarget,
     addMissingLibrarySpriteAssets,
     addLibrarySoundToEditingTarget,
+    addLibrarySoundToTarget,
     addLibrarySprite,
     buildExistingSpriteNames,
+    buildCostumeCatalog,
     buildProjectAssetSummary,
     buildSpriteCatalog,
+    buildSoundCatalog,
     findExistingLibrarySpriteName,
     inferDirectLibraryCostumes,
     inferRequiredSpriteAssets,
+    isAutomaticCostumeAddEnabled,
+    isAutomaticSoundAddEnabled,
     isAutomaticSpriteAddEnabled
 } from '../../lib/automatic-sprite-selection';
 import {
@@ -49,6 +55,10 @@ import {
 import {
     getBackdropAutoAddPreference,
     getBackdropLibraryUseJapanesePreference,
+    getCostumeAutoAddPreference,
+    getCostumeLibraryUseJapanesePreference,
+    getSoundAutoAddPreference,
+    getSoundLibraryUseJapanesePreference,
     getSpriteAutoAddPreference
 } from '../../lib/user-preferences';
 
@@ -165,17 +175,16 @@ export const buildSpriteAddedMessage = spriteNames => ({
     sender: 'bot'
 });
 
-export const buildSpriteAssetsAddedMessage = assetSummaries => ({
-    text: assetSummaries.flatMap(summary => [
-        ...summary.costumes.map(costume => (
-            `${summary.targetName}に${formatAddedAssetName(costume)}のコスチュームを追加しました。`
-        )),
-        ...summary.sounds.map(sound => (
-            `${summary.targetName}に${formatAddedAssetName(sound)}の音を追加しました。`
-        ))
-    ]).join(''),
-    sender: 'bot'
-});
+export const buildSpriteAssetsAddedMessages = assetSummaries => assetSummaries.flatMap(summary => [
+    ...summary.costumes.map(costume => ({
+        text: `${summary.targetName}に${formatAddedAssetName(costume)}のコスチュームを追加しました。`,
+        sender: 'bot'
+    })),
+    ...summary.sounds.map(sound => ({
+        text: `${summary.targetName}に${formatAddedAssetName(sound)}の音を追加しました。`,
+        sender: 'bot'
+    }))
+]);
 
 export const buildBackdropsAddedMessage = backdrops => ({
     text: `${backdrops.map(backdrop => getAddedAssetName(backdrop)).join('、')}の背景を追加しました。`,
@@ -192,8 +201,7 @@ const getAddedAssetSourceName = asset => (
 
 const formatAddedAssetName = asset => {
     const name = getAddedAssetName(asset);
-    const sourceName = getAddedAssetSourceName(asset);
-    return sourceName && sourceName !== name ? `${name}（${sourceName}）` : name;
+    return name;
 };
 
 const buildAddedAssetContextLines = assetSummaries => assetSummaries.flatMap(summary => [
@@ -249,6 +257,8 @@ const emptySpritePlan = (disabled = false) => ({
     requiredSprites: [],
     sprites: [],
     assetAdditions: [],
+    costumeAdditions: [],
+    soundAdditions: [],
     requiredBackdrops: [],
     backdrops: [],
     existingBackdropsToReuse: [],
@@ -258,6 +268,8 @@ const emptySpritePlan = (disabled = false) => ({
     reason: '',
     spriteAutoAddEnabled: false,
     backdropAutoAddEnabled: false,
+    costumeAutoAddEnabled: false,
+    soundAutoAddEnabled: false,
     disabled
 });
 
@@ -349,7 +361,10 @@ export class ChatComponent extends React.Component {
 
     async _planRequiredSprites (userInput, projectJson) {
         const automaticAddState = await this._getAutomaticAssetAddState();
-        if (!automaticAddState.spriteAutoAddEnabled && !automaticAddState.backdropAutoAddEnabled) {
+        if (!automaticAddState.spriteAutoAddEnabled &&
+                !automaticAddState.backdropAutoAddEnabled &&
+                !automaticAddState.costumeAutoAddEnabled &&
+                !automaticAddState.soundAutoAddEnabled) {
             return emptySpritePlan(true);
         }
 
@@ -363,12 +378,18 @@ export class ChatComponent extends React.Component {
                     userInput,
                     currentProgram: ScratchTextCompiler.projectToScratchBlocks(projectJson),
                     currentAssets: buildProjectAssetSummary(projectJson),
-                    spriteCatalog: buildSpriteCatalog(),
+                    spriteCatalog: automaticAddState.spriteAutoAddEnabled ||
+                        automaticAddState.costumeAutoAddEnabled || automaticAddState.soundAutoAddEnabled ?
+                        buildSpriteCatalog() : undefined,
+                    costumeCatalog: automaticAddState.costumeAutoAddEnabled ? buildCostumeCatalog() : undefined,
+                    soundCatalog: automaticAddState.soundAutoAddEnabled ? buildSoundCatalog() : undefined,
                     existingSprites: buildExistingSpriteNames(projectJson),
-                    backdropCatalog: buildBackdropCatalog(),
+                    backdropCatalog: automaticAddState.backdropAutoAddEnabled ? buildBackdropCatalog() : undefined,
                     existingBackdrops: buildExistingBackdropNames(projectJson),
                     spriteAutoAddEnabled: automaticAddState.spriteAutoAddEnabled,
-                    backdropAutoAddEnabled: automaticAddState.backdropAutoAddEnabled
+                    backdropAutoAddEnabled: automaticAddState.backdropAutoAddEnabled,
+                    costumeAutoAddEnabled: automaticAddState.costumeAutoAddEnabled,
+                    soundAutoAddEnabled: automaticAddState.soundAutoAddEnabled
                 })
             });
             if (response.ok === false) throw new Error(`Material planning returned ${response.status}.`);
@@ -377,6 +398,8 @@ export class ChatComponent extends React.Component {
                 requiredSprites: Array.isArray(data.requiredSprites) ? data.requiredSprites : [],
                 sprites: Array.isArray(data.sprites) ? data.sprites : [],
                 assetAdditions: Array.isArray(data.assetAdditions) ? data.assetAdditions : [],
+                costumeAdditions: Array.isArray(data.costumeAdditions) ? data.costumeAdditions : [],
+                soundAdditions: Array.isArray(data.soundAdditions) ? data.soundAdditions : [],
                 requiredBackdrops: Array.isArray(data.requiredBackdrops) ? data.requiredBackdrops : [],
                 backdrops: Array.isArray(data.backdrops) ? data.backdrops : [],
                 existingBackdropsToReuse: Array.isArray(data.existingBackdropsToReuse) ?
@@ -394,6 +417,8 @@ export class ChatComponent extends React.Component {
                 reason: typeof data.reason === 'string' ? data.reason : '',
                 spriteAutoAddEnabled: automaticAddState.spriteAutoAddEnabled,
                 backdropAutoAddEnabled: automaticAddState.backdropAutoAddEnabled,
+                costumeAutoAddEnabled: automaticAddState.costumeAutoAddEnabled,
+                soundAutoAddEnabled: automaticAddState.soundAutoAddEnabled,
                 disabled: data.disabled === true
             };
         } catch (error) {
@@ -405,10 +430,14 @@ export class ChatComponent extends React.Component {
     async _getAutomaticAssetAddState () {
         const localSpriteEnabled = isAutomaticSpriteAddEnabled() && getSpriteAutoAddPreference();
         const localBackdropEnabled = isAutomaticBackdropAddEnabled() && getBackdropAutoAddPreference();
-        if (!localSpriteEnabled && !localBackdropEnabled) {
+        const localCostumeEnabled = isAutomaticCostumeAddEnabled() && getCostumeAutoAddPreference();
+        const localSoundEnabled = isAutomaticSoundAddEnabled() && getSoundAutoAddPreference();
+        if (!localSpriteEnabled && !localBackdropEnabled && !localCostumeEnabled && !localSoundEnabled) {
             return {
                 spriteAutoAddEnabled: false,
-                backdropAutoAddEnabled: false
+                backdropAutoAddEnabled: false,
+                costumeAutoAddEnabled: false,
+                soundAutoAddEnabled: false
             };
         }
 
@@ -418,7 +447,9 @@ export class ChatComponent extends React.Component {
             const data = await response.json();
             return {
                 spriteAutoAddEnabled: localSpriteEnabled && data.sprite_auto_add_enabled !== false,
-                backdropAutoAddEnabled: localBackdropEnabled && data.backdrop_auto_add_enabled !== false
+                backdropAutoAddEnabled: localBackdropEnabled && data.backdrop_auto_add_enabled !== false,
+                costumeAutoAddEnabled: localCostumeEnabled && data.costume_auto_add_enabled !== false,
+                soundAutoAddEnabled: localSoundEnabled && data.sound_auto_add_enabled !== false
             };
         } catch (error) {
             console.warn('Automatic asset status was unavailable:', error);
@@ -426,12 +457,17 @@ export class ChatComponent extends React.Component {
 
         return {
             spriteAutoAddEnabled: localSpriteEnabled,
-            backdropAutoAddEnabled: localBackdropEnabled
+            backdropAutoAddEnabled: localBackdropEnabled,
+            costumeAutoAddEnabled: localCostumeEnabled,
+            soundAutoAddEnabled: localSoundEnabled
         };
     }
 
     async _applyPlannedSpriteAssets (spritePlan) {
-        if (spritePlan.spriteAutoAddEnabled === false) {
+        const spriteEnabled = spritePlan.spriteAutoAddEnabled !== false;
+        const costumeEnabled = spritePlan.costumeAutoAddEnabled !== false;
+        const soundEnabled = spritePlan.soundAutoAddEnabled !== false;
+        if (!spriteEnabled && !costumeEnabled && !soundEnabled) {
             return {addedSpriteNames: [], reusedSpriteNames: [], addedAssetSummaries: []};
         }
         const addedSpriteNames = [];
@@ -446,8 +482,10 @@ export class ChatComponent extends React.Component {
                 addition.sourceSpriteName,
                 '',
                 {
-                    costumes: addition.costumeNames || [],
-                    sounds: addition.soundNames || []
+                    costumes: costumeEnabled ? addition.costumeNames || [] : [],
+                    sounds: soundEnabled ? addition.soundNames || [] : [],
+                    useJapaneseCostumeNames: getCostumeLibraryUseJapanesePreference(),
+                    useJapaneseSoundNames: getSoundLibraryUseJapanesePreference()
                 }
             );
             if (addedAssets.costumes.length > 0 || addedAssets.sounds.length > 0) {
@@ -459,7 +497,48 @@ export class ChatComponent extends React.Component {
             }
         }
 
-        const sprites = Array.isArray(spritePlan.sprites) ? spritePlan.sprites : [];
+        const costumeAdditions = costumeEnabled && Array.isArray(spritePlan.costumeAdditions) ?
+            spritePlan.costumeAdditions : [];
+        for (const addition of costumeAdditions) {
+            if (!addition || !addition.targetName || !addition.costumeName) continue;
+            const addedCostume = await addLibraryCostumeToTarget(
+                this.props.vm,
+                addition.targetName,
+                addition.costumeName,
+                getCostumeLibraryUseJapanesePreference()
+            );
+            if (addedCostume) {
+                addedAssetSummaries.push({
+                    targetName: addedCostume.targetName,
+                    costumes: [{
+                        name: addedCostume.costumeName,
+                        sourceName: addedCostume.sourceCostumeName
+                    }],
+                    sounds: []
+                });
+            }
+        }
+
+        const soundAdditions = soundEnabled && Array.isArray(spritePlan.soundAdditions) ?
+            spritePlan.soundAdditions : [];
+        for (const addition of soundAdditions) {
+            if (!addition || !addition.targetName || !addition.soundName) continue;
+            const addedSound = await addLibrarySoundToTarget(
+                this.props.vm,
+                addition.targetName,
+                addition.soundName,
+                getSoundLibraryUseJapanesePreference()
+            );
+            if (addedSound) {
+                addedAssetSummaries.push({
+                    targetName: addedSound.targetName,
+                    costumes: [],
+                    sounds: [addedSound.soundName]
+                });
+            }
+        }
+
+        const sprites = spriteEnabled && Array.isArray(spritePlan.sprites) ? spritePlan.sprites : [];
         for (const selection of sprites) {
             if (!selection || !selection.spriteName) continue;
             const currentProject = this.props.vm.toJSON();
@@ -538,11 +617,14 @@ export class ChatComponent extends React.Component {
             spritePlan.forbiddenBackdropAdditions : [];
         const automaticSpriteAddEnabled = spritePlan.spriteAutoAddEnabled !== false && !spritePlan.disabled;
         const automaticBackdropAddEnabled = spritePlan.backdropAutoAddEnabled !== false && !spritePlan.disabled;
-        const automaticAssetAddEnabled = automaticSpriteAddEnabled || automaticBackdropAddEnabled;
-        const inferredRequiredAssets = automaticSpriteAddEnabled ?
+        const automaticCostumeAddEnabled = spritePlan.costumeAutoAddEnabled !== false && !spritePlan.disabled;
+        const automaticSoundAddEnabled = spritePlan.soundAutoAddEnabled !== false && !spritePlan.disabled;
+        const automaticAssetAddEnabled = automaticSpriteAddEnabled || automaticBackdropAddEnabled ||
+            automaticCostumeAddEnabled || automaticSoundAddEnabled;
+        const inferredRequiredAssets = automaticSoundAddEnabled ?
             inferRequiredSpriteAssets(inputValue, initialProjectJson) :
             [];
-        const directCostumeNames = automaticSpriteAddEnabled ?
+        const directCostumeNames = automaticCostumeAddEnabled ?
             inferDirectLibraryCostumes(inputValue, initialProjectJson) :
             [];
         const directlyAddedAssetSummaries = [];
@@ -550,7 +632,11 @@ export class ChatComponent extends React.Component {
         let unresolvedInferredRequiredAssets = inferredRequiredAssets;
         if (directCostumeNames.length > 0) {
             for (const costumeName of directCostumeNames) {
-                const addedCostume = await addLibraryCostumeToEditingTarget(this.props.vm, costumeName);
+                const addedCostume = await addLibraryCostumeToEditingTarget(
+                    this.props.vm,
+                    costumeName,
+                    getCostumeLibraryUseJapanesePreference()
+                );
                 if (addedCostume) {
                     directlyAddedAssetSummaries.push({
                         targetName: addedCostume.targetName,
@@ -567,7 +653,11 @@ export class ChatComponent extends React.Component {
             }
         }
         if (inferredRequiredAssets.includes('犬の音')) {
-            const addedSound = await addLibrarySoundToEditingTarget(this.props.vm, 'Dog1');
+            const addedSound = await addLibrarySoundToEditingTarget(
+                this.props.vm,
+                'Dog1',
+                getSoundLibraryUseJapanesePreference()
+            );
             if (addedSound) {
                 directlyAddedAssetSummaries.push({
                     targetName: addedSound.targetName,
@@ -601,7 +691,9 @@ export class ChatComponent extends React.Component {
             this.props.onAddMessage(buildSpriteAddedMessage(addedSpriteNames));
         }
         if (allAddedAssetSummaries.length > 0) {
-            this.props.onAddMessage(buildSpriteAssetsAddedMessage(allAddedAssetSummaries));
+            buildSpriteAssetsAddedMessages(allAddedAssetSummaries).forEach(message => {
+                this.props.onAddMessage(message);
+            });
         }
         if (plannedBackdrops.addedBackdrops.length > 0) {
             this.props.onAddMessage(buildBackdropsAddedMessage(plannedBackdrops.addedBackdrops));

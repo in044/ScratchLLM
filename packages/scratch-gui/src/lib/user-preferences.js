@@ -1,8 +1,12 @@
 const EXPLANATION_LENGTH_KEY = 'scratch-llm.explanationLength';
 const SPRITE_LIBRARY_LANGUAGE_KEY = 'scratch-llm.spriteLibraryLanguage';
 const BACKDROP_LIBRARY_LANGUAGE_KEY = 'scratch-llm.backdropLibraryLanguage';
+const COSTUME_LIBRARY_LANGUAGE_KEY = 'scratch-llm.costumeLibraryLanguage';
+const SOUND_LIBRARY_LANGUAGE_KEY = 'scratch-llm.soundLibraryLanguage';
 const SPRITE_AUTO_ADD_KEY = 'scratch-llm.spriteAutoAddEnabled';
 const BACKDROP_AUTO_ADD_KEY = 'scratch-llm.backdropAutoAddEnabled';
+const COSTUME_AUTO_ADD_KEY = 'scratch-llm.costumeAutoAddEnabled';
+const SOUND_AUTO_ADD_KEY = 'scratch-llm.soundAutoAddEnabled';
 
 const EXPLANATION_LENGTHS = ['long', 'normal', 'short'];
 
@@ -70,12 +74,44 @@ const setBackdropLibraryUseJapanesePreference = useJapaneseNames => {
     writeValue(BACKDROP_LIBRARY_LANGUAGE_KEY, String(useJapaneseNames === true));
 };
 
+const getCostumeLibraryUseJapanesePreference = () => (
+    readBoolean(COSTUME_LIBRARY_LANGUAGE_KEY, true)
+);
+
+const setCostumeLibraryUseJapanesePreference = useJapaneseNames => {
+    writeValue(COSTUME_LIBRARY_LANGUAGE_KEY, String(useJapaneseNames === true));
+};
+
+const getSoundLibraryUseJapanesePreference = () => (
+    readBoolean(SOUND_LIBRARY_LANGUAGE_KEY, true)
+);
+
+const setSoundLibraryUseJapanesePreference = useJapaneseNames => {
+    writeValue(SOUND_LIBRARY_LANGUAGE_KEY, String(useJapaneseNames === true));
+};
+
 const getBackdropAutoAddPreference = () => (
     readBoolean(BACKDROP_AUTO_ADD_KEY, true)
 );
 
 const setBackdropAutoAddPreference = enabled => {
     writeValue(BACKDROP_AUTO_ADD_KEY, String(enabled === true));
+};
+
+const getCostumeAutoAddPreference = () => (
+    readBoolean(COSTUME_AUTO_ADD_KEY, true)
+);
+
+const setCostumeAutoAddPreference = enabled => {
+    writeValue(COSTUME_AUTO_ADD_KEY, String(enabled === true));
+};
+
+const getSoundAutoAddPreference = () => (
+    readBoolean(SOUND_AUTO_ADD_KEY, true)
+);
+
+const setSoundAutoAddPreference = enabled => {
+    writeValue(SOUND_AUTO_ADD_KEY, String(enabled === true));
 };
 
 const getSpriteAutoAddPreference = () => (
@@ -88,13 +124,21 @@ const setSpriteAutoAddPreference = enabled => {
 
 export {
     getBackdropAutoAddPreference,
+    getCostumeAutoAddPreference,
+    getCostumeLibraryUseJapanesePreference,
     getExplanationLengthPreference,
     getBackdropLibraryUseJapanesePreference,
     getSpriteAutoAddPreference,
     getSpriteLibraryUseJapanesePreference,
+    getSoundAutoAddPreference,
+    getSoundLibraryUseJapanesePreference,
     setExplanationLengthPreference,
     setBackdropLibraryUseJapanesePreference,
     setBackdropAutoAddPreference,
+    setCostumeAutoAddPreference,
+    setCostumeLibraryUseJapanesePreference,
     setSpriteAutoAddPreference,
-    setSpriteLibraryUseJapanesePreference
+    setSpriteLibraryUseJapanesePreference,
+    setSoundAutoAddPreference,
+    setSoundLibraryUseJapanesePreference
 };

@@ -120,6 +120,10 @@
     min-width: 11.5rem;
 }
 
+.ai-toggle-option > img {
+    filter: brightness(0) invert(1);
+}
+
 .ai-toggle-label {
     flex: 1;
 }

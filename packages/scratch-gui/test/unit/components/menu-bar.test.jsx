@@ -64,12 +64,22 @@ describe('MenuBar Component', () => {
         expect(onClickAbout).toHaveBeenCalledTimes(1);
     });
 
-    test('shows separate sprite and backdrop automatic addition controls', () => {
+    test('groups automatic addition controls in one submenu', () => {
         store.getState().scratchGui.menus.aiMenu = true;
         const menuBar = mountWithIntl(getComponent());
+        const autoAddSubmenu = menuBar.find('Submenu').filterWhere(submenu => (
+            submenu.text().includes('スプライト') &&
+            submenu.text().includes('背景') &&
+            submenu.text().includes('コスチューム') &&
+            submenu.text().includes('音')
+        )).first();
 
-        expect(menuBar.text()).toContain('スプライト自動追加');
-        expect(menuBar.text()).toContain('背景自動追加');
+        expect(menuBar.text()).toContain('自動追加');
+        expect(autoAddSubmenu.exists()).toBe(true);
+        expect(autoAddSubmenu.text()).toContain('スプライト');
+        expect(autoAddSubmenu.text()).toContain('背景');
+        expect(autoAddSubmenu.text()).toContain('コスチューム');
+        expect(autoAddSubmenu.text()).toContain('音');
         store.getState().scratchGui.menus.aiMenu = false;
     });
 });

@@ -11,7 +11,7 @@ import {
     ChatComponent,
     buildBackdropsAddedMessage,
     buildLlmRequestPayload,
-    buildSpriteAssetsAddedMessage,
+    buildSpriteAssetsAddedMessages,
     buildSpriteAddedMessage,
     ensureExplanatoryScratchFence,
     getApiErrorMessage,
@@ -117,25 +117,28 @@ describe('Automatic sprite notification', () => {
     });
 
     test('builds a bot message after library sprite assets are added', () => {
-        expect(buildSpriteAssetsAddedMessage([{
+        expect(buildSpriteAssetsAddedMessages([{
             targetName: 'ネコ',
             costumes: ['cat-b'],
             sounds: ['Meow']
-        }])).toEqual({
-            text: 'ネコにcat-bのコスチュームを追加しました。ネコにMeowの音を追加しました。',
+        }])).toEqual([{
+            text: 'ネコにcat-bのコスチュームを追加しました。',
             sender: 'bot'
-        });
+        }, {
+            text: 'ネコにMeowの音を追加しました。',
+            sender: 'bot'
+        }]);
     });
 
     test('keeps source names when Scratch renames added costumes', () => {
-        expect(buildSpriteAssetsAddedMessage([{
+        expect(buildSpriteAssetsAddedMessages([{
             targetName: 'ネコ',
             costumes: [{name: 'コスチューム2', sourceName: 'Dog1-a'}],
             sounds: []
-        }])).toEqual({
-            text: 'ネコにコスチューム2（Dog1-a）のコスチュームを追加しました。',
+        }])).toEqual([{
+            text: 'ネコにコスチューム2のコスチュームを追加しました。',
             sender: 'bot'
-        });
+        }]);
     });
 });
 
@@ -384,7 +387,9 @@ describe('Chat request lifecycle', () => {
                     ok: true,
                     json: () => Promise.resolve({
                         sprite_auto_add_enabled: false,
-                        backdrop_auto_add_enabled: false
+                        backdrop_auto_add_enabled: false,
+                        costume_auto_add_enabled: false,
+                        sound_auto_add_enabled: false
                     })
                 });
             }
@@ -441,14 +446,20 @@ describe('Chat request lifecycle', () => {
             displayName: '銀河（Galaxy）',
             japaneseName: '銀河'
         });
+        expect(payload.costumeCatalog.some(costume => costume.name === 'Abby-a')).toBe(true);
+        expect(payload.soundCatalog.some(sound => sound.name === 'A Bass')).toBe(true);
         expect(payload.existingBackdrops).toEqual([]);
         expect(payload.spriteAutoAddEnabled).toBe(true);
         expect(payload.backdropAutoAddEnabled).toBe(true);
+        expect(payload.costumeAutoAddEnabled).toBe(true);
+        expect(payload.soundAutoAddEnabled).toBe(true);
     });
 
-    test('goes directly to the program LLM only when both automatic additions are off', async () => {
+    test('goes directly to the program LLM only when all automatic additions are off', async () => {
         window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
         window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.costumeAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.soundAutoAddEnabled', 'false');
         global.fetch = jest.fn(() => Promise.resolve({
             json: () => Promise.resolve({
                 choices: [{message: {content: '直接返答です。'}}]
@@ -469,6 +480,8 @@ describe('Chat request lifecycle', () => {
     test('calls material planning when only backdrop automatic addition is on', async () => {
         window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
         window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'true');
+        window.localStorage.setItem('scratch-llm.costumeAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.soundAutoAddEnabled', 'false');
         global.fetch = jest.fn(url => {
             if (String(url).includes('/api/status')) {
                 return Promise.resolve({
@@ -489,6 +502,39 @@ describe('Chat request lifecycle', () => {
         const payload = JSON.parse(planCall[1].body);
         expect(payload.spriteAutoAddEnabled).toBe(false);
         expect(payload.backdropAutoAddEnabled).toBe(true);
+        expect(payload.costumeAutoAddEnabled).toBe(false);
+        expect(payload.soundAutoAddEnabled).toBe(false);
+    });
+
+    test('calls material planning when only sound automatic addition is on', async () => {
+        window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.costumeAutoAddEnabled', 'false');
+        window.localStorage.setItem('scratch-llm.soundAutoAddEnabled', 'true');
+        global.fetch = jest.fn(url => {
+            if (String(url).includes('/api/status')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({
+                        sprite_auto_add_enabled: true,
+                        backdrop_auto_add_enabled: true,
+                        costume_auto_add_enabled: true,
+                        sound_auto_add_enabled: true
+                    })
+                });
+            }
+            return Promise.resolve({ok: true, json: () => Promise.resolve({})});
+        });
+        const wrapper = makeChatWrapper();
+
+        await wrapper.instance()._planRequiredSprites('犬の音を追加して', wrapper.instance().props.vm.toJSON());
+
+        const planCall = global.fetch.mock.calls.find(call => String(call[0]).includes('/api/plan-assets'));
+        const payload = JSON.parse(planCall[1].body);
+        expect(payload.spriteAutoAddEnabled).toBe(false);
+        expect(payload.backdropAutoAddEnabled).toBe(false);
+        expect(payload.costumeAutoAddEnabled).toBe(false);
+        expect(payload.soundAutoAddEnabled).toBe(true);
     });
 
     test('does not request a dog sprite after directly adding a dog sound', async () => {
@@ -539,11 +585,11 @@ describe('Chat request lifecycle', () => {
         await flushPromises();
 
         expect(addSound).toHaveBeenCalledWith(
-            expect.objectContaining({name: 'Dog1'}),
+            expect.objectContaining({name: 'イヌの鳴き声1'}),
             'cat-id'
         );
         expect(onAddMessage).toHaveBeenCalledWith({
-            text: 'ネコにDog1の音を追加しました。',
+            text: 'ネコにイヌの鳴き声1の音を追加しました。',
             sender: 'bot'
         });
     });
@@ -597,18 +643,22 @@ describe('Chat request lifecycle', () => {
 
         expect(addCostume).toHaveBeenCalledWith(
             '35cd78a8a71546a16c530d0b2d7d5a7f.svg',
-            expect.objectContaining({name: 'Dog1-a'}),
+            expect.objectContaining({name: 'イヌ1 1'}),
             'cat-id',
             2
         );
         expect(addCostume).toHaveBeenCalledWith(
             'd5a72e1eb23a91df4b53c0b16493d1e6.svg',
-            expect.objectContaining({name: 'Dog1-b'}),
+            expect.objectContaining({name: 'イヌ1 2'}),
             'cat-id',
             2
         );
         expect(onAddMessage).toHaveBeenCalledWith({
-            text: 'ネコにDog1-aのコスチュームを追加しました。ネコにDog1-bのコスチュームを追加しました。',
+            text: 'ネコにイヌ1 1のコスチュームを追加しました。',
+            sender: 'bot'
+        });
+        expect(onAddMessage).toHaveBeenCalledWith({
+            text: 'ネコにイヌ1 2のコスチュームを追加しました。',
             sender: 'bot'
         });
     });
@@ -730,6 +780,10 @@ describe('Chat request lifecycle', () => {
         instance._planRequiredSprites = jest.fn(() => Promise.resolve({
             requiredSprites: ['犬の音'],
             sprites: [],
+            spriteAutoAddEnabled: false,
+            backdropAutoAddEnabled: false,
+            costumeAutoAddEnabled: false,
+            soundAutoAddEnabled: true,
             assetAdditions: [{
                 targetName: 'ネコ',
                 sourceSpriteName: 'Dog1',
@@ -746,13 +800,88 @@ describe('Chat request lifecycle', () => {
         await flushPromises();
 
         expect(addSound).toHaveBeenCalledWith(
-            expect.objectContaining({name: 'dog1'}),
+            expect.objectContaining({name: 'イヌの鳴き声1'}),
             'cat-id'
         );
         expect(onAddMessage).toHaveBeenCalledWith({
-            text: 'ネコにdog1の音を追加しました。',
+            text: 'ネコにイヌの鳴き声1の音を追加しました。',
             sender: 'bot'
         });
+    });
+
+    test('applies planned costumes while sound and sprite addition are off', async () => {
+        const addCostume = jest.fn(() => Promise.resolve());
+        const addSound = jest.fn(() => Promise.resolve());
+        const projectJson = {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                costumes: [{name: 'cat-a'}],
+                sounds: [{name: 'Meow'}]
+            }]
+        };
+        const wrapper = makeChatWrapper({
+            projectJson,
+            vmOverrides: {addCostume, addSound}
+        });
+
+        const result = await wrapper.instance()._applyPlannedSpriteAssets({
+            spriteAutoAddEnabled: false,
+            costumeAutoAddEnabled: true,
+            soundAutoAddEnabled: false,
+            sprites: [{spriteName: 'Dog1'}],
+            assetAdditions: [{
+                targetName: 'ネコ',
+                sourceSpriteName: 'Dog1',
+                costumeNames: ['dog1-a'],
+                soundNames: ['dog1']
+            }]
+        });
+
+        expect(addCostume).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({name: 'イヌ1 1'}),
+            'cat-id',
+            2
+        );
+        expect(addSound).not.toHaveBeenCalled();
+        expect(result.addedSpriteNames).toEqual([]);
+        expect(result.addedAssetSummaries[0].costumes).toEqual(['イヌ1 1']);
+    });
+
+    test('adds a sound from the complete sound library to the planned sprite', async () => {
+        const addSound = jest.fn(() => Promise.resolve());
+        const projectJson = {
+            targets: [{
+                id: 'cat-id',
+                isStage: false,
+                name: 'ネコ',
+                costumes: [{name: 'cat-a'}],
+                sounds: []
+            }]
+        };
+        const wrapper = makeChatWrapper({
+            projectJson,
+            vmOverrides: {addSound}
+        });
+
+        const result = await wrapper.instance()._applyPlannedSpriteAssets({
+            spriteAutoAddEnabled: false,
+            costumeAutoAddEnabled: false,
+            soundAutoAddEnabled: true,
+            soundAdditions: [{targetName: 'ネコ', soundName: 'A Bass'}]
+        });
+
+        expect(addSound).toHaveBeenCalledWith(
+            expect.objectContaining({name: 'A ベース'}),
+            'cat-id'
+        );
+        expect(result.addedAssetSummaries).toEqual([{
+            targetName: 'ネコ',
+            costumes: [],
+            sounds: ['A ベース']
+        }]);
     });
 
     test('adds a planned backdrop before sending its actual name to the program LLM', async () => {

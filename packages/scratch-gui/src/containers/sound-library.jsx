@@ -1,4 +1,5 @@
 import bindAll from 'lodash.bindall';
+import classNames from 'classnames';
 import PropTypes from 'prop-types';
 import React from 'react';
 import {defineMessages, injectIntl, intlShape} from 'react-intl';
@@ -10,8 +11,16 @@ import LibraryComponent from '../components/library/library.jsx';
 import soundIcon from '../components/library-item/lib-icon--sound.svg';
 import soundIconRtl from '../components/library-item/lib-icon--sound-rtl.svg';
 
-import soundLibraryContent from '../lib/libraries/sounds.json';
 import soundTags from '../lib/libraries/sound-tags';
+import {
+    buildDisplaySoundLibrary,
+    isSoundJapaneseNamesEnabled
+} from '../lib/automatic-sprite-selection';
+import {
+    getSoundLibraryUseJapanesePreference,
+    setSoundLibraryUseJapanesePreference
+} from '../lib/user-preferences';
+import styles from './sprite-library.css';
 
 import {connect} from 'react-redux';
 
@@ -20,16 +29,33 @@ const messages = defineMessages({
         defaultMessage: 'Choose a Sound',
         description: 'Heading for the sound library',
         id: 'gui.soundLibrary.chooseASound'
+    },
+    languageToggleLabel: {
+        defaultMessage: 'Sound names',
+        description: 'Label for switching sound library name language',
+        id: 'gui.soundLibrary.languageToggleLabel'
+    },
+    languageJapanese: {
+        defaultMessage: '日本語',
+        description: 'Japanese option for sound library name language',
+        id: 'gui.soundLibrary.languageJapanese'
+    },
+    languageEnglish: {
+        defaultMessage: 'English',
+        description: 'English option for sound library name language',
+        id: 'gui.soundLibrary.languageEnglish'
     }
 });
 
-class SoundLibrary extends React.PureComponent {
+export class SoundLibrary extends React.PureComponent {
     constructor (props) {
         super(props);
         bindAll(this, [
             'handleItemSelected',
             'handleItemMouseEnter',
             'handleItemMouseLeave',
+            'handleUseEnglishNames',
+            'handleUseJapaneseNames',
             'onStop',
             'setStopHandler'
         ]);
@@ -50,6 +76,10 @@ class SoundLibrary extends React.PureComponent {
          * function to call when the sound ends
          */
         this.handleStop = null;
+        this.state = {
+            useJapaneseNames: isSoundJapaneseNamesEnabled() &&
+                getSoundLibraryUseJapanesePreference()
+        };
     }
     componentDidMount () {
         this.audioEngine = new AudioEngine();
@@ -149,9 +179,51 @@ class SoundLibrary extends React.PureComponent {
             this.props.onNewSound();
         });
     }
+    handleUseJapaneseNames () {
+        setSoundLibraryUseJapanesePreference(true);
+        this.setState({useJapaneseNames: true});
+    }
+    handleUseEnglishNames () {
+        setSoundLibraryUseJapanesePreference(false);
+        this.setState({useJapaneseNames: false});
+    }
+    renderLanguageToggle () {
+        if (!isSoundJapaneseNamesEnabled()) return null;
+        const label = this.props.intl.formatMessage(messages.languageToggleLabel);
+        return (
+            <div className={styles.languageToggle}>
+                <span className={styles.languageToggleLabel}>{label}</span>
+                <div
+                    aria-label={label}
+                    className={classNames(styles.languageToggleOptions, {
+                        [styles.languageToggleOptionsJapanese]: this.state.useJapaneseNames,
+                        [styles.languageToggleOptionsEnglish]: !this.state.useJapaneseNames
+                    })}
+                    role="group"
+                >
+                    <button
+                        aria-pressed={this.state.useJapaneseNames}
+                        className={this.state.useJapaneseNames ? styles.active : null}
+                        type="button"
+                        onClick={this.handleUseJapaneseNames}
+                    >
+                        {this.props.intl.formatMessage(messages.languageJapanese)}
+                    </button>
+                    <button
+                        aria-pressed={!this.state.useJapaneseNames}
+                        className={this.state.useJapaneseNames ? null : styles.active}
+                        type="button"
+                        onClick={this.handleUseEnglishNames}
+                    >
+                        {this.props.intl.formatMessage(messages.languageEnglish)}
+                    </button>
+                </div>
+            </div>
+        );
+    }
     render () {
         // @todo need to use this hack to avoid library using md5 for image
-        const soundLibraryThumbnailData = soundLibraryContent.map(sound => {
+        const soundLibraryThumbnailData = buildDisplaySoundLibrary(this.state.useJapaneseNames).map(sound => {
             const {
                 md5ext,
                 ...otherData
@@ -167,6 +239,7 @@ class SoundLibrary extends React.PureComponent {
             <LibraryComponent
                 showPlayButton
                 data={soundLibraryThumbnailData}
+                filterBarControls={this.renderLanguageToggle()}
                 id="soundLibrary"
                 setStopHandler={this.setStopHandler}
                 tags={soundTags}

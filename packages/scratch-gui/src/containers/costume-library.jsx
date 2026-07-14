@@ -1,28 +1,58 @@
 import bindAll from 'lodash.bindall';
+import classNames from 'classnames';
 import PropTypes from 'prop-types';
 import React from 'react';
 import {defineMessages, injectIntl, intlShape} from 'react-intl';
 import VM from '@scratch/scratch-vm';
 
-import costumeLibraryContent from '../lib/libraries/costumes.json';
 import spriteTags from '../lib/libraries/sprite-tags';
+import {
+    buildDisplayCostumeLibrary,
+    isCostumeJapaneseNamesEnabled
+} from '../lib/automatic-sprite-selection';
+import {
+    getCostumeLibraryUseJapanesePreference,
+    setCostumeLibraryUseJapanesePreference
+} from '../lib/user-preferences';
 import LibraryComponent from '../components/library/library.jsx';
+import styles from './sprite-library.css';
 
 const messages = defineMessages({
     libraryTitle: {
         defaultMessage: 'Choose a Costume',
         description: 'Heading for the costume library',
         id: 'gui.costumeLibrary.chooseACostume'
+    },
+    languageToggleLabel: {
+        defaultMessage: 'Costume names',
+        description: 'Label for switching costume library name language',
+        id: 'gui.costumeLibrary.languageToggleLabel'
+    },
+    languageJapanese: {
+        defaultMessage: '日本語',
+        description: 'Japanese option for costume library name language',
+        id: 'gui.costumeLibrary.languageJapanese'
+    },
+    languageEnglish: {
+        defaultMessage: 'English',
+        description: 'English option for costume library name language',
+        id: 'gui.costumeLibrary.languageEnglish'
     }
 });
 
 
-class CostumeLibrary extends React.PureComponent {
+export class CostumeLibrary extends React.PureComponent {
     constructor (props) {
         super(props);
         bindAll(this, [
-            'handleItemSelected'
+            'handleItemSelected',
+            'handleUseEnglishNames',
+            'handleUseJapaneseNames'
         ]);
+        this.state = {
+            useJapaneseNames: isCostumeJapaneseNamesEnabled() &&
+                getCostumeLibraryUseJapanesePreference()
+        };
     }
     handleItemSelected (item) {
         const vmCostume = {
@@ -34,10 +64,53 @@ class CostumeLibrary extends React.PureComponent {
         };
         this.props.vm.addCostumeFromLibrary(item.md5ext, vmCostume);
     }
+    handleUseJapaneseNames () {
+        setCostumeLibraryUseJapanesePreference(true);
+        this.setState({useJapaneseNames: true});
+    }
+    handleUseEnglishNames () {
+        setCostumeLibraryUseJapanesePreference(false);
+        this.setState({useJapaneseNames: false});
+    }
+    renderLanguageToggle () {
+        if (!isCostumeJapaneseNamesEnabled()) return null;
+        const label = this.props.intl.formatMessage(messages.languageToggleLabel);
+        return (
+            <div className={styles.languageToggle}>
+                <span className={styles.languageToggleLabel}>{label}</span>
+                <div
+                    aria-label={label}
+                    className={classNames(styles.languageToggleOptions, {
+                        [styles.languageToggleOptionsJapanese]: this.state.useJapaneseNames,
+                        [styles.languageToggleOptionsEnglish]: !this.state.useJapaneseNames
+                    })}
+                    role="group"
+                >
+                    <button
+                        aria-pressed={this.state.useJapaneseNames}
+                        className={this.state.useJapaneseNames ? styles.active : null}
+                        type="button"
+                        onClick={this.handleUseJapaneseNames}
+                    >
+                        {this.props.intl.formatMessage(messages.languageJapanese)}
+                    </button>
+                    <button
+                        aria-pressed={!this.state.useJapaneseNames}
+                        className={this.state.useJapaneseNames ? null : styles.active}
+                        type="button"
+                        onClick={this.handleUseEnglishNames}
+                    >
+                        {this.props.intl.formatMessage(messages.languageEnglish)}
+                    </button>
+                </div>
+            </div>
+        );
+    }
     render () {
         return (
             <LibraryComponent
-                data={costumeLibraryContent}
+                data={buildDisplayCostumeLibrary(this.state.useJapaneseNames)}
+                filterBarControls={this.renderLanguageToggle()}
                 id="costumeLibrary"
                 tags={spriteTags}
                 title={this.props.intl.formatMessage(messages.libraryTitle)}

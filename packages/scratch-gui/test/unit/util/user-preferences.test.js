@@ -1,14 +1,22 @@
 import {
     getBackdropAutoAddPreference,
     getBackdropLibraryUseJapanesePreference,
+    getCostumeAutoAddPreference,
+    getCostumeLibraryUseJapanesePreference,
     getExplanationLengthPreference,
     getSpriteAutoAddPreference,
     getSpriteLibraryUseJapanesePreference,
+    getSoundAutoAddPreference,
+    getSoundLibraryUseJapanesePreference,
     setExplanationLengthPreference,
     setBackdropLibraryUseJapanesePreference,
     setBackdropAutoAddPreference,
+    setCostumeAutoAddPreference,
+    setCostumeLibraryUseJapanesePreference,
+    setSoundAutoAddPreference,
     setSpriteAutoAddPreference,
-    setSpriteLibraryUseJapanesePreference
+    setSpriteLibraryUseJapanesePreference,
+    setSoundLibraryUseJapanesePreference
 } from '../../../src/lib/user-preferences';
 
 describe('user preferences', () => {
@@ -41,6 +49,10 @@ describe('user preferences', () => {
         expect(getSpriteLibraryUseJapanesePreference()).toBe(true);
         expect(getExplanationLengthPreference()).toBe('normal');
         expect(getSpriteAutoAddPreference()).toBe(true);
+        expect(getCostumeAutoAddPreference()).toBe(true);
+        expect(getSoundAutoAddPreference()).toBe(true);
+        expect(getCostumeLibraryUseJapanesePreference()).toBe(true);
+        expect(getSoundLibraryUseJapanesePreference()).toBe(true);
     });
 
     test('persists sprite library language', () => {
@@ -53,6 +65,16 @@ describe('user preferences', () => {
         setBackdropLibraryUseJapanesePreference(false);
 
         expect(getBackdropLibraryUseJapanesePreference()).toBe(false);
+    });
+
+    test('persists costume and sound library languages independently', () => {
+        setCostumeLibraryUseJapanesePreference(false);
+        setSoundLibraryUseJapanesePreference(false);
+
+        expect(getCostumeLibraryUseJapanesePreference()).toBe(false);
+        expect(getSoundLibraryUseJapanesePreference()).toBe(false);
+        expect(getSpriteLibraryUseJapanesePreference()).toBe(true);
+        expect(getBackdropLibraryUseJapanesePreference()).toBe(true);
     });
 
     test('persists automatic backdrop add state independently', () => {
@@ -78,5 +100,15 @@ describe('user preferences', () => {
         setSpriteAutoAddPreference(false);
 
         expect(getSpriteAutoAddPreference()).toBe(false);
+    });
+
+    test('persists automatic costume and sound states independently', () => {
+        setCostumeAutoAddPreference(false);
+        setSoundAutoAddPreference(false);
+
+        expect(getCostumeAutoAddPreference()).toBe(false);
+        expect(getSoundAutoAddPreference()).toBe(false);
+        expect(getSpriteAutoAddPreference()).toBe(true);
+        expect(getBackdropAutoAddPreference()).toBe(true);
     });
 });

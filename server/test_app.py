@@ -303,6 +303,8 @@ class PromptSecurityTest(unittest.TestCase):
                 'requiredSprites': ['敵'],
                 'sprites': [],
                 'assetAdditions': [],
+                'costumeAdditions': [],
+                'soundAdditions': [],
                 'requiredBackdrops': [],
                 'backdrops': [],
                 'existingBackdropsToReuse': [],
@@ -348,6 +350,8 @@ class PromptSecurityTest(unittest.TestCase):
                     'costumeNames': ['dog1-a'],
                     'soundNames': ['dog1']
                 }],
+                'costumeAdditions': [],
+                'soundAdditions': [],
                 'requiredBackdrops': [],
                 'backdrops': [],
                 'existingBackdropsToReuse': [],
@@ -381,6 +385,8 @@ class PromptSecurityTest(unittest.TestCase):
                 'requiredSprites': ['バナナ'],
                 'sprites': [{'spriteName': 'Bananas'}],
                 'assetAdditions': [],
+                'costumeAdditions': [],
+                'soundAdditions': [],
                 'requiredBackdrops': [],
                 'backdrops': [],
                 'existingBackdropsToReuse': [],
@@ -456,6 +462,8 @@ class PromptSecurityTest(unittest.TestCase):
             'requiredSprites': [],
             'sprites': [],
             'assetAdditions': [],
+            'costumeAdditions': [],
+            'soundAdditions': [],
             'requiredBackdrops': [],
             'backdrops': [],
             'existingBackdropsToReuse': [],
@@ -501,6 +509,8 @@ class PromptSecurityTest(unittest.TestCase):
             'requiredSprites': ['バナナ'],
             'sprites': [{'spriteName': 'Bananas'}],
             'assetAdditions': [],
+            'costumeAdditions': [],
+            'soundAdditions': [],
             'requiredBackdrops': [],
             'backdrops': [],
             'existingBackdropsToReuse': [],
@@ -554,7 +564,9 @@ class PromptSecurityTest(unittest.TestCase):
         with patch.dict(os.environ, {
             'OPENAI_API_KEY': 'test-key',
             'SCRATCH_AUTO_SPRITE_ADD_ENABLED': 'off',
-            'SCRATCH_AUTO_BACKDROP_ADD_ENABLED': 'off'
+            'SCRATCH_AUTO_BACKDROP_ADD_ENABLED': 'off',
+            'SCRATCH_AUTO_COSTUME_ADD_ENABLED': 'off',
+            'SCRATCH_AUTO_SOUND_ADD_ENABLED': 'off'
         }):
             with patch('openai.OpenAI', return_value=client):
                 response = app.test_client().post('/api/plan-sprites', json={
@@ -568,6 +580,8 @@ class PromptSecurityTest(unittest.TestCase):
             'requiredSprites': [],
             'sprites': [],
             'assetAdditions': [],
+            'costumeAdditions': [],
+            'soundAdditions': [],
             'requiredBackdrops': [],
             'backdrops': [],
             'existingBackdropsToReuse': [],
@@ -583,8 +597,12 @@ class PromptSecurityTest(unittest.TestCase):
         client = MagicMock()
         original_value = app_state['sprite_auto_add_enabled']
         original_backdrop_value = app_state['backdrop_auto_add_enabled']
+        original_costume_value = app_state['costume_auto_add_enabled']
+        original_sound_value = app_state['sound_auto_add_enabled']
         app_state['sprite_auto_add_enabled'] = False
         app_state['backdrop_auto_add_enabled'] = False
+        app_state['costume_auto_add_enabled'] = False
+        app_state['sound_auto_add_enabled'] = False
 
         try:
             with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
@@ -597,12 +615,16 @@ class PromptSecurityTest(unittest.TestCase):
         finally:
             app_state['sprite_auto_add_enabled'] = original_value
             app_state['backdrop_auto_add_enabled'] = original_backdrop_value
+            app_state['costume_auto_add_enabled'] = original_costume_value
+            app_state['sound_auto_add_enabled'] = original_sound_value
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {
             'requiredSprites': [],
             'sprites': [],
             'assetAdditions': [],
+            'costumeAdditions': [],
+            'soundAdditions': [],
             'requiredBackdrops': [],
             'backdrops': [],
             'existingBackdropsToReuse': [],
@@ -644,18 +666,114 @@ class PromptSecurityTest(unittest.TestCase):
         self.assertEqual(status_response.status_code, 200)
         self.assertFalse(status_response.get_json()['backdrop_auto_add_enabled'])
 
+    def test_costume_auto_add_toggle_endpoint_updates_status(self):
+        original_value = app_state['costume_auto_add_enabled']
+        app_state['costume_auto_add_enabled'] = True
+
+        try:
+            response = app.test_client().post('/api/admin/toggle-costume-auto-add')
+            status_response = app.test_client().get('/api/status')
+        finally:
+            app_state['costume_auto_add_enabled'] = original_value
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {'costume_auto_add_enabled': False})
+        self.assertFalse(status_response.get_json()['costume_auto_add_enabled'])
+
+    def test_sound_auto_add_toggle_endpoint_updates_status(self):
+        original_value = app_state['sound_auto_add_enabled']
+        app_state['sound_auto_add_enabled'] = True
+
+        try:
+            response = app.test_client().post('/api/admin/toggle-sound-auto-add')
+            status_response = app.test_client().get('/api/status')
+        finally:
+            app_state['sound_auto_add_enabled'] = original_value
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {'sound_auto_add_enabled': False})
+        self.assertFalse(status_response.get_json()['sound_auto_add_enabled'])
+
     def test_material_prompt_disables_only_the_requested_asset_category(self):
         messages = build_sprite_requirement_messages({
             'userInput': '宇宙を背景にして',
             'currentProgram': '# Stage\n# ブロックなし',
             'currentAssets': {'targets': []},
             'spriteAutoAddEnabled': False,
-            'backdropAutoAddEnabled': True
+            'backdropAutoAddEnabled': True,
+            'costumeAutoAddEnabled': False,
+            'soundAutoAddEnabled': True
         })
 
         prompt = messages[-1]['content']
-        self.assertIn('スプライト・コスチューム・音の自動追加は 無効', prompt)
+        self.assertIn('スプライト自動追加は 無効', prompt)
         self.assertIn('背景の自動追加は 有効', prompt)
+        self.assertIn('コスチューム自動追加は 無効', prompt)
+        self.assertIn('音自動追加は 有効', prompt)
+
+    def test_plan_assets_filters_disabled_categories_after_llm_output(self):
+        client = MagicMock()
+        client.moderations.create.return_value = SimpleNamespace(
+            results=[SimpleNamespace(flagged=False)]
+        )
+        client.chat.completions.create.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps({
+                'sprites': [{'spriteName': 'Dog1'}],
+                'assetAdditions': [{
+                    'targetName': 'ネコ',
+                    'sourceSpriteName': 'Dog1',
+                    'costumeNames': ['dog1-a'],
+                    'soundNames': ['dog1']
+                }],
+                'costumeAdditions': [{
+                    'targetName': 'ネコ',
+                    'costumeName': 'Abby-a'
+                }],
+                'soundAdditions': [{
+                    'targetName': 'ネコ',
+                    'soundName': 'A Bass'
+                }],
+                'backdrops': [{'backdropName': 'Galaxy'}]
+            }, ensure_ascii=False)))]
+        )
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+            with patch('openai.OpenAI', return_value=client):
+                response = app.test_client().post('/api/plan-assets', json={
+                    'userInput': '犬の音を追加して',
+                    'currentProgram': '# ネコ\n# ブロックなし',
+                    'currentAssets': {'targets': [{'name': 'ネコ'}]},
+                    'existingSprites': ['ネコ'],
+                    'spriteAutoAddEnabled': False,
+                    'backdropAutoAddEnabled': False,
+                    'costumeAutoAddEnabled': False,
+                    'soundAutoAddEnabled': True,
+                    'spriteCatalog': [{
+                        'name': 'Dog1',
+                        'displayName': 'イヌ1（Dog1）',
+                        'costumes': ['dog1-a'],
+                        'sounds': ['dog1']
+                    }],
+                    'costumeCatalog': [{'name': 'Abby-a', 'tags': ['people']}],
+                    'soundCatalog': [{'name': 'A Bass', 'tags': ['music']}],
+                    'backdropCatalog': [{'name': 'Galaxy', 'displayName': '銀河（Galaxy）'}]
+                })
+
+        body = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(body['sprites'], [])
+        self.assertEqual(body['backdrops'], [])
+        self.assertEqual(body['costumeAdditions'], [])
+        self.assertEqual(body['soundAdditions'], [{
+            'targetName': 'ネコ',
+            'soundName': 'A Bass'
+        }])
+        self.assertEqual(body['assetAdditions'], [{
+            'targetName': 'ネコ',
+            'sourceSpriteName': 'Dog1',
+            'costumeNames': [],
+            'soundNames': ['dog1']
+        }])
 
     def test_rate_limit_errors_are_detected(self):
         error = Exception("Error code: 429 - {'error': {'message': 'Too Many Requests'}}")
