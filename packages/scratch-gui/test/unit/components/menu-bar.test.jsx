@@ -82,4 +82,10 @@ describe('MenuBar Component', () => {
         expect(autoAddSubmenu.text()).toContain('音');
         store.getState().scratchGui.menus.aiMenu = false;
     });
+
+    test('labels the GitHub link as source code', () => {
+        const menuBar = mountWithIntl(getComponent());
+
+        expect(menuBar.text()).toContain('ソースコード（GitHub）');
+    });
 });
