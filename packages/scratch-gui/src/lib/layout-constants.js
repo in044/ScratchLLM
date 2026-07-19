@@ -48,6 +48,10 @@ STAGE_DISPLAY_SCALES[STAGE_DISPLAY_SIZES.small] = 0.5; // small mode, regardless
 export default {
     standardStageWidth: 480,
     standardStageHeight: 360,
+    // Two $space paddings plus the stage's two 1px borders.
+    stagePaneHorizontalSpacing: 18,
+    // Compact chat layout removes both paddings but retains the stage borders.
+    compactStagePaneHorizontalSpacing: 2,
     fullSizeMinWidth: 1096,
     fullSizePaintMinWidth: 1250
 };

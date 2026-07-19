@@ -28,8 +28,8 @@ import DragLayer from '../../containers/drag-layer.jsx';
 import ConnectionModal from '../../containers/connection-modal.jsx';
 import TelemetryModal from '../telemetry-modal/telemetry-modal.jsx';
 
-import layout, { STAGE_SIZE_MODES } from '../../lib/layout-constants';
-import { resolveStageSize } from '../../lib/screen-utils';
+import layout, { STAGE_DISPLAY_SCALES, STAGE_DISPLAY_SIZES, STAGE_SIZE_MODES } from '../../lib/layout-constants';
+import { resolveStageSize, resolveStageSizeForAvailableWidth } from '../../lib/screen-utils';
 import { themeMap } from '../../lib/themes';
 import { AccountMenuOptionsPropTypes } from '../../lib/account-menu-options';
 
@@ -62,6 +62,24 @@ const messages = defineMessages({
 // Assume that it doesn't change for a session.
 let isRendererSupported = null;
 const ACTIVE_TOUCH_OPTIONS = {passive: false};
+const ENABLE_COMPACT_EDITOR_WITH_CHAT = true;
+const CHAT_EDITOR_MIN_WIDTH = 480;
+const CHAT_PANE_MIN_WIDTH = 300;
+const CHAT_PANE_MAX_WIDTH = 600;
+
+const getViewportWidth = () => (
+    typeof window === 'undefined' ? layout.fullSizeMinWidth : window.innerWidth
+);
+
+const getMaxChatPaneWidth = viewportWidth => Math.max(
+    CHAT_PANE_MIN_WIDTH,
+    Math.min(
+        CHAT_PANE_MAX_WIDTH,
+        viewportWidth - CHAT_EDITOR_MIN_WIDTH -
+            (layout.standardStageWidth * STAGE_DISPLAY_SCALES[STAGE_DISPLAY_SIZES.small]) -
+            layout.compactStagePaneHorizontalSpacing
+    )
+);
 
 const getPrimaryPointer = event => {
     if (event.touches && event.touches.length > 0) return event.touches[0];
@@ -92,6 +110,19 @@ const useMinWidth = minWidth => {
     }, [minWidth]);
 
     return matches;
+};
+
+const useViewportWidth = () => {
+    const [viewportWidth, setViewportWidth] = useState(getViewportWidth);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleResize = () => setViewportWidth(getViewportWidth());
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    return viewportWidth;
 };
 
 const GUIComponent = props => {
@@ -198,6 +229,16 @@ const GUIComponent = props => {
     const dragStartX = useRef(null);
     const dragStartWidth = useRef(null);
     const editorWrapperRef = useRef(null);
+    const dragStartEditorWidth = useRef(null);
+    const dragStartStageWidth = useRef(null);
+    const stageWrapperRef = useRef(null);
+    const viewportWidth = useViewportWidth();
+    const compactEditorVisible = ENABLE_COMPACT_EDITOR_WITH_CHAT && chatModalVisible;
+
+    useEffect(() => {
+        if (!compactEditorVisible) return;
+        setChatPaneWidth(currentWidth => Math.min(currentWidth, getMaxChatPaneWidth(viewportWidth)));
+    }, [compactEditorVisible, viewportWidth]);
 
     const handleMouseDown = useCallback(e => {
         const pointer = getPrimaryPointer(e);
@@ -206,6 +247,12 @@ const GUIComponent = props => {
         setIsDragging(true);
         dragStartX.current = pointer.clientX;
         dragStartWidth.current = chatPaneWidth;
+        dragStartEditorWidth.current = editorWrapperRef.current ?
+            editorWrapperRef.current.getBoundingClientRect().width :
+            null;
+        dragStartStageWidth.current = stageWrapperRef.current ?
+            stageWrapperRef.current.getBoundingClientRect().width :
+            null;
         document.body.style.cursor = 'col-resize';
         e.preventDefault();
     }, [chatPaneWidth]);
@@ -286,7 +333,24 @@ const GUIComponent = props => {
             if (e.cancelable) e.preventDefault();
 
             const deltaX = pointer.clientX - dragStartX.current;
-            const newWidth = Math.max(300, Math.min(600, dragStartWidth.current + deltaX));
+            const measuredMaxChatPaneWidth = dragStartEditorWidth.current === null ||
+                dragStartStageWidth.current === null ?
+                CHAT_PANE_MAX_WIDTH :
+                dragStartWidth.current +
+                    Math.max(0, dragStartEditorWidth.current - CHAT_EDITOR_MIN_WIDTH) +
+                    Math.max(
+                        0,
+                        dragStartStageWidth.current -
+                            ((layout.standardStageWidth * STAGE_DISPLAY_SCALES[STAGE_DISPLAY_SIZES.small]) +
+                                layout.compactStagePaneHorizontalSpacing)
+                    );
+            const maxChatPaneWidth = compactEditorVisible ?
+                Math.min(getMaxChatPaneWidth(viewportWidth), measuredMaxChatPaneWidth) :
+                CHAT_PANE_MAX_WIDTH;
+            const newWidth = Math.max(
+                CHAT_PANE_MIN_WIDTH,
+                Math.min(maxChatPaneWidth, dragStartWidth.current + deltaX)
+            );
             setChatPaneWidth(newWidth);
         };
 
@@ -308,7 +372,7 @@ const GUIComponent = props => {
             window.removeEventListener('touchend', handleMouseUp);
             window.removeEventListener('touchcancel', handleMouseUp);
         };
-    }, [isDragging]);
+    }, [compactEditorVisible, isDragging, viewportWidth]);
 
     useEffect(() => {
         if (!editorWrapperRef.current) return;
@@ -337,7 +401,19 @@ const GUIComponent = props => {
         isRendererSupported = Renderer.isSupported();
     }
 
-    const stageSize = resolveStageSize(stageSizeMode, isFullSize);
+    const stageSize = compactEditorVisible ?
+        resolveStageSizeForAvailableWidth(
+            stageSizeMode,
+            viewportWidth - chatPaneWidth,
+            CHAT_EDITOR_MIN_WIDTH
+        ) :
+        resolveStageSize(stageSizeMode, isFullSize);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('resize'));
+        }
+    }, [chatModalVisible, chatPaneWidth, stageSize]);
 
     return isPlayerOnly ? (
         <StageWrapper
@@ -469,6 +545,7 @@ const GUIComponent = props => {
                             componentRef={ref => {
                                 editorWrapperRef.current = ref;
                             }}
+                            style={compactEditorVisible ? {flexBasis: CHAT_EDITOR_MIN_WIDTH} : null}
                         >
                             <div className={styles.tabs}>
                                 <div
@@ -607,7 +684,18 @@ const GUIComponent = props => {
                             ) : null} */}
                         </Box>
 
-                        <Box className={classNames(styles.stageAndTargetWrapper, styles[stageSize])}>
+                        <Box className={classNames(
+                            styles.stageAndTargetWrapper,
+                            styles[stageSize],
+                            {
+                                [styles.compactStageSpacing]: compactEditorVisible &&
+                                    stageSize === STAGE_DISPLAY_SIZES.small
+                            }
+                        )}
+                        componentRef={ref => {
+                            stageWrapperRef.current = ref;
+                        }}
+                        >
                             <StageWrapper
                                 isFullScreen={isFullScreen}
                                 isRendererSupported={isRendererSupported}

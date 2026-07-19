@@ -36,6 +36,34 @@ const resolveStageSize = (stageSizeMode, isFullSize) => {
 };
 
 /**
+ * Resolve the stage size from the horizontal space left after a sidebar.
+ * This preserves a minimum blocks editor width before assigning space to the stage.
+ * @param {STAGE_SIZE_MODES} stageSizeMode - the state of the stage size toggle button.
+ * @param {number} availableWidth - width available to the editor and stage panes.
+ * @param {number} editorMinWidth - minimum width reserved for the blocks editor.
+ * @return {STAGE_DISPLAY_SIZES} - the stage size which fits the remaining width.
+ */
+const resolveStageSizeForAvailableWidth = (stageSizeMode, availableWidth, editorMinWidth) => {
+    if (stageSizeMode === STAGE_SIZE_MODES.small) {
+        return STAGE_DISPLAY_SIZES.small;
+    }
+
+    const availableStageWidth = availableWidth - editorMinWidth;
+    const largeStageWidth = layout.standardStageWidth + layout.stagePaneHorizontalSpacing;
+    const constrainedStageWidth = Math.round(
+        layout.standardStageWidth * STAGE_DISPLAY_SCALES[STAGE_DISPLAY_SIZES.largeConstrained]
+    ) + layout.stagePaneHorizontalSpacing;
+
+    if (availableStageWidth >= largeStageWidth) {
+        return STAGE_DISPLAY_SIZES.large;
+    }
+    if (availableStageWidth >= constrainedStageWidth) {
+        return STAGE_DISPLAY_SIZES.largeConstrained;
+    }
+    return STAGE_DISPLAY_SIZES.small;
+};
+
+/**
  * Retrieve info used to determine the actual stage size based on the current GUI and browser state.
  * @param {STAGE_DISPLAY_SIZES} stageSize - the current fully-resolved stage size.
  * @param {boolean} isFullScreen - true if full-screen mode is enabled.
@@ -100,5 +128,6 @@ const stageSizeToTransform = ({width, height, widthDefault, heightDefault}) => {
 export {
     getStageDimensions,
     resolveStageSize,
+    resolveStageSizeForAvailableWidth,
     stageSizeToTransform
 };
