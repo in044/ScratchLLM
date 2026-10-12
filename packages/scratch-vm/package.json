@@ -18,6 +18,8 @@
     "default": "./src/index.js"
   },
   "files": [
+    "LICENSE",
+    "NOTICE",
     "dist",
     "src"
   ],

@@ -34,6 +34,8 @@
     }
   },
   "files": [
+    "LICENSE",
+    "NOTICE",
     "dist",
     "src"
   ],
