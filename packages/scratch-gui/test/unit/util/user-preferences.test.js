@@ -45,12 +45,12 @@ describe('user preferences', () => {
 
     test('uses the requested defaults', () => {
         expect(getBackdropLibraryUseJapanesePreference()).toBe(true);
-        expect(getBackdropAutoAddPreference()).toBe(true);
+        expect(getBackdropAutoAddPreference()).toBe(false);
         expect(getSpriteLibraryUseJapanesePreference()).toBe(true);
         expect(getExplanationLengthPreference()).toBe('normal');
         expect(getSpriteAutoAddPreference()).toBe(true);
-        expect(getCostumeAutoAddPreference()).toBe(true);
-        expect(getSoundAutoAddPreference()).toBe(true);
+        expect(getCostumeAutoAddPreference()).toBe(false);
+        expect(getSoundAutoAddPreference()).toBe(false);
         expect(getCostumeLibraryUseJapanesePreference()).toBe(true);
         expect(getSoundLibraryUseJapanesePreference()).toBe(true);
     });
@@ -78,9 +78,9 @@ describe('user preferences', () => {
     });
 
     test('persists automatic backdrop add state independently', () => {
-        setBackdropAutoAddPreference(false);
+        setBackdropAutoAddPreference(true);
 
-        expect(getBackdropAutoAddPreference()).toBe(false);
+        expect(getBackdropAutoAddPreference()).toBe(true);
         expect(getSpriteAutoAddPreference()).toBe(true);
     });
 
@@ -103,12 +103,12 @@ describe('user preferences', () => {
     });
 
     test('persists automatic costume and sound states independently', () => {
-        setCostumeAutoAddPreference(false);
-        setSoundAutoAddPreference(false);
+        setCostumeAutoAddPreference(true);
+        setSoundAutoAddPreference(true);
 
-        expect(getCostumeAutoAddPreference()).toBe(false);
-        expect(getSoundAutoAddPreference()).toBe(false);
+        expect(getCostumeAutoAddPreference()).toBe(true);
+        expect(getSoundAutoAddPreference()).toBe(true);
         expect(getSpriteAutoAddPreference()).toBe(true);
-        expect(getBackdropAutoAddPreference()).toBe(true);
+        expect(getBackdropAutoAddPreference()).toBe(false);
     });
 });

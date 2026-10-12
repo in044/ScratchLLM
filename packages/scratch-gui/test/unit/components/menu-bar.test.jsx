@@ -83,6 +83,53 @@ describe('MenuBar Component', () => {
         store.getState().scratchGui.menus.aiMenu = false;
     });
 
+    test('changes and restores automatic addition settings without API requests', () => {
+        const originalFetch = global.fetch;
+        const originalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
+        const preferences = {};
+        Object.defineProperty(window, 'localStorage', {
+            configurable: true,
+            value: {
+                getItem: key => preferences[key] || null,
+                setItem: (key, value) => {
+                    preferences[key] = String(value);
+                }
+            }
+        });
+        global.fetch = jest.fn(() => Promise.reject(new Error('API unavailable')));
+        store.getState().scratchGui.menus.aiMenu = true;
+        let menuBar;
+        try {
+            menuBar = mountWithIntl(getComponent());
+            const assets = ['sprite', 'backdrop', 'costume', 'sound'];
+            assets.forEach(asset => {
+                const toggle = menuBar.find('MenuItem').filterWhere(item => item.text() === {
+                    sprite: 'スプライト', backdrop: '背景', costume: 'コスチューム', sound: '音'
+                }[asset]).first();
+                toggle.simulate('click');
+                expect(preferences[`scratch-llm.${asset}AutoAddEnabled`]).toBe(String(asset !== 'sprite'));
+                toggle.simulate('click');
+                expect(preferences[`scratch-llm.${asset}AutoAddEnabled`]).toBe(String(asset === 'sprite'));
+                toggle.simulate('click');
+            });
+            menuBar.unmount();
+            menuBar = mountWithIntl(getComponent());
+            expect(menuBar.find('MenuBar').first().state()).toMatchObject({
+                spriteAutoAddEnabled: false,
+                backdropAutoAddEnabled: true,
+                costumeAutoAddEnabled: true,
+                soundAutoAddEnabled: true
+            });
+            expect(global.fetch).not.toHaveBeenCalled();
+        } finally {
+            if (menuBar) menuBar.unmount();
+            store.getState().scratchGui.menus.aiMenu = false;
+            global.fetch = originalFetch;
+            if (originalStorage) Object.defineProperty(window, 'localStorage', originalStorage);
+            else delete window.localStorage;
+        }
+    });
+
     test('labels the GitHub link as source code', () => {
         const menuBar = mountWithIntl(getComponent());
 

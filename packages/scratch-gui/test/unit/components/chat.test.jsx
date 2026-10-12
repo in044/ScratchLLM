@@ -378,31 +378,16 @@ describe('Chat request lifecycle', () => {
         expect(onSetIsLoading).toHaveBeenCalledWith(false);
     });
 
-    test('skips material planning when server-side automatic add is off', async () => {
+    test('skips material planning when local automatic add preferences are off', async () => {
         const onAddMessage = jest.fn();
-
-        global.fetch = jest.fn(url => {
-            if (String(url).includes('/api/status')) {
-                return Promise.resolve({
-                    ok: true,
-                    json: () => Promise.resolve({
-                        sprite_auto_add_enabled: false,
-                        backdrop_auto_add_enabled: false,
-                        costume_auto_add_enabled: false,
-                        sound_auto_add_enabled: false
-                    })
-                });
-            }
-            return Promise.resolve({
-                json: () => Promise.resolve({
-                    choices: [{
-                        message: {
-                            content: '返答です。'
-                        }
-                    }]
-                })
-            });
+        ['sprite', 'backdrop', 'costume', 'sound'].forEach(asset => {
+            window.localStorage.setItem(`scratch-llm.${asset}AutoAddEnabled`, 'false');
         });
+        global.fetch = jest.fn(() => Promise.resolve({
+            json: () => Promise.resolve({
+                choices: [{message: {content: '返答です。'}}]
+            })
+        }));
 
         const wrapper = makeChatWrapper({onAddMessage});
         const instance = wrapper.instance();
@@ -417,6 +402,7 @@ describe('Chat request lifecycle', () => {
         expect(global.fetch.mock.calls.map(call => call[0]).some(url => (
             String(url).includes('/api/llm')
         ))).toBe(true);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
         expect(onAddMessage).toHaveBeenCalledWith({
             text: '返答です。',
             sender: 'bot'
@@ -424,6 +410,9 @@ describe('Chat request lifecycle', () => {
     });
 
     test('sends the bilingual backdrop catalog to material planning', async () => {
+        ['backdrop', 'costume', 'sound'].forEach(asset => {
+            window.localStorage.setItem(`scratch-llm.${asset}AutoAddEnabled`, 'true');
+        });
         global.fetch = jest.fn(url => {
             if (String(url).includes('/api/status')) {
                 return Promise.resolve({
@@ -441,6 +430,7 @@ describe('Chat request lifecycle', () => {
         await wrapper.instance()._planRequiredSprites('宇宙を背景にして', wrapper.instance().props.vm.toJSON());
 
         const planCall = global.fetch.mock.calls.find(call => String(call[0]).includes('/api/plan-assets'));
+        expect(global.fetch.mock.calls.some(call => String(call[0]).includes('/api/status'))).toBe(false);
         const payload = JSON.parse(planCall[1].body);
         expect(payload.backdropCatalog.find(backdrop => backdrop.name === 'Galaxy')).toMatchObject({
             displayName: '銀河（Galaxy）',
@@ -499,6 +489,7 @@ describe('Chat request lifecycle', () => {
         await wrapper.instance()._planRequiredSprites('宇宙を背景にして', wrapper.instance().props.vm.toJSON());
 
         const planCall = global.fetch.mock.calls.find(call => String(call[0]).includes('/api/plan-assets'));
+        expect(global.fetch.mock.calls.some(call => String(call[0]).includes('/api/status'))).toBe(false);
         const payload = JSON.parse(planCall[1].body);
         expect(payload.spriteAutoAddEnabled).toBe(false);
         expect(payload.backdropAutoAddEnabled).toBe(true);
@@ -530,6 +521,7 @@ describe('Chat request lifecycle', () => {
         await wrapper.instance()._planRequiredSprites('犬の音を追加して', wrapper.instance().props.vm.toJSON());
 
         const planCall = global.fetch.mock.calls.find(call => String(call[0]).includes('/api/plan-assets'));
+        expect(global.fetch.mock.calls.some(call => String(call[0]).includes('/api/status'))).toBe(false);
         const payload = JSON.parse(planCall[1].body);
         expect(payload.spriteAutoAddEnabled).toBe(false);
         expect(payload.backdropAutoAddEnabled).toBe(false);

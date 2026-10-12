@@ -91,7 +91,7 @@ const setSoundLibraryUseJapanesePreference = useJapaneseNames => {
 };
 
 const getBackdropAutoAddPreference = () => (
-    readBoolean(BACKDROP_AUTO_ADD_KEY, true)
+    readBoolean(BACKDROP_AUTO_ADD_KEY, false)
 );
 
 const setBackdropAutoAddPreference = enabled => {
@@ -99,7 +99,7 @@ const setBackdropAutoAddPreference = enabled => {
 };
 
 const getCostumeAutoAddPreference = () => (
-    readBoolean(COSTUME_AUTO_ADD_KEY, true)
+    readBoolean(COSTUME_AUTO_ADD_KEY, false)
 );
 
 const setCostumeAutoAddPreference = enabled => {
@@ -107,7 +107,7 @@ const setCostumeAutoAddPreference = enabled => {
 };
 
 const getSoundAutoAddPreference = () => (
-    readBoolean(SOUND_AUTO_ADD_KEY, true)
+    readBoolean(SOUND_AUTO_ADD_KEY, false)
 );
 
 const setSoundAutoAddPreference = enabled => {

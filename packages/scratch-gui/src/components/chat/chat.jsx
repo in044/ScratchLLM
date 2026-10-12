@@ -152,7 +152,6 @@ export const ensureExplanatoryScratchFence = (displayResponse, scratchCode) => {
 // Create a .env file in packages/scratch-gui/ with:
 //   REACT_APP_API_BASE_URL=https://your-domain.example.com
 const API_URL = `${process.env.REACT_APP_API_BASE_URL}/api/llm`;
-const STATUS_URL = `${process.env.REACT_APP_API_BASE_URL}/api/status`;
 const SYNTAX_REPAIR_URL = `${process.env.REACT_APP_API_BASE_URL}/api/repair-scratch`;
 const ASSET_PLAN_URL = `${process.env.REACT_APP_API_BASE_URL}/api/plan-assets`;
 
@@ -360,7 +359,7 @@ export class ChatComponent extends React.Component {
     }
 
     async _planRequiredSprites (userInput, projectJson) {
-        const automaticAddState = await this._getAutomaticAssetAddState();
+        const automaticAddState = this._getAutomaticAssetAddState();
         if (!automaticAddState.spriteAutoAddEnabled &&
                 !automaticAddState.backdropAutoAddEnabled &&
                 !automaticAddState.costumeAutoAddEnabled &&
@@ -427,39 +426,12 @@ export class ChatComponent extends React.Component {
         }
     }
 
-    async _getAutomaticAssetAddState () {
-        const localSpriteEnabled = isAutomaticSpriteAddEnabled() && getSpriteAutoAddPreference();
-        const localBackdropEnabled = isAutomaticBackdropAddEnabled() && getBackdropAutoAddPreference();
-        const localCostumeEnabled = isAutomaticCostumeAddEnabled() && getCostumeAutoAddPreference();
-        const localSoundEnabled = isAutomaticSoundAddEnabled() && getSoundAutoAddPreference();
-        if (!localSpriteEnabled && !localBackdropEnabled && !localCostumeEnabled && !localSoundEnabled) {
-            return {
-                spriteAutoAddEnabled: false,
-                backdropAutoAddEnabled: false,
-                costumeAutoAddEnabled: false,
-                soundAutoAddEnabled: false
-            };
-        }
-
-        try {
-            const response = await fetch(STATUS_URL);
-            if (response.ok === false) throw new Error(`Status returned ${response.status}.`);
-            const data = await response.json();
-            return {
-                spriteAutoAddEnabled: localSpriteEnabled && data.sprite_auto_add_enabled !== false,
-                backdropAutoAddEnabled: localBackdropEnabled && data.backdrop_auto_add_enabled !== false,
-                costumeAutoAddEnabled: localCostumeEnabled && data.costume_auto_add_enabled !== false,
-                soundAutoAddEnabled: localSoundEnabled && data.sound_auto_add_enabled !== false
-            };
-        } catch (error) {
-            console.warn('Automatic asset status was unavailable:', error);
-        }
-
+    _getAutomaticAssetAddState () {
         return {
-            spriteAutoAddEnabled: localSpriteEnabled,
-            backdropAutoAddEnabled: localBackdropEnabled,
-            costumeAutoAddEnabled: localCostumeEnabled,
-            soundAutoAddEnabled: localSoundEnabled
+            spriteAutoAddEnabled: isAutomaticSpriteAddEnabled() && getSpriteAutoAddPreference(),
+            backdropAutoAddEnabled: isAutomaticBackdropAddEnabled() && getBackdropAutoAddPreference(),
+            costumeAutoAddEnabled: isAutomaticCostumeAddEnabled() && getCostumeAutoAddPreference(),
+            soundAutoAddEnabled: isAutomaticSoundAddEnabled() && getSoundAutoAddPreference()
         };
     }
 

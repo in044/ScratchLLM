@@ -123,13 +123,6 @@ import {
     setSpriteAutoAddPreference
 } from '../../lib/user-preferences';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
-const API_STATUS_URL = `${API_BASE_URL}/api/status`;
-const SPRITE_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-sprite-auto-add`;
-const BACKDROP_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-backdrop-auto-add`;
-const COSTUME_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-costume-auto-add`;
-const SOUND_AUTO_ADD_TOGGLE_URL = `${API_BASE_URL}/api/admin/toggle-sound-auto-add`;
-
 const ariaMessages = defineMessages({
     tutorials: {
         id: 'gui.menuBar.tutorialsLibrary',
@@ -230,187 +223,20 @@ class MenuBar extends React.Component {
             'handleToggleCostumeAutoAdd',
             'handleToggleSoundAutoAdd',
             'getSaveToComputerHandler',
-            'loadAiMenuState',
-            'syncSpriteAutoAddPreference',
-            'syncBackdropAutoAddPreference',
-            'syncCostumeAutoAddPreference',
-            'syncSoundAutoAddPreference',
             'restoreOptionMessage'
         ]);
         this.state = {
             spriteAutoAddEnabled: getSpriteAutoAddPreference(),
-            spriteAutoAddLoading: true,
             backdropAutoAddEnabled: getBackdropAutoAddPreference(),
-            backdropAutoAddLoading: true,
             costumeAutoAddEnabled: getCostumeAutoAddPreference(),
-            costumeAutoAddLoading: true,
-            soundAutoAddEnabled: getSoundAutoAddPreference(),
-            soundAutoAddLoading: true
+            soundAutoAddEnabled: getSoundAutoAddPreference()
         };
     }
     componentDidMount() {
-        this._isMounted = true;
         document.addEventListener('keydown', this.handleKeyPress);
-        this.loadAiMenuState();
     }
     componentWillUnmount() {
-        this._isMounted = false;
         document.removeEventListener('keydown', this.handleKeyPress);
-    }
-    loadAiMenuState() {
-        if (typeof fetch === 'undefined') {
-            this.setState({
-                spriteAutoAddLoading: false,
-                backdropAutoAddLoading: false,
-                costumeAutoAddLoading: false,
-                soundAutoAddLoading: false
-            });
-            return;
-        }
-        const preferredSpriteAutoAddEnabled = getSpriteAutoAddPreference();
-        const preferredBackdropAutoAddEnabled = getBackdropAutoAddPreference();
-        const preferredCostumeAutoAddEnabled = getCostumeAutoAddPreference();
-        const preferredSoundAutoAddEnabled = getSoundAutoAddPreference();
-        fetch(API_STATUS_URL)
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                if (typeof data.sprite_auto_add_enabled === 'boolean') {
-                    if (data.sprite_auto_add_enabled !== preferredSpriteAutoAddEnabled) {
-                        this.syncSpriteAutoAddPreference();
-                    } else {
-                        this.setState({
-                            spriteAutoAddEnabled: data.sprite_auto_add_enabled,
-                            spriteAutoAddLoading: false
-                        });
-                    }
-                } else {
-                    this.setState({spriteAutoAddLoading: false});
-                }
-                if (typeof data.backdrop_auto_add_enabled === 'boolean') {
-                    if (data.backdrop_auto_add_enabled !== preferredBackdropAutoAddEnabled) {
-                        this.syncBackdropAutoAddPreference();
-                    } else {
-                        this.setState({
-                            backdropAutoAddEnabled: data.backdrop_auto_add_enabled,
-                            backdropAutoAddLoading: false
-                        });
-                    }
-                } else {
-                    this.setState({backdropAutoAddLoading: false});
-                }
-                if (typeof data.costume_auto_add_enabled === 'boolean') {
-                    if (data.costume_auto_add_enabled !== preferredCostumeAutoAddEnabled) {
-                        this.syncCostumeAutoAddPreference();
-                    } else {
-                        this.setState({
-                            costumeAutoAddEnabled: data.costume_auto_add_enabled,
-                            costumeAutoAddLoading: false
-                        });
-                    }
-                } else {
-                    this.setState({costumeAutoAddLoading: false});
-                }
-                if (typeof data.sound_auto_add_enabled === 'boolean') {
-                    if (data.sound_auto_add_enabled !== preferredSoundAutoAddEnabled) {
-                        this.syncSoundAutoAddPreference();
-                    } else {
-                        this.setState({
-                            soundAutoAddEnabled: data.sound_auto_add_enabled,
-                            soundAutoAddLoading: false
-                        });
-                    }
-                } else {
-                    this.setState({soundAutoAddLoading: false});
-                }
-            })
-            .catch(error => {
-                console.warn('Failed to load AI menu state:', error);
-                if (this._isMounted) {
-                    this.setState({
-                        spriteAutoAddLoading: false,
-                        backdropAutoAddLoading: false,
-                        costumeAutoAddLoading: false,
-                        soundAutoAddLoading: false
-                    });
-                }
-            });
-    }
-    syncSpriteAutoAddPreference() {
-        if (typeof fetch === 'undefined') {
-            this.setState({spriteAutoAddLoading: false});
-            return;
-        }
-        fetch(SPRITE_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                this.setState({
-                    spriteAutoAddEnabled: data.sprite_auto_add_enabled === true,
-                    spriteAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to sync sprite auto add preference:', error);
-                if (this._isMounted) this.setState({spriteAutoAddLoading: false});
-            });
-    }
-    syncBackdropAutoAddPreference() {
-        if (typeof fetch === 'undefined') {
-            this.setState({backdropAutoAddLoading: false});
-            return;
-        }
-        fetch(BACKDROP_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                this.setState({
-                    backdropAutoAddEnabled: data.backdrop_auto_add_enabled === true,
-                    backdropAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to sync backdrop auto add preference:', error);
-                if (this._isMounted) this.setState({backdropAutoAddLoading: false});
-            });
-    }
-    syncCostumeAutoAddPreference() {
-        if (typeof fetch === 'undefined') {
-            this.setState({costumeAutoAddLoading: false});
-            return;
-        }
-        fetch(COSTUME_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                this.setState({
-                    costumeAutoAddEnabled: data.costume_auto_add_enabled === true,
-                    costumeAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to sync costume auto add preference:', error);
-                if (this._isMounted) this.setState({costumeAutoAddLoading: false});
-            });
-    }
-    syncSoundAutoAddPreference() {
-        if (typeof fetch === 'undefined') {
-            this.setState({soundAutoAddLoading: false});
-            return;
-        }
-        fetch(SOUND_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                this.setState({
-                    soundAutoAddEnabled: data.sound_auto_add_enabled === true,
-                    soundAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to sync sound auto add preference:', error);
-                if (this._isMounted) this.setState({soundAutoAddLoading: false});
-            });
     }
     handleClickNew() {
         // if the project is dirty, and user owns the project, we will autosave.
@@ -497,78 +323,24 @@ class MenuBar extends React.Component {
         };
     }
     handleToggleSpriteAutoAdd() {
-        if (this.state.spriteAutoAddLoading) return;
-        if (typeof fetch === 'undefined') return;
-        this.setState({spriteAutoAddLoading: true});
-        fetch(SPRITE_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                setSpriteAutoAddPreference(data.sprite_auto_add_enabled === true);
-                this.setState({
-                    spriteAutoAddEnabled: data.sprite_auto_add_enabled === true,
-                    spriteAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to toggle sprite auto add:', error);
-                if (this._isMounted) this.setState({spriteAutoAddLoading: false});
-            });
+        const enabled = !this.state.spriteAutoAddEnabled;
+        setSpriteAutoAddPreference(enabled);
+        this.setState({spriteAutoAddEnabled: enabled});
     }
     handleToggleBackdropAutoAdd() {
-        if (this.state.backdropAutoAddLoading) return;
-        if (typeof fetch === 'undefined') return;
-        this.setState({backdropAutoAddLoading: true});
-        fetch(BACKDROP_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                setBackdropAutoAddPreference(data.backdrop_auto_add_enabled === true);
-                this.setState({
-                    backdropAutoAddEnabled: data.backdrop_auto_add_enabled === true,
-                    backdropAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to toggle backdrop auto add:', error);
-                if (this._isMounted) this.setState({backdropAutoAddLoading: false});
-            });
+        const enabled = !this.state.backdropAutoAddEnabled;
+        setBackdropAutoAddPreference(enabled);
+        this.setState({backdropAutoAddEnabled: enabled});
     }
     handleToggleCostumeAutoAdd() {
-        if (this.state.costumeAutoAddLoading || typeof fetch === 'undefined') return;
-        this.setState({costumeAutoAddLoading: true});
-        fetch(COSTUME_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                setCostumeAutoAddPreference(data.costume_auto_add_enabled === true);
-                this.setState({
-                    costumeAutoAddEnabled: data.costume_auto_add_enabled === true,
-                    costumeAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to toggle costume auto add:', error);
-                if (this._isMounted) this.setState({costumeAutoAddLoading: false});
-            });
+        const enabled = !this.state.costumeAutoAddEnabled;
+        setCostumeAutoAddPreference(enabled);
+        this.setState({costumeAutoAddEnabled: enabled});
     }
     handleToggleSoundAutoAdd() {
-        if (this.state.soundAutoAddLoading || typeof fetch === 'undefined') return;
-        this.setState({soundAutoAddLoading: true});
-        fetch(SOUND_AUTO_ADD_TOGGLE_URL, {method: 'POST'})
-            .then(response => response.ok ? response.json() : Promise.reject(response))
-            .then(data => {
-                if (!this._isMounted) return;
-                setSoundAutoAddPreference(data.sound_auto_add_enabled === true);
-                this.setState({
-                    soundAutoAddEnabled: data.sound_auto_add_enabled === true,
-                    soundAutoAddLoading: false
-                });
-            })
-            .catch(error => {
-                console.warn('Failed to toggle sound auto add:', error);
-                if (this._isMounted) this.setState({soundAutoAddLoading: false});
-            });
+        const enabled = !this.state.soundAutoAddEnabled;
+        setSoundAutoAddPreference(enabled);
+        this.setState({soundAutoAddEnabled: enabled});
     }
     handleKeyPress(event) {
         const modifier = bowser.mac ? event.metaKey : event.ctrlKey;
@@ -942,9 +714,6 @@ class MenuBar extends React.Component {
                                         </span>
                                         <Submenu place={this.props.isRtl ? 'left' : 'right'}>
                                             <MenuItem
-                                                className={classNames({
-                                                    [styles.disabled]: this.state.spriteAutoAddLoading
-                                                })}
                                                 onClick={this.handleToggleSpriteAutoAdd}
                                             >
                                                 <span className={styles.aiToggleOption}>
@@ -964,9 +733,6 @@ class MenuBar extends React.Component {
                                                 </span>
                                             </MenuItem>
                                             <MenuItem
-                                                className={classNames({
-                                                    [styles.disabled]: this.state.backdropAutoAddLoading
-                                                })}
                                                 onClick={this.handleToggleBackdropAutoAdd}
                                             >
                                                 <span className={styles.aiToggleOption}>
@@ -986,9 +752,6 @@ class MenuBar extends React.Component {
                                                 </span>
                                             </MenuItem>
                                             <MenuItem
-                                                className={classNames({
-                                                    [styles.disabled]: this.state.costumeAutoAddLoading
-                                                })}
                                                 onClick={this.handleToggleCostumeAutoAdd}
                                             >
                                                 <span className={styles.aiToggleOption}>
@@ -1008,9 +771,6 @@ class MenuBar extends React.Component {
                                                 </span>
                                             </MenuItem>
                                             <MenuItem
-                                                className={classNames({
-                                                    [styles.disabled]: this.state.soundAutoAddLoading
-                                                })}
                                                 onClick={this.handleToggleSoundAutoAdd}
                                             >
                                                 <span className={styles.aiToggleOption}>
