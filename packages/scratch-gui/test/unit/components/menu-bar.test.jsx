@@ -107,9 +107,9 @@ describe('MenuBar Component', () => {
                     sprite: 'スプライト', backdrop: '背景', costume: 'コスチューム', sound: '音'
                 }[asset]).first();
                 toggle.simulate('click');
-                expect(preferences[`scratch-llm.${asset}AutoAddEnabled`]).toBe(String(asset !== 'sprite'));
+                expect(preferences[`s-llm.${asset}AutoAddEnabled`]).toBe(String(asset !== 'sprite'));
                 toggle.simulate('click');
-                expect(preferences[`scratch-llm.${asset}AutoAddEnabled`]).toBe(String(asset === 'sprite'));
+                expect(preferences[`s-llm.${asset}AutoAddEnabled`]).toBe(String(asset === 'sprite'));
                 toggle.simulate('click');
             });
             menuBar.unmount();

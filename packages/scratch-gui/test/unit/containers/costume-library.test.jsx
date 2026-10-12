@@ -40,7 +40,7 @@ describe('Costume library language switch', () => {
 
         expect(wrapper.find(LibraryComponent).prop('data').find(item => item.libraryName === 'Dog1-a').name)
             .toBe('Dog1-a');
-        expect(store['scratch-llm.costumeLibraryLanguage']).toBe('false');
+        expect(store['s-llm.costumeLibraryLanguage']).toBe('false');
     });
 
     test('adds the displayed Japanese costume name to Scratch', () => {

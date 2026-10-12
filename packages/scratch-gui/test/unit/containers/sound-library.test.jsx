@@ -43,7 +43,7 @@ describe('Sound library language switch', () => {
 
         expect(wrapper.find(LibraryComponent).prop('data').find(item => item.libraryName === 'Bark').name)
             .toBe('Bark');
-        expect(store['scratch-llm.soundLibraryLanguage']).toBe('false');
+        expect(store['s-llm.soundLibraryLanguage']).toBe('false');
     });
 
     test('adds the displayed Japanese sound name to Scratch', async () => {

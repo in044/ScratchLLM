@@ -16,7 +16,7 @@ import largeStageIcon from './icon--large-stage.svg';
 import smallStageIcon from './icon--small-stage.svg';
 import unFullScreenIcon from './icon--unfullscreen.svg';
 
-import scratchLogo from '../menu-bar/scratch-logo.svg';
+import sLlmLogo from '../menu-bar/s-llm-logo.svg';
 import styles from './stage-header.css';
 
 const messages = defineMessages({
@@ -66,15 +66,15 @@ const StageHeaderComponent = function (props) {
     if (isFullScreen) {
         const stageDimensions = getStageDimensions(null, true);
         const stageButton = showBranding ? (
-            <div className={styles.embedScratchLogo}>
+            <div className={styles.embedSLlmLogo}>
                 <a
-                    href="https://scratch.mit.edu"
+                    href="https://github.com/in044/ScratchLLM"
                     rel="noopener noreferrer"
                     target="_blank"
                 >
                     <img
-                        alt="Scratch"
-                        src={scratchLogo}
+                        alt="S-LLM"
+                        src={sLlmLogo}
                     />
                 </a>
             </div>

@@ -26,8 +26,8 @@
     padding-bottom: $space;
 }
 
-.embed-scratch-logo img {
-    height:  1.6rem;
+.embed-s-llm-logo img {
+    height: 1.6rem;
     vertical-align: middle;
     opacity: .6;
 }

@@ -88,13 +88,13 @@ Now you're ready to make commits using `git cz`.
 
 ## License and attribution
 
-This package is included in ScratchLLM, a modified version of
+This package is included in S-LLM, a modified version of
 [Scratch Editor](https://github.com/scratchfoundation/scratch-editor), and is
 licensed under **AGPL-3.0-only**. See [LICENSE](LICENSE) for the complete terms
 and [NOTICE](NOTICE) for retained upstream copyright and historical BSD notices.
 The software is provided without warranty, subject to the applicable license terms.
 
 For the fork's changes, dates, setup, and corresponding source distribution,
-see the [ScratchLLM README](../../README.md). License documentation was updated
+see the [S-LLM README](../../README.md). License documentation was updated
 on 2026-10-12. The earlier instructions above describe the upstream package;
 use the root README to build and run this fork.

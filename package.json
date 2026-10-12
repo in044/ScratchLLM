@@ -1,14 +1,14 @@
 {
-  "name": "scratch-editor",
+  "name": "s-llm",
   "version": "11.2.0-svg-sanitization.2",
   "private": "true",
-  "description": "Scratch editor mono-repository",
+  "description": "S-LLM: natural-language programming assistance for a modified Scratch editor",
   "author": "Scratch Foundation",
   "license": "AGPL-3.0-only",
-  "homepage": "https://github.com/scratchfoundation/scratch-editor#readme",
+  "homepage": "https://github.com/in044/ScratchLLM#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/scratchfoundation/scratch-editor.git"
+    "url": "https://github.com/in044/ScratchLLM.git"
   },
   "scripts": {
     "refresh-gh-workflow": "ts-node scripts/build-gha-workflows.ts",

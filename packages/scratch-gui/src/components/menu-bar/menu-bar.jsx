@@ -79,6 +79,7 @@ import {
 import collectMetadata from '../../lib/collect-metadata';
 import { PLATFORM } from '../../lib/platform';
 
+import sLlmLogo from './s-llm-logo.svg';
 import styles from './menu-bar.css';
 import settingsMenuStyles from './settings-menu.css';
 
@@ -102,12 +103,6 @@ import costumeAutoAddIcon from '../gui/icon--costumes.svg';
 import soundAutoAddIcon from '../gui/icon--sounds.svg';
 import check from './check.svg';
 
-import scratchLogo from './scratch-logo.svg';
-import scratchLogoAndroid from './scratch-logo-android.svg';
-import ninetiesLogo from './nineties_logo.svg';
-import catLogo from './cat_logo.svg';
-import prehistoricLogo from './prehistoric-logo.svg';
-import oldtimeyLogo from './oldtimey-logo.svg';
 
 import sharedMessages from '../../lib/shared-messages';
 
@@ -136,7 +131,6 @@ const ariaMessages = defineMessages({
     }
 });
 
-const getScratchLogo = platform => (platform === PLATFORM.ANDROID ? scratchLogoAndroid : scratchLogo);
 
 const MenuBarItemTooltip = ({
     children,
@@ -298,19 +292,6 @@ class MenuBar extends React.Component {
             } else {
                 document.documentElement.style.filter = '';
                 document.documentElement.style.height = '';
-            }
-
-            // Change logo for modes
-            if (mode === '1990') {
-                document.getElementById('logo_img').src = ninetiesLogo;
-            } else if (mode === '2020') {
-                document.getElementById('logo_img').src = catLogo;
-            } else if (mode === '1920') {
-                document.getElementById('logo_img').src = oldtimeyLogo;
-            } else if (mode === '220022BC') {
-                document.getElementById('logo_img').src = prehistoricLogo;
-            } else {
-                document.getElementById('logo_img').src = getScratchLogo(this.props.platform);
             }
 
             this.props.onSetTimeTravelMode(mode);
@@ -492,15 +473,14 @@ class MenuBar extends React.Component {
             >
                 <div className={styles.mainMenu}>
                     <div className={styles.fileGroup}>
-                        <div className={classNames(styles.menuBarItem)}>
+                        <div className={styles.menuBarItem}>
                             <img
-                                id="logo_img"
-                                alt="Scratch"
-                                className={classNames(styles.scratchLogo, {
+                                alt="S-LLM"
+                                className={classNames(styles.sLlmLogo, {
                                     [styles.clickable]: typeof this.props.onClickLogo !== 'undefined'
                                 })}
                                 draggable={false}
-                                src={getScratchLogo(this.props.platform)}
+                                src={sLlmLogo}
                                 onClick={this.props.onClickLogo}
                             />
                         </div>
@@ -889,7 +869,6 @@ MenuBar.propTypes = {
     isUpdating: PropTypes.bool,
     locale: PropTypes.string.isRequired,
     loginMenuOpen: PropTypes.bool,
-    logo: PropTypes.string,
     mode1920: PropTypes.bool,
     mode1990: PropTypes.bool,
     mode2020: PropTypes.bool,
@@ -910,8 +889,8 @@ MenuBar.propTypes = {
     onClickEdit: PropTypes.func,
     onClickFile: PropTypes.func,
     onClickLogin: PropTypes.func,
-    onClickLogo: PropTypes.func,
     onClickMode: PropTypes.func,
+    onClickLogo: PropTypes.func,
     onClickNew: PropTypes.func,
     onClickRemix: PropTypes.func,
     onClickSave: PropTypes.func,
@@ -954,7 +933,6 @@ MenuBar.propTypes = {
 };
 
 MenuBar.defaultProps = {
-    logo: scratchLogo,
     onShare: () => { }
 };
 

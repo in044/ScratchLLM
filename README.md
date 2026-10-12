@@ -1,6 +1,6 @@
-# ScratchLLM
+# S-LLM
 
-ScratchLLMは、[Scratch Editor](https://github.com/scratchfoundation/scratch-editor)を改変し、
+S-LLMは、[Scratch Editor](https://github.com/scratchfoundation/scratch-editor)を改変し、
 自然言語によるプログラミング支援を追加したプロジェクトです。
 Scratch FoundationやMITの公式製品ではなく、両者による承認・推奨を示すものではありません。
 公式のScratchを利用する場合は、[ScratchのWebサイト](https://scratch.mit.edu/)をご覧ください。
@@ -110,7 +110,7 @@ AGPL第4〜6条に従い、配布物にはライセンス全文、著作権・�
 改変版をネットワーク経由で利用させる場合は、AGPL第13条に従い、利用者がその版の対応するソースを
 無償で取得できる方法を画面上で目立つように案内してください。
 本エディターのメニューバーには「ソースコード（GitHub）」へのリンクがあり、現在は
-[in044/ScratchLLM](https://github.com/in044/ScratchLLM)を参照しています。
+[S-LLMのソースコード](https://github.com/in044/ScratchLLM)を参照しています。
 公開時には、[リンク先の設定](packages/scratch-gui/src/components/menu-bar/menu-bar.jsx)を
 実際に稼働する版のソースを提供するURLに合わせ、対応するコミットやタグ、取得方法を明示してください。
 上流の未改変ソースだけでは、本フォークの対応するソースの提供にはなりません。

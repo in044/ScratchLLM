@@ -52,7 +52,7 @@ describe('Backdrop library language switch', () => {
 
         expect(wrapper.find(LibraryComponent).prop('data').find(item => item.libraryName === 'Galaxy').name)
             .toBe('Galaxy');
-        expect(store['scratch-llm.backdropLibraryLanguage']).toBe('false');
+        expect(store['s-llm.backdropLibraryLanguage']).toBe('false');
     });
 
     test('adds the displayed Japanese name to Scratch', () => {

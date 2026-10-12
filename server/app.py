@@ -14,7 +14,7 @@ from werkzeug.exceptions import BadRequest
 load_dotenv()
 
 # --- Argument Parsing ---
-# parser = argparse.ArgumentParser(description='Scratch LLM Server')
+# parser = argparse.ArgumentParser(description='S-LLM Server')
 # parser.add_argument(
 #     '--no-approval',
 #     action='store_true',

@@ -44,12 +44,12 @@
     opacity: 0;
 }
 
-.scratch-logo {
+.s-llm-logo {
     height: 1.6rem;
     vertical-align: middle;
 }
 
-.scratch-logo.clickable {
+.s-llm-logo.clickable {
     cursor: pointer;
 }
 

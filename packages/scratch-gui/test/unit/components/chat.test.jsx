@@ -381,7 +381,7 @@ describe('Chat request lifecycle', () => {
     test('skips material planning when local automatic add preferences are off', async () => {
         const onAddMessage = jest.fn();
         ['sprite', 'backdrop', 'costume', 'sound'].forEach(asset => {
-            window.localStorage.setItem(`scratch-llm.${asset}AutoAddEnabled`, 'false');
+            window.localStorage.setItem(`s-llm.${asset}AutoAddEnabled`, 'false');
         });
         global.fetch = jest.fn(() => Promise.resolve({
             json: () => Promise.resolve({
@@ -411,7 +411,7 @@ describe('Chat request lifecycle', () => {
 
     test('sends the bilingual backdrop catalog to material planning', async () => {
         ['backdrop', 'costume', 'sound'].forEach(asset => {
-            window.localStorage.setItem(`scratch-llm.${asset}AutoAddEnabled`, 'true');
+            window.localStorage.setItem(`s-llm.${asset}AutoAddEnabled`, 'true');
         });
         global.fetch = jest.fn(url => {
             if (String(url).includes('/api/status')) {
@@ -446,10 +446,10 @@ describe('Chat request lifecycle', () => {
     });
 
     test('goes directly to the program LLM only when all automatic additions are off', async () => {
-        window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.costumeAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.soundAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.spriteAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.backdropAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.costumeAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.soundAutoAddEnabled', 'false');
         global.fetch = jest.fn(() => Promise.resolve({
             json: () => Promise.resolve({
                 choices: [{message: {content: '直接返答です。'}}]
@@ -468,10 +468,10 @@ describe('Chat request lifecycle', () => {
     });
 
     test('calls material planning when only backdrop automatic addition is on', async () => {
-        window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'true');
-        window.localStorage.setItem('scratch-llm.costumeAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.soundAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.spriteAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.backdropAutoAddEnabled', 'true');
+        window.localStorage.setItem('s-llm.costumeAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.soundAutoAddEnabled', 'false');
         global.fetch = jest.fn(url => {
             if (String(url).includes('/api/status')) {
                 return Promise.resolve({
@@ -498,10 +498,10 @@ describe('Chat request lifecycle', () => {
     });
 
     test('calls material planning when only sound automatic addition is on', async () => {
-        window.localStorage.setItem('scratch-llm.spriteAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.backdropAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.costumeAutoAddEnabled', 'false');
-        window.localStorage.setItem('scratch-llm.soundAutoAddEnabled', 'true');
+        window.localStorage.setItem('s-llm.spriteAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.backdropAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.costumeAutoAddEnabled', 'false');
+        window.localStorage.setItem('s-llm.soundAutoAddEnabled', 'true');
         global.fetch = jest.fn(url => {
             if (String(url).includes('/api/status')) {
                 return Promise.resolve({

@@ -1,12 +1,12 @@
-const EXPLANATION_LENGTH_KEY = 'scratch-llm.explanationLength';
-const SPRITE_LIBRARY_LANGUAGE_KEY = 'scratch-llm.spriteLibraryLanguage';
-const BACKDROP_LIBRARY_LANGUAGE_KEY = 'scratch-llm.backdropLibraryLanguage';
-const COSTUME_LIBRARY_LANGUAGE_KEY = 'scratch-llm.costumeLibraryLanguage';
-const SOUND_LIBRARY_LANGUAGE_KEY = 'scratch-llm.soundLibraryLanguage';
-const SPRITE_AUTO_ADD_KEY = 'scratch-llm.spriteAutoAddEnabled';
-const BACKDROP_AUTO_ADD_KEY = 'scratch-llm.backdropAutoAddEnabled';
-const COSTUME_AUTO_ADD_KEY = 'scratch-llm.costumeAutoAddEnabled';
-const SOUND_AUTO_ADD_KEY = 'scratch-llm.soundAutoAddEnabled';
+const EXPLANATION_LENGTH_KEY = 's-llm.explanationLength';
+const SPRITE_LIBRARY_LANGUAGE_KEY = 's-llm.spriteLibraryLanguage';
+const BACKDROP_LIBRARY_LANGUAGE_KEY = 's-llm.backdropLibraryLanguage';
+const COSTUME_LIBRARY_LANGUAGE_KEY = 's-llm.costumeLibraryLanguage';
+const SOUND_LIBRARY_LANGUAGE_KEY = 's-llm.soundLibraryLanguage';
+const SPRITE_AUTO_ADD_KEY = 's-llm.spriteAutoAddEnabled';
+const BACKDROP_AUTO_ADD_KEY = 's-llm.backdropAutoAddEnabled';
+const COSTUME_AUTO_ADD_KEY = 's-llm.costumeAutoAddEnabled';
+const SOUND_AUTO_ADD_KEY = 's-llm.soundAutoAddEnabled';
 
 const EXPLANATION_LENGTHS = ['long', 'normal', 'short'];
 
@@ -23,7 +23,19 @@ const readValue = key => {
     const storage = getLocalStorage();
     if (!storage) return null;
     try {
-        return storage.getItem(key);
+        const value = storage.getItem(key);
+        if (value !== null) return value;
+        const legacyKey = key.replace(/^s-llm\./, 'scratch-llm.');
+        const legacyValue = storage.getItem(legacyKey);
+        if (legacyValue === null) return null;
+        // Preserve existing preferences when upgrading to S-LLM.
+        try {
+            storage.setItem(key, legacyValue);
+            storage.removeItem(legacyKey);
+        } catch (error) {
+            // Keep using the saved preference even if migration is unavailable.
+        }
+        return legacyValue;
     } catch (error) {
         return null;
     }
